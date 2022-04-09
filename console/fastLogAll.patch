@@ -1,0 +1,122 @@
+--- a/console.go	2021-12-01 20:14:41.000000000 -0800
++++ b/console.go	2021-12-01 20:13:55.943736144 -0800
+@@ -305,15 +305,11 @@
+ 	}
+ 	output.WriteByte('\n')
+ 	output.WriteByte('\n')
+-	size := count
+-	if count == -1 {
+-		size = 65536
+-	}
+-	msgs := make([]*discordgo.Message, 0, size)
+-	var lastMsg string
++	lastMsg := "0"
++	var lastDay int
+ 	nicks := make(map[string]string)
+ 	for count != 0 {
+-		toProc, err := client.ChannelMessages(channel.ID, 100, lastMsg, "", "")
++		toProc, err := client.ChannelMessages(channel.ID, 100, "", lastMsg, "")
+ 		if err != nil {
+ 			fmt.Println(err)
+ 			input.ReadBytes('\n')
+@@ -326,8 +322,9 @@
+ 			break
+ 		}
+ 		count -= len(toProc)
+-		lastMsg = toProc[len(toProc)-1].ID
+-		for _, v := range toProc {
++		lastMsg = toProc[0].ID
++		for i := len(toProc) - 1; i >= 0; i-- {
++			v := toProc[i]
+ 			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
+ 				continue
+ 			}
+@@ -340,52 +337,47 @@
+ 					}
+ 				}
+ 			}
+-			msgs = append(msgs, v)
+-		}
+-	}
+-	var lastDay int
+-	for i := len(msgs) - 1; i >= 0; i-- {
+-		v := msgs[i]
+-		t, _ := v.Timestamp.Parse()
+-		t = t.In(time.Local)
+-		if t.YearDay() != lastDay {
+-			output.WriteString(t.Format(dateFormat))
+-			lastDay = t.YearDay()
+-		}
+-		output.WriteString(t.Format(timeFormat))
+-		output.WriteString(" <")
+-		output.WriteString(nicks[v.Author.ID])
+-		output.WriteString("> ")
+-		content, err := v.ContentWithMoreMentionsReplaced(client)
+-		if err == nil {
+-			output.WriteString(content)
+-		} else {
+-			output.WriteString(v.ContentWithMentionsReplaced())
+-		}
+-		if v.Pinned {
+-			output.WriteString("\n - Pinned")
+-		}
+-		for _, attach := range v.Attachments {
+-			output.WriteString("\n - Attachment: ")
+-			output.WriteString(attach.URL)
+-		}
+-		for _, attach := range v.Embeds {
+-			if attach.Image != nil {
+-				output.WriteString("\n - Image: ")
+-				output.WriteString(attach.Image.URL)
++			t, _ := v.Timestamp.Parse()
++			t = t.In(time.Local)
++			if t.YearDay() != lastDay {
++				output.WriteString(t.Format(dateFormat))
++				lastDay = t.YearDay()
++			}
++			output.WriteString(t.Format(timeFormat))
++			output.WriteString(" <")
++			output.WriteString(nicks[v.Author.ID])
++			output.WriteString("> ")
++			content, err := v.ContentWithMoreMentionsReplaced(client)
++			if err == nil {
++				output.WriteString(content)
+ 			} else {
+-				output.WriteString("\n - Embed: ")
+-				if attach.URL != "" {
+-					output.WriteString(attach.URL)
++				output.WriteString(v.ContentWithMentionsReplaced())
++			}
++			if v.Pinned {
++				output.WriteString("\n - Pinned")
++			}
++			for _, attach := range v.Attachments {
++				output.WriteString("\n - Attachment: ")
++				output.WriteString(attach.URL)
++			}
++			for _, attach := range v.Embeds {
++				if attach.Image != nil {
++					output.WriteString("\n - Image: ")
++					output.WriteString(attach.Image.URL)
+ 				} else {
+-					output.WriteString(attach.Title)
+-					output.WriteString(" (")
+-					output.WriteString(attach.Description)
+-					output.WriteByte(')')
++					output.WriteString("\n - Embed: ")
++					if attach.URL != "" {
++						output.WriteString(attach.URL)
++					} else {
++						output.WriteString(attach.Title)
++						output.WriteString(" (")
++						output.WriteString(attach.Description)
++						output.WriteByte(')')
++					}
+ 				}
+ 			}
++			output.WriteByte('\n')
+ 		}
+-		output.WriteByte('\n')
+ 	}
+ 	checkFatal(output.Flush())
+ 	checkFatal(f.Close())

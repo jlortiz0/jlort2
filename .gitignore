@@ -1,0 +1,9 @@
+persistent/*
+lastUpdate
+key.txt
+auth.sh
+ucauth.py
+console/key.txt
+archive/*
+time/*
+spook/*

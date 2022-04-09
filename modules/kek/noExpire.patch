@@ -1,0 +1,106 @@
+--- kek.go.old	2021-12-02 03:05:10.288938091 -0800
++++ kek.go	2021-12-02 03:07:50.536765968 -0800
+@@ -12,14 +12,9 @@
+ 	"jlortiz.org/jlort2/modules/log"
+ )
+ 
+-type kekMsg struct {
+-	Expire time.Time
+-	Count  int
+-}
+-
+ var kekData struct {
+ 	Guilds map[string]bool
+-	Users  map[string]map[string]*kekMsg
++	Users  map[string]map[string]int
+ }
+ var dirty bool
+ var kekLock *sync.RWMutex = new(sync.RWMutex)
+@@ -47,7 +42,7 @@
+ 	kekI := 0
+ 	kekLock.RLock()
+ 	for _, v := range kekData.Users[target.User.ID] {
+-		kekI += v.Count
++		kekI += v
+ 	}
+ 	kekLock.RUnlock()
+ 	kekI *= 50
+@@ -94,7 +89,7 @@
+ 		name := commands.DisplayName(mem)
+ 		kekI := 0
+ 		for _, v := range kekData.Users[mem.User.ID] {
+-			kekI += v.Count
++			kekI += v
+ 		}
+ 		kekI *= 50
+ 		if kekI != 0 {
+@@ -164,10 +159,10 @@
+ 		}
+ 	}
+ 	if !vote && strings.HasPrefix(event.Content, "L\nL\nL\nL\n") {
+-		//kekData.Users[event.Author.ID][event.ID] = &kekMsg{time.Now().AddDate(0, 0, 14), 0}
++		//kekData.Users[event.Author.ID][event.ID] = 0
+ 		self.MessageReactionAdd(event.ChannelID, event.Message.ID, "\u2b07")
+ 	} else if vote {
+-		//kekData.Users[event.Author.ID][event.ID] = &kekMsg{time.Now().AddDate(0, 0, 14), 0}
++		//kekData.Users[event.Author.ID][event.ID] = 0
+ 		self.MessageReactionAdd(event.ChannelID, event.Message.ID, "\u2b06")
+ 		self.MessageReactionAdd(event.ChannelID, event.Message.ID, "\u2b07")
+ 	}
+@@ -185,7 +180,7 @@
+ 		return
+ 	}
+ 	ts, _ := msg.Timestamp.Parse()
+-	if ts.AddDate(0, 0, 14).Before(time.Now()) {
++	if ts.AddDate(0, 0, 4).Before(time.Now()) {
+ 		return
+ 	}
+ 	total := 0
+@@ -199,13 +194,9 @@
+ 	dirty = true
+ 	kekLock.Lock()
+ 	if kekData.Users[msg.Author.ID] == nil {
+-		kekData.Users[msg.Author.ID] = make(map[string]*kekMsg)
+-	}
+-	if kekData.Users[msg.Author.ID][msg.ID] == nil {
+-		kekData.Users[msg.Author.ID][msg.ID] = &kekMsg{ts.AddDate(0, 0, 14), total}
+-	} else {
+-		kekData.Users[msg.Author.ID][msg.ID].Count = total
++		kekData.Users[msg.Author.ID] = make(map[string]int)
+ 	}
++	kekData.Users[msg.Author.ID][msg.ID] = total
+ 	kekLock.Unlock()
+ }
+ 
+@@ -243,7 +234,6 @@
+ // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
+ // Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
+ func Init(self *discordgo.Session) {
+-	infTime := time.Now().Round(time.Hour).AddDate(100, 0, 0)
+ 	err := commands.LoadPersistent("kek", &kekData)
+ 	if err != nil {
+ 		log.Error(err)
+@@ -253,16 +243,17 @@
+ 	for _, keks := range kekData.Users {
+ 		todel := make([]string, 0, 10)
+ 		total := 0
+-		if keks["locked"] == nil {
+-			keks["locked"] = &kekMsg{infTime, 0}
+-		}
+ 		for k, v := range keks {
+-			if v.Expire.Before(cutoff) {
++           if k == "locked" {
++               continue
++           }
++			ts, _ := discordgo.SnowflakeTimestamp(k)
++			if ts.AddDate(0, 0, 4).Before(cutoff) {
+ 				todel = append(todel, k)
+-				total += v.Count
++				total += v
+ 			}
+ 		}
+-		keks["locked"].Count += total
++		keks["locked"] += total
+ 		for _, k := range todel {
+ 			delete(keks, k)
+ 		}

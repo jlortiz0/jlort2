@@ -1,0 +1,145 @@
+--- kek.go.old	2021-12-10 03:08:24.155862618 -0800
++++ kek.go	2021-12-10 03:16:38.758406553 -0800
+@@ -14,7 +14,7 @@
+ 
+ var kekData struct {
+ 	Guilds map[string]bool
+-	Users  map[string]map[string]int
++	Users  map[string]int
+ }
+ var dirty bool
+ var kekLock *sync.RWMutex = new(sync.RWMutex)
+@@ -39,13 +39,9 @@
+ 		return ctx.Send("Bots can't be kek.")
+ 	}
+ 	name := commands.DisplayName(target)
+-	kekI := 0
+ 	kekLock.RLock()
+-	for _, v := range kekData.Users[target.User.ID] {
+-		kekI += v
+-	}
++	kekI := kekData.Users[target.User.ID] * 50
+ 	kekLock.RUnlock()
+-	kekI *= 50
+ 	var msg string
+ 	if kekI == 0 {
+ 		return ctx.Send(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
+@@ -87,11 +83,7 @@
+ 			continue
+ 		}
+ 		name := commands.DisplayName(mem)
+-		kekI := 0
+-		for _, v := range kekData.Users[mem.User.ID] {
+-			kekI += v
+-		}
+-		kekI *= 50
++		kekI := kekData.Users[mem.User.ID] * 50
+ 		if kekI != 0 {
+ 			output.WriteString(name)
+ 			output.WriteString(": ")
+@@ -143,13 +135,7 @@
+ 	if err != nil || perms&discordgo.PermissionAddReactions == 0 {
+ 		return
+ 	}
+-	vote := false
+-	for _, embed := range event.Embeds {
+-		if embed.Image != nil || embed.Video != nil {
+-			vote = true
+-			break
+-		}
+-	}
++	vote := len(event.Embeds) != 0
+ 	if !vote {
+ 		for _, attach := range event.Attachments {
+ 			if attach.Height > 0 {
+@@ -177,31 +163,25 @@
+ 		return
+ 	}
+ 	ts, _ := msg.Timestamp.Parse()
+-	if ts.AddDate(0, 0, 4).Before(time.Now()) {
++	if event.UserID == msg.Author.ID || ts.AddDate(0, 0, 4).Before(time.Now()) {
+ 		return
+ 	}
+-	total := 0
+-	for _, emoji := range msg.Reactions {
+-		if emoji.Emoji.Name == "\u2b06" {
+-			total += emoji.Count
+-		} else if emoji.Emoji.Name == "\u2b07" {
+-			total -= emoji.Count
+-		}
+-	}
+ 	dirty = true
+ 	kekLock.Lock()
+-	if kekData.Users[msg.Author.ID] == nil {
+-		kekData.Users[msg.Author.ID] = make(map[string]int)
+-	}
+-	kekData.Users[msg.Author.ID][msg.ID] = total
++	if event.Emoji.Name == "\u2b06" {
++		kekData.Users[msg.Author.ID]++
++	} else {
++       kekData.Users[msg.Author.ID]--
++    }
+ 	kekLock.Unlock()
+ }
+ 
+ func onReactionRemoveWrapper(self *discordgo.Session, event *discordgo.MessageReactionRemove) {
+-	onReactionAdd(self, &discordgo.MessageReactionAdd{MessageReaction: event.MessageReaction})
+-}
+-
+-func onReactionRemoveAllWrapper(self *discordgo.Session, event *discordgo.MessageReactionRemoveAll) {
+-	onReactionAdd(self, &discordgo.MessageReactionAdd{MessageReaction: event.MessageReaction})
++    if len(event.Emoji.Name) == 3 {
++        temp := []byte(event.Emoji.Name)
++        temp[2] ^= 1
++        event.Emoji.Name = string(temp)
++	     onReactionAdd(self, &discordgo.MessageReactionAdd{MessageReaction: event.MessageReaction})
++    }
+ }
+ 
+@@ -236,22 +216,6 @@
+ 		log.Error(err)
+ 		return
+ 	}
+-	cutoff := time.Now()
+-	for _, keks := range kekData.Users {
+-		total := 0
+-		for k, v := range keks {
+-			if k == "locked" {
+-				continue
+-			}
+-			ts, _ := discordgo.SnowflakeTimestamp(k)
+-			if ts.AddDate(0, 0, 4).Before(cutoff) {
+-				total += v
+-				delete(keks, k)
+-				dirty = true
+-			}
+-		}
+-		keks["locked"] += total
+-	}
+ 	commands.RegisterCommand(kekage, "kekage")
+ 	commands.RegisterCommand(kekOn, "kekOn")
+ 	commands.RegisterCommand(kekOn, "kekOff")
+@@ -266,21 +230,11 @@
+ // Here, it saves the kek data to disk.
+ func Cleanup(_ *discordgo.Session) {
+ 	if dirty {
+-		kekLock.Lock()
+-		for _, keks := range kekData.Users {
+-			for k, v := range keks {
+-				if k == "locked" {
+-					continue
+-				}
+-				if v == 0 {
+-					delete(keks, k)
+-				}
+-			}
+-		}
++		kekLock.RLock()
+ 		err := commands.SavePersistent("kek", &kekData)
+ 		if err != nil {
+ 			log.Error(err)
+ 		}
+-		kekLock.Unlock()
++		kekLock.RUnlock()
+ 	}
+ }
