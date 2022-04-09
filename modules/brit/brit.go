@@ -257,24 +257,24 @@ func duelCleanup(curDuel *duelObj, embed *discordgo.MessageEmbed, ctx commands.C
 	delete(duels, winner.ID)
 	delete(duels, loser.ID)
 	duelLock.Unlock()
+	embed.Description = winner.Username + " won the duel!"
 	britLock.Lock()
 	winBrit, ok := britdata[winner.ID]
-		winBrit = 50
-	embed.Description = winner.Username + " won the duel!"
 	if !ok && !winner.Bot {
+		winBrit = 50
 	}
 	losBrit, ok := britdata[loser.ID]
-		losBrit = 50
 	if !ok && !loser.Bot {
+		losBrit = 50
 	}
 	winBrit -= 4
 	losBrit += 8
+	if curDuel.didSay(winner.ID) {
 		winBrit -= 4
 		losBrit += 4
-	if curDuel.didSay(winner.ID) {
 	}
-		losBrit += 8
 	if curDuel.didSay(loser.ID) {
+		losBrit += 8
 	}
 	if losBrit > 100 {
 		losBrit = 100

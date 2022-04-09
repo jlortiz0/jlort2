@@ -134,16 +134,6 @@ func chatlog(ctx commands.Context) error {
 				if attach.Image != nil {
 					output.WriteString("\n - Image: ")
 					output.WriteString(attach.Image.URL)
-				} else {
-					output.WriteString("\n - Embed: ")
-					if attach.URL != "" {
-						output.WriteString(attach.URL)
-					} else {
-						output.WriteString(attach.Title)
-						output.WriteString(" (")
-						output.WriteString(attach.Description)
-						output.WriteByte(')')
-					}
 				}
 			}
 			output.WriteByte('\n')

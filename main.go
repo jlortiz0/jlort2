@@ -112,6 +112,23 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	}
 	updatePfp(self)
 	initModules(self)
+	f, err := os.Open("avatar.png")
+	if err == nil {
+		defer f.Close()
+		avatar := make([]byte, 0x40000)
+		c, err := f.Read(avatar)
+		if err == nil {
+			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]))
+			if err != nil {
+				log.Error(fmt.Errorf("could not set avatar: %w", err))
+			} else {
+				log.Warn("Updated profile picture")
+				os.Remove("avatar.png")
+			}
+		} else {
+			log.Error(fmt.Errorf("could not read avatar: %w", err))
+		}
+	}
 
 	self.AddHandler(interactionCreate)
 	self.AddHandler(voiceStateUpdate)
