@@ -35,3 +35,5 @@ These commands existed and were removed before the version I uploaded to GitHub.
  - `~!something` - I don't remember what this does, but it was in an old (pre-OMORI) help file and has no description.
  - `~!boot <user>` - Kick someone out of a call in case they fell asleep. Turns out that we're not nice people.
  - `~!sausage` - Causes a segmentation fault, for debugging.
+ - `~!ud` - Displays definitions from Urban Dictionary. Made specifically to troll a friend whose full name had an unflattering one.
+ 
