@@ -70,7 +70,7 @@ func kekage(ctx commands.Context, args []string) error {
 		if kekI > -1000 {
 			msg = "%s is at %s cringe.\nThey should be wary, lest they falter further."
 		} else if kekI > -1000000 {
-			msg = "%s is at %s cringe.\nEllen is considering inviting them on."
+			msg = "%s is at %s cringe.\nEvil spirits are strengthening from their presence."
 		} else {
 			msg = "%s is at %s cringe.\nAnton Chigurh has offered to kill them for free."
 		}
@@ -80,7 +80,7 @@ func kekage(ctx commands.Context, args []string) error {
 		} else if kekI < 1000000 {
 			msg = "%s is at %s kek.\nSomething great stirs within them."
 		} else {
-			msg = "%s is at %s kek.\n. M-M-M-M-MONSTER KEK (kek kek kek...)"
+			msg = "%s is at %s kek.\nThey are blessed with the power of good vibes."
 		}
 	}
 	return ctx.Send(fmt.Sprintf(msg, name, convertKek(kekI)))
@@ -193,8 +193,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	if err != nil {
 		return
 	}
-	ts, _ := msg.Timestamp.Parse()
-	if ts.AddDate(0, 0, 4).Before(time.Now()) {
+	if msg.Timestamp.AddDate(0, 0, 4).Before(time.Now()) {
 		return
 	}
 	total := 0

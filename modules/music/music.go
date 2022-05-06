@@ -266,6 +266,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 	for popLock == myLock {
 		cutoff := time.Now().Add(dcTimeout)
 		eggCutoff := time.Now().Add(eggTimeout)
+		byeCutoff := time.Now().Add(dcTimeout + popRefreshRate)
 		streamLock.RLock()
 		for k, v := range streams {
 			if v.Len() == 0 {
@@ -295,6 +296,16 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 					}
 					log.Info(fmt.Sprintf("Playing %s for %s", source, k))
 					obj := &StreamObj{Special: true, Source: source, Author: "@me"}
+					v.Lock()
+					v.PushFront(obj)
+					v.Unlock()
+					go musicStreamer(vc, obj)
+				} else if lp.Before(byeCutoff) {
+					vc := self.VoiceConnections[k]
+					if vc == nil {
+						continue
+					}
+					obj := &StreamObj{Special: true, Source: "modules/music/bye.ogg", Author: "@me"}
 					v.Lock()
 					v.PushFront(obj)
 					v.Unlock()

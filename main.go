@@ -87,7 +87,7 @@ start:
 	// sc2 := make(chan os.Signal)
 	// signal.Notify(sc2, syscall.SIGUSR1)
 	// go crashMe(sc2)
-	if (<-sc) == syscall.SIGHUP && !isatty.IsTerminal(os.Stdout.Fd()) {
+	if (<-sc) == syscall.SIGHUP && log.GetLevel() == log.LevelWarn {
 		cleanup(client)
 		client.Close()
 		goto start
@@ -123,7 +123,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 		avatar := make([]byte, 0x40000)
 		c, err := f.Read(avatar)
 		if err == nil {
-			_, err = self.UserUpdate("", "", "", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]), "")
+			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]))
 			if err != nil {
 				log.Error(fmt.Errorf("could not set avatar: %w", err))
 			} else {

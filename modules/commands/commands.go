@@ -146,7 +146,7 @@ func SavePersistent(name string, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile("persistent/"+name, os.O_WRONLY|os.O_TRUNC, 0644)
+	f, err := os.OpenFile("persistent/"+name, os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}

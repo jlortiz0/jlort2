@@ -138,8 +138,7 @@ func chatlog(ctx commands.Context, args []string) error {
 					}
 				}
 			}
-			t, _ := v.Timestamp.Parse()
-			t = t.In(time.Local)
+			t := v.Timestamp.In(time.Local)
 			if t.YearDay() != lastDay {
 				output.WriteString(t.Format(dateFormat))
 				lastDay = t.YearDay()
@@ -206,7 +205,7 @@ func archive(ctx commands.Context, _ []string) error {
 			break
 		}
 		for _, v := range toProc {
-			ts, _ := v.Timestamp.Parse()
+			ts := v.Timestamp
 			for _, a := range v.Attachments {
 				files = append(files, FileInfo{a.ID + "-" + a.Filename, a.URL, ts})
 			}

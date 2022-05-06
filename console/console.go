@@ -173,8 +173,7 @@ func guildAndModeSel() {
 					fmt.Fprintf(output, "Avatar URL: %s\n", user.User.AvatarURL(""))
 					createDate, _ := discordgo.SnowflakeTimestamp(user.User.ID)
 					fmt.Fprintf(output, "Created at: %s\n", createDate.In(time.Local).Format("Jan _2 2006, 15:04"))
-					joinDate, _ := user.JoinedAt.Parse()
-					fmt.Fprintf(output, "Joined at: %s\n", joinDate.In(time.Local).Format("Jan _2 2006, 15:04"))
+					fmt.Fprintf(output, "Joined at: %s\n", user.JoinedAt.In(time.Local).Format("Jan _2 2006, 15:04"))
 					if len(user.Roles) != 0 {
 						fmt.Fprintln(output, "Roles:")
 						for _, v := range user.Roles {
@@ -346,8 +345,7 @@ func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
 	var lastDay int
 	for i := len(msgs) - 1; i >= 0; i-- {
 		v := msgs[i]
-		t, _ := v.Timestamp.Parse()
-		t = t.In(time.Local)
+		t := v.Timestamp.In(time.Local)
 		if t.YearDay() != lastDay {
 			output.WriteString(t.Format(dateFormat))
 			lastDay = t.YearDay()
@@ -429,8 +427,7 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				}
 			}
 			plaintext := true
-			t, _ := v.Timestamp.Parse()
-			t = t.In(time.Local)
+			t := v.Timestamp.In(time.Local)
 			if t.YearDay() != lastDay {
 				output.WriteString(t.Format(dateFormat))
 				lastDay = t.YearDay()

@@ -116,8 +116,7 @@ func purge(ctx Context, args []string) error {
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs)-1)
 	for _, msg := range msgs {
-		ts, _ := msg.Timestamp.Parse()
-		if ts.Before(cutoff) {
+		if msg.Timestamp.Before(cutoff) {
 			break
 		}
 		if msg.Author.ID == target || strings.HasPrefix(msg.Content, "~!") {
@@ -165,8 +164,7 @@ func ppurge(ctx Context, args []string) error {
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs))
 	for _, msg := range msgs {
-		ts, _ := msg.Timestamp.Parse()
-		if ts.Before(cutoff) {
+		if msg.Timestamp.Before(cutoff) {
 			break
 		}
 		if strings.HasPrefix(msg.Content, prefix) {
@@ -325,6 +323,14 @@ func gsm(ctx Context, args []string) error {
 	return ctx.Send(string(out))
 }
 
+// ~!invite
+// Invite me!
+// Bots can't accept regular invites, they must use this link.
+// Fun fact: this is the shortest command at only 1 line.
+func invite(ctx Context, _ []string) error {
+	return ctx.Send("https://discord.com/api/oauth2/authorize?client_id=787850217302130688&permissions=8192&scope=bot")
+}
+
 // ~!tpa <user>
 // @Alias ~!tpahere
 // @Hidden
@@ -382,6 +388,7 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(ping, "latency")
 	RegisterCommand(nh, "nh")
 	RegisterCommand(nh, "nhentai")
+	RegisterCommand(invite, "invite")
 	RegisterCommand(version, "version")
 	RegisterCommand(tpa, "tpa")
 	RegisterCommand(tpa, "tpahere")
