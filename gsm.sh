@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$1" = "lip" ]; then
+	hostname -I
+	exit 0
+fi
+
 if [ -e "/home/McServer/maint" ]; then
     echo "Sorry, the servers are down for maintenance. Check back later."
     [ -s /home/McServer/maint ] && cat /home/McServer/maint
@@ -14,11 +19,6 @@ if [ "$1" = "help" ]; then
 	echo "~!gsm ping - List servers that are up"
 	echo "~!gsm ip - Get IP address"
 	exit
-fi
-
-if [ "$1" = "lip" ]; then
-	hostname -I
-	exit 0
 fi
 
 if [ "$1" = "ip" ]; then
@@ -72,8 +72,16 @@ if [ ! -d "/home/McServer/$1" ]; then
 	echo "Invalid server!"
 	exit
 fi
+if [ -e "/home/McServer/$1/maint" ]; then
+    echo "Sorry, this instance is undergoing maintenance. Check back later."
+    [ -s "/home/McServer/$1/maint" ] && cat "/home/McServer/$1/maint"
+    exit
+fi
 screen -list | grep Terraria > /dev/null && echo "There is already a server running!" && exit
 screen -list | grep McServer > /dev/null && echo "There is already a server running!" && exit
 cd /home/McServer/$1
-./bg.sh "$2" > /dev/null 2>&1 || (echo "There was an error starting the server." && exit)
-echo "Server should be up shortly..."
+if ./bg.sh "$2" > /dev/null 2>&1; then
+    echo "Server should be up shortly..."
+else
+    echo "There was an error starting the server."
+fi
