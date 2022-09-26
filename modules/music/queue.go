@@ -33,7 +33,7 @@ import (
 // @GuildOnly
 // Removes from the queue
 // You must have permission over the stream to do so. Get stream indices with ~!queue.
-// To clear the queue, do ~!remove all. You must have permission over all songs to do so.
+// To clear the queue, do ~!remove all. You must have permission over all streams to do so.
 func remove(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
@@ -65,7 +65,7 @@ func remove(ctx commands.Context, args []string) error {
 			ls.RLock()
 			for e := ls.Head(); e != nil; e = e.Next() {
 				current := e.Value
-				if ctx.Author.ID != current.Author {
+				if current.Flags&strflag_noskip != 0 || ctx.Author.ID != current.Author {
 					ls.RUnlock()
 					return ctx.Send("You do not have permission to clear the queue.")
 				}
@@ -125,14 +125,14 @@ func loop(ctx commands.Context, _ []string) error {
 		return ctx.Send("Nothing is playing.")
 	}
 	strm := elem.Value
-	if strm.Special {
-		return ctx.Send("Nothing is playing.")
+	if strm.Flags&(strflag_special|strflag_noskip) != 0 {
+		return ctx.Send("This stream cannot be modified.")
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current song.")
+		return ctx.Send("You do not have permission to modify the current stream.")
 	}
-	strm.Loop = !strm.Loop
-	if strm.Loop {
+	strm.Flags ^= strflag_loop
+	if strm.Flags&strflag_loop != 0 {
 		return ctx.Send("Loop enabled.")
 	}
 	return ctx.Send("Loop disabled.")
@@ -157,14 +157,14 @@ func pause(ctx commands.Context, _ []string) error {
 		return ctx.Send("Nothing is playing.")
 	}
 	strm := elem.Value
-	if strm.Special {
+	if strm.Flags&(strflag_special|strflag_noskip) != 0 {
 		return ctx.Send("Nothing is playing.")
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current song.")
+		return ctx.Send("You do not have permission to modify the current stream.")
 	}
-	strm.Paused = !strm.Paused
-	if strm.Paused {
+	strm.Flags ^= strflag_paused
+	if strm.Flags&strflag_paused != 0 {
 		return ctx.Send("Song paused.")
 	}
 	return ctx.Send("Song unpaused.")
@@ -174,7 +174,7 @@ func pause(ctx commands.Context, _ []string) error {
 // @GuildOnly
 // Skips the stream
 // If you don't have permission over the stream, casts a skip vote.
-// To skip a song, at least half the non-deafened and non-muted users in the channel must vote to skip.
+// To skip a stream, at least half the non-deafened and non-muted users in the channel must vote to skip.
 // Bots may still be counted in the channel count if they are not server deafened. For best results, server deafen bots.
 func skip(ctx commands.Context, _ []string) error {
 	if ctx.GuildID == "" {
@@ -189,8 +189,8 @@ func skip(ctx commands.Context, _ []string) error {
 		return ctx.Send("Nothing is playing.")
 	}
 	obj := elem.Value
-	if obj.Special {
-		return ctx.Send("Nothing is playing.")
+	if obj.Flags&(strflag_special|strflag_noskip) != 0 {
+		return ctx.Send("This stream cannot be skipped.")
 	}
 	vstate, err := ctx.State.VoiceState(ctx.GuildID, ctx.Author.ID)
 	if err != nil {
@@ -231,7 +231,7 @@ func skip(ctx commands.Context, _ []string) error {
 	log.Debug("skip: skipping")
 	ls.Lock()
 	obj.Stop <- true
-	obj.Paused = false
+	obj.Flags &= ^uint16(strflag_paused)
 	// streams[ctx.GuildID].Remove(elem)
 	ls.Unlock()
 	return ctx.Send("Skipped.")
@@ -268,8 +268,11 @@ func np(ctx commands.Context, _ []string) error {
 		embed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: elem.Info.Thumbnail}
 		embed.URL = elem.Info.Webpage
 		timeFld = fmt.Sprintf("%01d:%02d/%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60, int(elem.Info.Duration)/60, int(elem.Info.Duration)%60)
-	} else if elem.Special {
+	} else if elem.Flags&strflag_special != 0 {
 		embed.Title = "???"
+        if elem.Flags&strflag_dconend != 0 {
+            embed.Title = "Outro"
+        }
 		timeFld = fmt.Sprintf("%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
 	} else {
 		embed.Title = "Uploaded File"
@@ -277,11 +280,13 @@ func np(ctx commands.Context, _ []string) error {
 		timeFld = fmt.Sprintf("%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
 	}
 	var footer string
-	if elem.Loop && elem.Paused {
+	paused := elem.Flags&strflag_paused != 0
+	loop := elem.Flags&strflag_loop != 0
+	if loop && paused {
 		footer = "Currently looping, if it weren't paused."
-	} else if elem.Paused {
+	} else if paused {
 		footer = "Currently paused."
-	} else if elem.Loop {
+	} else if loop {
 		footer = "Currently looping."
 	}
 	if footer != "" {
@@ -331,4 +336,23 @@ func queue(ctx commands.Context, _ []string) error {
 	embed.Color = 0x992d22
 	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
 	return err
+}
+
+func locket(ctx commands.Context, _ []string) error {
+	if ctx.GuildID == "" {
+		return ctx.Send("This command only works in servers.")
+	}
+	app, err := ctx.Bot.Application("@me")
+	if err != nil {
+		return fmt.Errorf("Failed to get app info: %w", err)
+	}
+	if app.Owner.ID != ctx.Author.ID {
+		return ctx.Send("You do not have access to that command, and never will.")
+	}
+	ls := streams[ctx.GuildID]
+	if ls == nil || ls.Len() == 0 {
+		return ctx.Send("Nothing is playing.")
+	}
+	ls.Head().Value.Flags |= strflag_noskip
+	return ctx.Send("Why are you scared? Isn't this what you wanted?")
 }

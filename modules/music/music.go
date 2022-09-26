@@ -49,23 +49,28 @@ type YDLPlaylist struct {
 	Entries []YDLInfo
 }
 
+const (
+	strflag_special = 1 << iota // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
+	strflag_loop                // If true, stream will loop after end
+	strflag_playing             // If true, there is currently a thread running this stream
+	strflag_paused              // If true, the thread running this stream should sleep
+	strflag_noskip              // If true, this stream should not be skippable once playing
+	strflag_dconend             // If true, the bot should disconnect once this stream ends
+)
+
 // StreamObj stores the data needed for an active stream. A partial version of this is used for a queued stream.
 type StreamObj struct {
 	Author  string   // The ID of the user who queued the stream
 	Channel string   // The channel in which the stream was queued, used for next up announcements
 	Source  string   // The URL to stream from
 	Vol     int      // The volume, 0-200. This will be copied from the previous stream if possible
+	Flags   uint16   // See above constants
 	Info    *YDLInfo // The YDLInfo associated with this stream. If nil, this is a direct file stream
-	Special bool     // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
-
 	// Fields below this line may not be populated or valid until the streamer starts
 	Remake     chan bool       // When this channel is written to, the ffmpeg process will be recreated with new parameters
 	Skippers   map[string]bool // A set of the IDs of users who have voted to skip this stream
 	StartedAt  time.Time       // The time the streamer started
 	Subprocess *exec.Cmd       // The ffmpeg subprocess that the streamer streams from
-	Loop       bool            // If the stream is looping
-	Playing    bool            // true while the streamer is running, false otherwise
-	Paused     bool            // The streamer will sleep so long as this is true
 	Stop       chan bool       // When this channel is written to, the streamer will stop
 }
 
@@ -131,7 +136,7 @@ func connect(ctx commands.Context, _ []string) error {
 // @Alias disconnect
 // @GuildOnly
 // Disconnects from voice
-// If songs are currently playing, paused, or queued, jlort jlort will not disconenct unless you have permissions to clear the queue.
+// If streams are currently playing, paused, or queued, jlort jlort will not disconnect unless you have permissions to clear the queue.
 // jlort jlort will automatically disconnect after 5 minutes of inactivity or if there is nobody to listen to it.
 // Note that jlort jlort may consider bots valid listeners if they are not server deafened. For best results, you should server deafen other bots.
 func dc(ctx commands.Context, _ []string) error {
@@ -149,6 +154,12 @@ func dc(ctx commands.Context, _ []string) error {
 				return err
 			}
 		}
+		if ls.Head().Value.Flags&strflag_noskip != 0 {
+			if ls.Head().Value.Flags&strflag_dconend != 0 {
+				return ctx.Send("Won't you at least wait for the outro?")
+			}
+			return ctx.Send("This stream cannot be ended.")
+		}
 		err := vc.Disconnect()
 		if err != nil {
 			return fmt.Errorf("Failed to disconnect from voice: %w", err)
@@ -160,7 +171,7 @@ func dc(ctx commands.Context, _ []string) error {
 // ~!dj [@role]
 // @GuildOnly
 // See or change the DJ role
-// People with the DJ role can remove or skip any song, regardless of who queued it.
+// People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.
 // You must mention the DJ role to set it because I am lazy.
 // To disable the DJ role, set to "none" without quotes or @
@@ -295,7 +306,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 						continue
 					}
 					log.Info(fmt.Sprintf("Playing %s for %s", source, k))
-					obj := &StreamObj{Special: true, Source: source, Author: "@me"}
+					obj := &StreamObj{Flags: strflag_special | strflag_noskip, Source: source, Author: "@me"}
 					v.Lock()
 					v.PushFront(obj)
 					v.Unlock()
@@ -305,7 +316,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 					if vc == nil {
 						continue
 					}
-					obj := &StreamObj{Special: true, Source: "modules/music/bye.ogg", Author: "@me"}
+					obj := &StreamObj{Flags: strflag_special | strflag_noskip | strflag_dconend, Source: "modules/music/bye.ogg", Author: "@me"}
 					v.Lock()
 					v.PushFront(obj)
 					v.Unlock()
@@ -316,8 +327,8 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 			v.RLock()
 			obj := v.Head().Value
 			v.RUnlock()
-			if !obj.Playing {
-				if !obj.Loop {
+			if obj.Flags&strflag_playing == 0 {
+				if obj.Flags&strflag_loop == 0 {
 					vol := obj.Vol
 					v.Lock()
 					v.Remove(v.Head())
@@ -338,7 +349,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 				}
 				authorName := commands.DisplayName(mem)
 				embed := buildMusEmbed(obj, true, authorName)
-				if obj.Loop {
+				if obj.Flags&strflag_loop != 0 {
 					embed.Title = "Looping"
 				}
 				go musicStreamer(vc, obj)
@@ -350,7 +361,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 	}
 }
 
-// buildMusEmbed builds an embed for announcing queued or next up songs.
+// buildMusEmbed builds an embed for announcing queued or next up streams.
 // If np is true, a Now Playing embed is generated. Otherwise, a Queued embed is generated.
 func buildMusEmbed(data *StreamObj, np bool, authorName string) *discordgo.MessageEmbed {
 	output := new(discordgo.MessageEmbed)
@@ -459,7 +470,7 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// In addition to commands, this function creates two GuildID -> data maps, loads the song aliases from disk, and starts the song popper thread.
+// In addition to commands, this function creates two GuildID -> data maps, loads the song aliases from disk, and starts the stream popper thread.
 func Init(self *discordgo.Session) {
 	streams = make(map[string]*lockQueue)
 	lastPlayed = make(map[string]time.Time)
@@ -503,6 +514,8 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(seek, "seek")
 	commands.RegisterCommand(popcorn, "popcorn")
 	commands.RegisterCommand(popcorn, "time")
+	commands.RegisterCommand(locket, "_locket")
+	commands.RegisterCommand(outro, "outro")
 	popLock++
 	go musicPopper(self, popLock)
 }

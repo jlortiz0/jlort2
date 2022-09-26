@@ -76,6 +76,11 @@ Outer:
 				break Outer
 			}
 		}
+        if output.Len() == 0 {
+            fmt.Printf("WARN: %s has no description\n", name)
+            delete(docs, name)
+            continue
+        }
 		doc.Doc = output.String()[1:]
 	}
 	checkFatal(rd.Err())

@@ -38,7 +38,7 @@ import (
 // It uses a rather long ffmpeg subprocess that pipes to stdout. Stderr is shared with the system.
 // On read, the program strips out the headers to get the raw opus data and sends it to the voice connection send channel.
 func musicStreamer(vc *discordgo.VoiceConnection, data *StreamObj) {
-	if data.Special {
+	if data.Flags&strflag_special != 0 {
 		data.Subprocess = exec.Command("ffmpeg", "-i", data.Source, "-map_metadata", "-1", "-acodec", "copy", "-f", "opus", "-loglevel", "warning", "pipe:1")
 	} else {
 		data.Subprocess = exec.Command("ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", data.Source, "-map_metadata", "-1", "-f", "opus", "-ar", "48k", "-ac", "2", "-b:a", "64k", "-compression_level", "8", "-af", fmt.Sprintf("volume=%.2f", float32(data.Vol)/100), "-loglevel", "warning", "pipe:1")
@@ -56,7 +56,7 @@ func musicStreamer(vc *discordgo.VoiceConnection, data *StreamObj) {
 		return
 	}
 	data.Skippers = make(map[string]bool)
-	data.Playing = true
+	data.Flags |= strflag_playing
 	data.StartedAt = time.Now()
 	data.Stop = make(chan bool, 1)
 	data.Remake = make(chan bool, 1)
@@ -92,7 +92,7 @@ Streamer:
 				if err != nil {
 					break Streamer
 				}
-				for data.Paused {
+				for data.Flags&strflag_paused != 0 {
 					time.Sleep(time.Millisecond * 250)
 				}
 				select {
@@ -128,15 +128,18 @@ Streamer:
 	}
 	data.Subprocess.Process.Kill()
 	data.Subprocess.Wait()
-	data.Playing = false
-	if !data.Special {
+	data.Flags &= ^uint16(strflag_playing)
+	if data.Flags&strflag_special != 0 {
 		streamLock.Lock()
 		lastPlayed[vc.GuildID] = time.Now()
 		streamLock.Unlock()
 	}
+	if data.Flags&strflag_dconend != 0 {
+		vc.Disconnect()
+	}
 }
 
-// ~!mp3 <link to music file>
+// ~!mp3 <link to audio file>
 // @Alias mp4
 // @Alias mp3skip
 // @Alias mp4skip
@@ -164,7 +167,7 @@ func mp3(ctx commands.Context, args []string) error {
 			return ctx.Send("Not a valid URL. Copy it again or upload the file.")
 		}
 	} else {
-		return ctx.Send("~!mp3 <link to music file>\nAlternatively, upload a music file with ~!mp3 as the description.")
+		return ctx.Send("~!mp3 <link to audio file>\nAlternatively, upload an audio file with ~!mp3 as the description.")
 	}
 	authorName := commands.DisplayName(ctx.Member)
 	np := false
@@ -176,13 +179,17 @@ func mp3(ctx commands.Context, args []string) error {
 	ls := streams[ctx.GuildID]
 	if strings.HasSuffix(ctx.InvokedWith, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.Send("You do not have permission to skip this song.")
+			return ctx.Send("You do not have permission to skip this stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
 		if elem != nil {
 			obj := elem.Value
-			if obj.Playing {
+			if obj.Flags&strflag_noskip != 0 {
+				ls.Unlock()
+				return ctx.Send("This stream cannot be skipped.")
+			}
+			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
 				obj.Stop <- true
 			}
@@ -231,11 +238,11 @@ func play(ctx commands.Context, args []string) error {
 	}
 	var entries YDLPlaylist
 	var info YDLInfo
-	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", "--default-search", "ytsearch", source).Output()
+	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", "--default-search", "ytsearch", "--no-playlist", source).Output()
 	if err != nil {
 		err2, ok := err.(*exec.ExitError)
 		if ok {
-			return fmt.Errorf("Failed to run subprocess: %w\n%s", err2, string(err2.Stderr))
+			return ctx.Send(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
 		return fmt.Errorf("Failed to run subprocess: %w", err)
 	}
@@ -270,15 +277,22 @@ func play(ctx commands.Context, args []string) error {
 	data.Source = info.URL
 	data.Vol = 65
 	ls := streams[ctx.GuildID]
+	if ls == nil {
+		return ctx.Send("Discord network error while processing request. Please try again.")
+	}
 	if strings.HasSuffix(ctx.InvokedWith, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.Send("You do not have permission to modify the current song.")
+			return ctx.Send("You do not have permission to modify the current stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
 		if elem != nil {
 			obj := elem.Value
-			if obj.Playing {
+			if obj.Flags&strflag_noskip != 0 {
+				ls.Unlock()
+				return ctx.Send("This stream cannot be skipped.")
+			}
+			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
 				obj.Stop <- true
 			}
@@ -307,7 +321,7 @@ func play(ctx commands.Context, args []string) error {
 // @GuildOnly
 // Check or set stream volume
 // Range is 0-200%
-// To set the volume, you must have permission to modify the current song.
+// To set the volume, you must have permission to modify the current stream.
 func vol(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
@@ -324,7 +338,7 @@ func vol(ctx commands.Context, args []string) error {
 		return ctx.Send(fmt.Sprintf("Volume: %d%%", strm.Vol))
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current song.")
+		return ctx.Send("You do not have permission to modify the current stream.")
 	}
 	if args[0][len(args[0])-1] == '%' {
 		args[0] = args[0][:len(args[0])-1]
@@ -347,7 +361,7 @@ func vol(ctx commands.Context, args []string) error {
 // @GuildOnly
 // Seeks to a position in the stream
 // Position can be in m:ss format or just a number of seconds.
-// To seek, you must have permission to modify the current song. To simply view the current position, use ~!np
+// To seek, you must have permission to modify the current stream. To simply view the current position, use ~!np
 func seek(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
@@ -363,7 +377,7 @@ func seek(ctx commands.Context, args []string) error {
 		return ctx.Send("Usage: ~!seek <position (m:ss or ss)>")
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current song.")
+		return ctx.Send("You do not have permission to modify the current stream.")
 	}
 	stamp := args[0]
 	var desired int
@@ -450,7 +464,62 @@ func popcorn(ctx commands.Context, _ []string) error {
 		}
 	}
 	ls.Lock()
-	ls.PushFront(&StreamObj{Author: ctx.Author.ID, Channel: ctx.ChanID, Source: builder.String(), Special: true})
+	ls.PushFront(&StreamObj{Author: ctx.Author.ID, Channel: ctx.ChanID, Source: builder.String(), Flags: strflag_special | strflag_noskip})
+	go musicStreamer(vc, ls.Head().Value)
+	ls.Unlock()
+	return nil
+}
+
+// ~!outro <name>
+// @GuildOnly
+// Plays an unskippable outro, then disconnects.
+// Only works if nothing else is playing.
+// For a list of outros, do ~!outro list
+func outro(ctx commands.Context, args []string) error {
+	if ctx.GuildID == "" {
+		return ctx.Send("This command can only be used in servers.")
+	}
+	if len(args) == 0 {
+		return ctx.Send("Usage: ~!outro <name>\nFor a list of outros, do ~!outro list")
+	}
+	if args[0] == "list" {
+		f, err := os.Open("outro")
+		if err != nil {
+			return err
+		}
+		names, err := f.Readdirnames(0)
+		if err != nil {
+			return err
+		}
+		builder := new(strings.Builder)
+		builder.WriteString("Outros:")
+		for _, x := range names {
+			builder.WriteByte('\n')
+			ind := strings.LastIndexByte(x, '.')
+			if ind == -1 {
+				ind = len(x)
+			}
+			builder.WriteString(x[:ind])
+		}
+		return ctx.Send(builder.String())
+	}
+	ls := streams[ctx.GuildID]
+	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
+	if vc == nil || ls == nil {
+		return ctx.Send("Not connected to voice.")
+	}
+	if ls.Len() > 0 {
+		return ctx.Send("Can't play an outro while something else is playing.")
+	}
+	_, err := os.Stat("outro" + string(os.PathSeparator) + args[0] + ".ogg")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ctx.Send("That outro does not exist.")
+		}
+		return err
+	}
+	ls.Lock()
+	ls.PushFront(&StreamObj{Author: ctx.Author.ID, Channel: ctx.ChanID, Source: "outro" + string(os.PathSeparator) + args[0] + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
 	return nil

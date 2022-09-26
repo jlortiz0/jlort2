@@ -49,7 +49,7 @@ func song(ctx commands.Context, args []string) error {
 	mappings := aliases[ctx.GuildID]
 	if len(mappings) == 0 {
 		aliasLock.RUnlock()
-		return ctx.Send("No song aliases have been set. Use ~!setsong to set a song alias.")
+		return ctx.Send("No song aliases have been set. Use ~!addsong to set a song alias.")
 	}
 	if name == "list" {
 		names := make([]string, len(mappings)+1)
