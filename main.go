@@ -120,7 +120,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	f, err := os.Open("avatar.png")
 	if err == nil {
 		defer f.Close()
-		avatar := make([]byte, 0x40000)
+		avatar := make([]byte, 0x100000)
 		c, err := f.Read(avatar)
 		if err == nil {
 			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]))

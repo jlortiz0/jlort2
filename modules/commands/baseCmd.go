@@ -313,8 +313,23 @@ func gsm(ctx Context, args []string) error {
 	case 0:
 		out, err = exec.Command(bashLoc, "gsm.sh").Output()
 	case 1:
+		for _, x := range args[0] {
+			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
+				return ctx.Send("Illegal character.")
+			}
+		}
 		out, err = exec.Command(bashLoc, "gsm.sh", args[0]).Output()
 	default:
+		for _, x := range args[0] {
+			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
+				return ctx.Send("Illegal character.")
+			}
+		}
+		for _, x := range args[1] {
+			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
+				return ctx.Send("Illegal character.")
+			}
+		}
 		out, err = exec.Command(bashLoc, "gsm.sh", args[0], args[1]).Output()
 	}
 	if err != nil {
