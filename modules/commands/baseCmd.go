@@ -25,6 +25,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"net/http"
+	"errors"
+	"io"
+	"encoding/base64"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/log"
@@ -385,6 +389,49 @@ func tpa(ctx Context, args []string) error {
 	return err
 }
 
+func avatar(ctx Context, _ []string) error {
+	app, err := ctx.Bot.Application("@me")
+	if err != nil {
+		return fmt.Errorf("Failed to get app info: %w", err)
+	}
+	if app.Owner.ID != ctx.Author.ID {
+		return ctx.Send("You do not have access to that command, and never will.")
+	}
+	if len(ctx.Message.Attachments) == 0 {
+		return ctx.Send("Attach an image in png or jpg format.")
+	}
+	URL := ctx.Message.Attachments[0].URL
+	ind := strings.LastIndexByte(URL, '.')
+	ext := URL[ind + 1:]
+	ind = strings.IndexByte(ext, '?')
+	if ind != -1 {
+		ext = ext[:ind]
+	}
+	if ext != "png" && ext != "jpg" && ext != "jpeg" {
+		return ctx.Send("Invalid format.")
+	}
+	resp, err := http.Get(URL)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode / 100 > 3 {
+		return errors.New(resp.Status)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	prefix := "data:image/jpeg;base64,"
+	if ext == "png" {
+		prefix = "data:image/png;base64,"
+	}
+	_, err = ctx.Bot.UserUpdate("", prefix + base64.StdEncoding.EncodeToString(data))
+    if err != nil {
+        return err
+    }
+	return ctx.Send("Updated avatar.")
+}
+
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(_ *discordgo.Session) {
@@ -407,6 +454,7 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(version, "version")
 	RegisterCommand(tpa, "tpa")
 	RegisterCommand(tpa, "tpahere")
+	RegisterCommand(avatar, "_avatar")
 	if _, err := os.Stat("gsm.sh"); err == nil {
 		RegisterCommand(gsm, "gsm")
 		info, err := os.Stat("lastUpdate")

@@ -245,7 +245,7 @@ func convertKek(kek int) string {
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
+// Here, loads the kek data from disk, as well as collapsing old kek data.
 func Init(self *discordgo.Session) {
 	err := commands.LoadPersistent("kek", &kekData)
 	if err != nil {

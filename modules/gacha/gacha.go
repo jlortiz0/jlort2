@@ -406,9 +406,9 @@ func makeItemEmbed(id int) *discordgo.MessageEmbed {
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
+// Here, it also loads the gacha data into memory, including user data and the item schema.
 func Init(self *discordgo.Session) {
-	err := commands.LoadPersistent("modules/gacha/relics.json", &gachaItems)
+	err := commands.LoadPersistent("../modules/gacha/relics.json", &gachaItems)
 	if err != nil {
 		log.Error(err)
 		return
