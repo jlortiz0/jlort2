@@ -129,7 +129,7 @@ Streamer:
 	data.Subprocess.Process.Kill()
 	data.Subprocess.Wait()
 	data.Flags &= ^uint16(strflag_playing)
-	if data.Flags&strflag_special != 0 {
+	if data.Flags&strflag_special == 0 {
 		streamLock.Lock()
 		lastPlayed[vc.GuildID] = time.Now()
 		streamLock.Unlock()
