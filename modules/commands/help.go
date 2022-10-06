@@ -24,9 +24,13 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"runtime"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+var buildDate string
+var verNum string
 
 type helpData struct {
 	Name    string
@@ -41,7 +45,7 @@ var helpMap map[string]*helpData
 // ~!version
 // Get bot info
 func version(ctx Context, _ []string) error {
-	return ctx.Send("jlort jlort 2.1.4g running on discordgo v" + discordgo.VERSION)
+	return ctx.Send("jlort jlort " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
 }
 
 // ~!help [command]
