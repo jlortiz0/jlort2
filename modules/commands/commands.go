@@ -124,17 +124,11 @@ func DisplayName(mem *discordgo.Member) string {
 
 // LoadPersistent loads data from a persistent file to the given pointer
 func LoadPersistent(name string, data interface{}) error {
-	f, err := os.Open("persistent/" + name)
+	b, err := os.ReadFile("persistent/" + name)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	b := make([]byte, 1048576)
-	n, err := f.Read(b)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b[:n], data)
+	return json.Unmarshal(b, data)
 }
 
 // SavePersistent saves data to a persistent file from the given pointer
@@ -146,11 +140,9 @@ func SavePersistent(name string, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile("persistent/"+name, os.O_WRONLY|os.O_TRUNC, 0600)
+	err = os.WriteFile("persistent/"+name+".new", output, 0600)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	_, err = f.Write(output)
-	return err
+	return os.Rename("persistent/"+name+".new", "persistent/"+name)
 }

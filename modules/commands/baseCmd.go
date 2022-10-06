@@ -426,9 +426,9 @@ func avatar(ctx Context, _ []string) error {
 		prefix = "data:image/png;base64,"
 	}
 	_, err = ctx.Bot.UserUpdate("", prefix + base64.StdEncoding.EncodeToString(data))
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 	return ctx.Send("Updated avatar.")
 }
 
@@ -473,7 +473,11 @@ func Init(_ *discordgo.Session) {
 			}
 		}
 	}
+	saverVersion++
+	go saverLoop()
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
-func Cleanup(_ *discordgo.Session) {}
+func Cleanup(_ *discordgo.Session) {
+	savers = nil
+}

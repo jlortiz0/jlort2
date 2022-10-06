@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"errors"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mattn/go-isatty"
@@ -41,13 +42,7 @@ func main() {
 		log.SetLevel(log.LevelWarn)
 	}
 start:
-	f, err := os.Open("key.txt")
-	if err != nil {
-		panic(err)
-	}
-	strBytes := make([]byte, 64)
-	c, err := f.Read(strBytes)
-	f.Close()
+	strBytes, err := os.ReadFile("key.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +58,7 @@ start:
 	// }
 	// defer pprof.StopCPUProfile()
 
-	client, err := discordgo.New("Bot " + string(strBytes[:c]))
+	client, err := discordgo.New("Bot " + string(strBytes))
 	if err != nil {
 		panic(err)
 	}
@@ -117,22 +112,17 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 		}
 	}
 	initModules(self)
-	f, err := os.Open("avatar.png")
+	avatar, err := os.ReadFile("avatar.png")
 	if err == nil {
-		defer f.Close()
-		avatar := make([]byte, 0x100000)
-		c, err := f.Read(avatar)
-		if err == nil {
-			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]))
-			if err != nil {
-				log.Error(fmt.Errorf("could not set avatar: %w", err))
-			} else {
-				log.Warn("Updated profile picture")
-				os.Remove("avatar.png")
-			}
+		_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar))
+		if err != nil {
+			log.Error(fmt.Errorf("could not set avatar: %w", err))
 		} else {
-			log.Error(fmt.Errorf("could not read avatar: %w", err))
+			log.Warn("Updated profile picture")
+			os.Remove("avatar.png")
 		}
+	} else if (!errors.Is(err, os.ErrNotExist)) {
+		log.Error(fmt.Errorf("could not read avatar: %w", err))
 	}
 
 	app, err := self.Application("@me")

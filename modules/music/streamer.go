@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"
@@ -513,7 +514,7 @@ func outro(ctx commands.Context, args []string) error {
 	}
 	_, err := os.Stat("outro" + string(os.PathSeparator) + args[0] + ".ogg")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return ctx.Send("That outro does not exist.")
 		}
 		return err

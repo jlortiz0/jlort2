@@ -181,3 +181,16 @@ func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 		}
 	}
 }
+
+func saveVoice() error {
+	if !dirty {
+		return nil
+	}
+	voiceSettingLock.RLock()
+	err := commands.SavePersistent("vachan", &voiceAnnounce)
+	if err == nil {
+		dirty = false
+	}
+	voiceSettingLock.RUnlock()
+	return err
+}

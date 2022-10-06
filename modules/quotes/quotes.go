@@ -192,17 +192,27 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(delquote, "rmquote")
 	commands.RegisterCommand(delquote, "delquote")
 	self.AddHandler(guildDelete)
+	commands.RegisterSaver(saveQuotes)
+}
+
+func saveQuotes() error {
+	if !dirty {
+		return nil
+	}
+	quoteLock.RLock()
+	err := commands.SavePersistent("quotes", &quixote)
+	if err == nil {
+		dirty = false
+	}
+	quoteLock.RUnlock()
+	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the quotes to disk.
 func Cleanup(_ *discordgo.Session) {
-	if dirty {
-		quoteLock.RLock()
-		err := commands.SavePersistent("quotes", &quixote)
-		if err != nil {
-			log.Error(err)
-		}
-		quoteLock.RUnlock()
+	err := saveQuotes()
+	if err != nil {
+		log.Error(err)
 	}
 }

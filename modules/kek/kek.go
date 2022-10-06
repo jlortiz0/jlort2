@@ -272,31 +272,41 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(kekOn, "kekOn")
 	commands.RegisterCommand(kekOn, "kekOff")
 	commands.RegisterCommand(kekReport, "kekReport")
+	commands.RegisterSaver(saveKek)
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
 }
 
+func saveKek() error {
+	if !dirty {
+		return nil
+	}
+	kekLock.Lock()
+	for _, keks := range kekData.Users {
+		for k, v := range keks {
+			if k == "locked" {
+				continue
+			}
+			if v == 0 {
+				delete(keks, k)
+			}
+		}
+	}
+	err := commands.SavePersistent("kek", &kekData)
+	if err == nil {
+		dirty = false
+	}
+	kekLock.Unlock()
+	return err
+}
+
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	if dirty {
-		kekLock.Lock()
-		for _, keks := range kekData.Users {
-			for k, v := range keks {
-				if k == "locked" {
-					continue
-				}
-				if v == 0 {
-					delete(keks, k)
-				}
-			}
-		}
-		err := commands.SavePersistent("kek", &kekData)
-		if err != nil {
-			log.Error(err)
-		}
-		kekLock.Unlock()
+	err := saveKek()
+	if err != nil {
+		log.Error(err)
 	}
 }

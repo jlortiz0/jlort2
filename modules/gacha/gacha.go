@@ -75,8 +75,8 @@ func pull(ctx commands.Context, args []string) error {
 	if time.Now().Before(data.Wait) {
 		data.Tokens -= 3
 	} else {
-        data.Wait = time.Now().Add(24 * time.Hour)
-    }
+		data.Wait = time.Now().Add(24 * time.Hour)
+	}
 	gachaLock.Unlock()
 	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
 	return err
@@ -431,17 +431,34 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(relics, "relics")
 	commands.RegisterCommand(relics, "relic")
 	commands.RegisterCommand(trade, "trade")
+	commands.RegisterSaver(saveGacha)
+}
+
+func saveGacha() error {
+	if !dirty {
+		return nil
+	}
+	gachaLock.Lock()
+	for _, x := range gachaData {
+		for k, v := range x.Items {
+			if v == 0 {
+				delete(x.Items, k)
+			}
+		}
+	}
+	err := commands.SavePersistent("gacha", &gachaData)
+	if err == nil {
+		dirty = false
+	}
+	gachaLock.Unlock()
+	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	if dirty {
-		gachaLock.Lock()
-		err := commands.SavePersistent("gacha", &gachaData)
-		if err != nil {
-			log.Error(err)
-		}
-		gachaLock.Unlock()
+	err := saveGacha()
+	if err != nil {
+		log.Error(err)
 	}
 }

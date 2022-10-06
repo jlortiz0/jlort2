@@ -123,6 +123,23 @@ func roll(ctx commands.Context, args []string) error {
 	return ctx.Send("Rolled " + strconv.Itoa(total))
 }
 
+var ballresp = [...]string{"Yes", "No", "Maybe so", "Hell yes", "Hell no", "Get back to me when jlort jlort 3 comes out", "Not until you get negative kek", "Of course", "Go to jail, go directly... oh, wrong game.", "When I learn to talk, I'll tell you", "Turn around.", "You? HAHAHAHAHA no", "aaa eee ooo", "500 Internal Server Error", "404 Possibility Not Found", "302 Possibility Found"}
+
+// ~!8ball <thing>
+// Ask the magic 8 ball a serious question, and get a stupid answer.
+// No, really. This one hates your guts. And my guts. It tried to kill me once.
+// Just dropped from the rafters while I was sleeping. And it wrote something in blood on the wall.
+// They ended up charging that chuunibyou girl with attempted murder, disregarding my testimony.
+// Thankfully the ball decided to testify itself and got torn a new one by that one public defender.
+// I think his name was Bagman? Paul Bagman, yeah.
+// After that the girl cursed me such that I would go to "the Demon Realm" on death. Then she stole all my BL doujins.
+func eightball(ctx commands.Context, args []string) error {
+	if len(args) == 0 {
+		return ctx.Send("Come on, ask me something.")
+	}
+	return ctx.Send(ballresp[rand.Intn(len(ballresp))])
+}
+
 // ~!howbrit [user]
 // @Hidden
 // Checks someone's Britishness
@@ -340,17 +357,28 @@ func Init(_ *discordgo.Session) {
 	commands.RegisterCommand(howbrit, "howbrit")
 	commands.RegisterCommand(brit, "brit")
 	commands.RegisterCommand(duel, "duel")
+	commands.RegisterCommand(eightball, "8ball")
+	commands.RegisterSaver(saveBrit)
+}
+
+func saveBrit() error {
+	if !dirty {
+		return nil
+	}
+	britLock.Lock()
+	err := commands.SavePersistent("brit", &britdata)
+	if err == nil {
+		dirty = false
+	}
+	britLock.Unlock()
+	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the scores to disk.
 func Cleanup(_ *discordgo.Session) {
-	if dirty {
-		britLock.Lock()
-		err := commands.SavePersistent("brit", &britdata)
-		if err != nil {
-			log.Error(err)
-		}
-		britLock.Unlock()
+	err := saveBrit()
+	if err != nil {
+		log.Error(err)
 	}
 }

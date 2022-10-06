@@ -516,26 +516,36 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(popcorn, "time")
 	commands.RegisterCommand(locket, "_locket")
 	commands.RegisterCommand(outro, "outro")
+	commands.RegisterSaver(saveData)
 	popLock++
 	go musicPopper(self, popLock)
+}
+
+func saveData() error {
+	if !dirty {
+		return nil
+	}
+	aliasLock.RLock()
+	err := commands.SavePersistent("song", &aliases)
+	aliasLock.RUnlock()
+	if err != nil {
+		return err
+	}
+	djLock.RLock()
+	err = commands.SavePersistent("dj", &djRoles)
+	if err == nil {
+		dirty = false
+	}
+	djLock.RUnlock()
+	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the song alias list, unregisters the disconnect handler, clears all queues, and disconnects all voice clients.
 func Cleanup(self *discordgo.Session) {
-	if dirty {
-		aliasLock.RLock()
-		err := commands.SavePersistent("song", &aliases)
-		if err != nil {
-			log.Error(err)
-		}
-		aliasLock.RUnlock()
-		djLock.RLock()
-		err = commands.SavePersistent("dj", &djRoles)
-		if err != nil {
-			log.Error(err)
-		}
-		djLock.RUnlock()
+	err := saveData()
+	if err != nil {
+		log.Error(err)
 	}
 	popLock++
 	streamLock.Lock()

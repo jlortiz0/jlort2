@@ -1,3 +1,20 @@
+/*
+Copyright (C) 2021-2022 jlortiz
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package main
 
 import (
@@ -28,6 +45,7 @@ func initModules(self *discordgo.Session) {
 	gacha.Init(self)
 	log.Info("Loaded gacha")
 	commands.RegisterCommand(vachan, "vachan")
+	commands.RegisterSaver(saveVoice)
 }
 
 func cleanup(self *discordgo.Session) {
@@ -38,7 +56,5 @@ func cleanup(self *discordgo.Session) {
 	music.Cleanup(self)
 	brit.Cleanup(self)
 	gacha.Cleanup(self)
-	if dirty {
-		commands.SavePersistent("vachan", &voiceAnnounce)
-	}
+	saveVoice()
 }
