@@ -35,6 +35,7 @@ var kekData struct {
 }
 var dirty bool
 var kekLock *sync.RWMutex = new(sync.RWMutex)
+var botId string
 
 // ~!kekage [user]
 // Checks someone's kekage
@@ -186,7 +187,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	if event.Emoji.Name != "\u2b06" && event.Emoji.Name != "\u2b07" {
 		return
 	}
-	if !kekData.Guilds[event.GuildID] {
+	if !kekData.Guilds[event.GuildID] || event.UserID == botId {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
@@ -245,7 +246,7 @@ func convertKek(kek int) string {
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// Here, loads the kek data from disk, as well as collapsing old kek data.
+// Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
 func Init(self *discordgo.Session) {
 	err := commands.LoadPersistent("kek", &kekData)
 	if err != nil {
@@ -277,6 +278,11 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onReactionAdd)
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
+	u, err := self.User("@me")
+	if err != nil {
+		log.Error(err)
+	}
+	botId = u.ID
 }
 
 func saveKek() error {
