@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
-	"runtime"
 
 	"github.com/bwmarrin/discordgo"
 )

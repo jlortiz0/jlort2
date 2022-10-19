@@ -270,9 +270,9 @@ func np(ctx commands.Context, _ []string) error {
 		timeFld = fmt.Sprintf("%01d:%02d/%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60, int(elem.Info.Duration)/60, int(elem.Info.Duration)%60)
 	} else if elem.Flags&strflag_special != 0 {
 		embed.Title = "???"
-        if elem.Flags&strflag_dconend != 0 {
-            embed.Title = "Outro"
-        }
+		if elem.Flags&strflag_dconend != 0 {
+			embed.Title = "Outro"
+		}
 		timeFld = fmt.Sprintf("%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
 	} else {
 		embed.Title = "Uploaded File"

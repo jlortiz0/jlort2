@@ -19,15 +19,15 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
-	"errors"
-	"math/rand"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mattn/go-isatty"
@@ -123,7 +123,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 			log.Warn("Updated profile picture")
 			os.Remove("avatar.png")
 		}
-	} else if (!errors.Is(err, os.ErrNotExist)) {
+	} else if !errors.Is(err, os.ErrNotExist) {
 		log.Error(fmt.Errorf("could not read avatar: %w", err))
 	}
 

@@ -20,6 +20,7 @@ package music
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"

@@ -18,17 +18,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package commands
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-	"net/http"
-	"errors"
-	"io"
-	"encoding/base64"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/log"
@@ -404,7 +404,7 @@ func avatar(ctx Context, _ []string) error {
 	}
 	URL := ctx.Message.Attachments[0].URL
 	ind := strings.LastIndexByte(URL, '.')
-	ext := URL[ind + 1:]
+	ext := URL[ind+1:]
 	ind = strings.IndexByte(ext, '?')
 	if ind != -1 {
 		ext = ext[:ind]
@@ -416,7 +416,7 @@ func avatar(ctx Context, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode / 100 > 3 {
+	if resp.StatusCode/100 > 3 {
 		return errors.New(resp.Status)
 	}
 	data, err := io.ReadAll(resp.Body)
@@ -427,7 +427,7 @@ func avatar(ctx Context, _ []string) error {
 	if ext == "png" {
 		prefix = "data:image/png;base64,"
 	}
-	_, err = ctx.Bot.UserUpdate("", prefix + base64.StdEncoding.EncodeToString(data))
+	_, err = ctx.Bot.UserUpdate("", prefix+base64.StdEncoding.EncodeToString(data))
 	if err != nil {
 		return err
 	}

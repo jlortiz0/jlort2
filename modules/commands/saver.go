@@ -22,10 +22,12 @@ import "jlortiz.org/jlort2/modules/log"
 
 type saverEntry struct {
 	version int
-	f func() error
+	f       func() error
 }
+
 var savers []saverEntry
 var saverVersion int
+
 const timeBetweenSaves = 30 * time.Minute
 
 func RegisterSaver(f func() error) int {
