@@ -125,7 +125,7 @@ func guildAndModeSel() {
 				fmt.Fprintf(output, "%d. %s\n", k+1, v.Name)
 			}
 		}
-		fmt.Fprintln(output, "Or type exit to exit\n")
+		fmt.Fprintln(output, "Or type exit to exit")
 		output.Flush()
 		ind := readInt("Sel: ", len(client.State.Guilds))
 		if ind == -1 {
@@ -174,7 +174,7 @@ func guildAndModeSel() {
 						}
 						output.WriteByte('\n')
 					}
-					fmt.Fprintln(output, "Or type exit to exit\n")
+					fmt.Fprintln(output, "Or type exit to exit")
 					output.Flush()
 					ind := readInt("Sel: ", guild.MemberCount)
 					if ind == -1 {
@@ -288,7 +288,7 @@ func channelSel(guild *discordgo.Guild) *discordgo.Channel {
 			fmt.Fprintf(output, "%d. %s\n", k+1, v.Name)
 		}
 	}
-	fmt.Fprintln(output, "Or type exit to exit\n")
+	fmt.Fprintln(output, "Or type exit to exit")
 	output.Flush()
 	ind := readInt("Sel: ", len(channels))
 	if ind == -1 {
@@ -534,6 +534,17 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 					}
 				}
 				chatlog(channel, guild, count)
+			case "zip":
+				count := -1
+				if len(cmd) > 1 {
+					count, err = strconv.Atoi(cmd[1])
+					if err != nil {
+						fmt.Println("Not a number!")
+						input.ReadBytes('\n')
+						continue
+					}
+				}
+				archive(channel, guild, count)
 			case "nick":
 				if len(cmd) == 1 {
 					fmt.Println("Usage: /nick <new nickname>\nEnter nil to reset nick")
