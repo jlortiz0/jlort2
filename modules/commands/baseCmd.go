@@ -34,6 +34,8 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
+const gsmServerID = ""
+
 // ~!echo <message>
 // Says stuff back
 func echo(ctx Context, args []string) error {
@@ -282,7 +284,7 @@ var updating bool
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
 func gsm(ctx Context, args []string) error {
-	if _, err := ctx.State.Member("382043119157510155", ctx.Author.ID); err != nil {
+	if _, err := ctx.State.Member(gsmServerID, ctx.Author.ID); err != nil {
 		return ctx.Send("You do not have access to these servers.")
 	}
 	if updating {
