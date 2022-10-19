@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 	"errors"
+	"math/rand"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mattn/go-isatty"
@@ -41,6 +42,7 @@ func main() {
 	if !isatty.IsTerminal(os.Stdout.Fd()) {
 		log.SetLevel(log.LevelWarn)
 	}
+	rand.Seed(time.Now().Unix())
 start:
 	strBytes, err := os.ReadFile("key.txt")
 	if err != nil {
