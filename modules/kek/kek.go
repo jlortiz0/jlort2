@@ -30,7 +30,7 @@ import (
 )
 
 var kekData struct {
-	Guilds map[string]bool
+	Guilds map[string]struct{}
 	Users  map[string]map[string]int
 }
 var dirty bool
@@ -142,17 +142,17 @@ func kekOn(ctx commands.Context, _ []string) error {
 	dirty = true
 	kekLock.Lock()
 	defer kekLock.Unlock()
-	if !kekData.Guilds[ctx.GuildID] {
-		kekData.Guilds[ctx.GuildID] = true
+	if _, ok := kekData.Guilds[ctx.GuildID]; ok {
+		kekData.Guilds[ctx.GuildID] = struct{}{}
 		return ctx.Send("Kek enabled on this server.")
 	}
-	kekData.Guilds[ctx.GuildID] = false
+	delete(kekData.Guilds, ctx.GuildID)
 	return ctx.Send("Kek disabled on this server.")
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 	// kekLock.RLock()
-	if !kekData.Guilds[event.GuildID] || event.Author.Bot {
+	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.Author.Bot {
 		// kekLock.RUnlock()
 		return
 	}
@@ -187,7 +187,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	if event.Emoji.Name != "\u2b06" && event.Emoji.Name != "\u2b07" {
 		return
 	}
-	if !kekData.Guilds[event.GuildID] || event.UserID == botId {
+	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.UserID == botId {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
