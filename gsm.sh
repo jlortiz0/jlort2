@@ -4,6 +4,9 @@ if [ "$1" = "lip" ]; then
 	hostname -I
 	exit 0
 fi
+if [ "$1" = "poweroff" ]; then
+	sudo /sbin/poweroff
+fi
 
 if [ -e "/home/McServer/maint" ]; then
     echo "Sorry, the servers are down for maintenance. Check back later."
@@ -63,9 +66,6 @@ if [ "$1" = "ping" ]; then
         done
 	fi
 	exit
-fi
-if [ "$1" = "poweroff" ]; then
-	sudo /sbin/poweroff
 fi
 
 if [ ! -d "/home/McServer/$1" ]; then
