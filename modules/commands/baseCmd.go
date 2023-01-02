@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -457,7 +458,7 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(tpa, "tpa")
 	RegisterCommand(tpa, "tpahere")
 	RegisterCommand(avatar, "_avatar")
-	if _, err := os.Stat("gsm.sh"); err == nil {
+	if runtime.GOOS != "windows" {
 		RegisterCommand(gsm, "gsm")
 		info, err := os.Stat("lastUpdate")
 		if err == nil {
