@@ -206,8 +206,8 @@ func skip(ctx commands.Context, _ []string) error {
 	log.Debug("skip: checked voice states")
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 		log.Debug("skip: checked perms")
-		if !obj.Skippers[ctx.Author.ID] {
-			obj.Skippers[ctx.Author.ID] = true
+		if _, ok := obj.Skippers[ctx.Author.ID]; !ok {
+			obj.Skippers[ctx.Author.ID] = struct{}{}
 			err = ctx.Send("Skip vote cast.")
 			if err != nil {
 				return err
@@ -230,7 +230,7 @@ func skip(ctx commands.Context, _ []string) error {
 	}
 	log.Debug("skip: skipping")
 	ls.Lock()
-	obj.Stop <- true
+	obj.Stop <- struct{}{}
 	obj.Flags &= ^uint16(strflag_paused)
 	// streams[ctx.GuildID].Remove(elem)
 	ls.Unlock()

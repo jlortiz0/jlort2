@@ -162,7 +162,7 @@ func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
 	v := streams[event.ID]
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value
-		obj.Stop <- true
+		obj.Stop <- struct{}{}
 	}
 	delete(streams, event.ID)
 }

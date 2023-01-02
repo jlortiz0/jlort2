@@ -67,11 +67,12 @@ type StreamObj struct {
 	Flags   uint16   // See above constants
 	Info    *YDLInfo // The YDLInfo associated with this stream. If nil, this is a direct file stream
 	// Fields below this line may not be populated or valid until the streamer starts
-	Remake     chan bool       // When this channel is written to, the ffmpeg process will be recreated with new parameters
-	Skippers   map[string]bool // A set of the IDs of users who have voted to skip this stream
-	StartedAt  time.Time       // The time the streamer started
-	Subprocess *exec.Cmd       // The ffmpeg subprocess that the streamer streams from
-	Stop       chan bool       // When this channel is written to, the streamer will stop
+	Remake     chan struct{}                   // When this channel is written to, the ffmpeg process will be recreated with new parameters
+	Skippers   map[string]struct{}             // A set of the IDs of users who have voted to skip this stream
+	StartedAt  time.Time                       // The time the streamer started
+	Subprocess *exec.Cmd                       // The ffmpeg subprocess that the streamer streams from
+	Stop       chan struct{}                   // When this channel is written to, the streamer will stop
+	Redirect   chan *discordgo.VoiceConnection // Uses this new VoiceConnection instead of the original one passsed in
 }
 
 var streams map[string]*lockQueue
@@ -100,7 +101,10 @@ func connect(ctx commands.Context, _ []string) error {
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
 		streamLock.Lock()
-		if streams[ctx.GuildID] == nil {
+		if lastPlayed[ctx.GuildID].IsZero() {
+			if streams[ctx.GuildID] != nil && streams[ctx.GuildID].Len() > 0 {
+				streams[ctx.GuildID].Head().Value.Stop <- struct{}{}
+			}
 			lastPlayed[ctx.GuildID] = time.Now()
 			streams[ctx.GuildID] = new(lockQueue)
 		}
@@ -121,6 +125,9 @@ func connect(ctx commands.Context, _ []string) error {
 			return ctx.Send("I need the Connect permission to use this command.")
 		}
 		streamLock.Lock()
+		if streams[ctx.GuildID] != nil && streams[ctx.GuildID].Len() > 0 {
+			streams[ctx.GuildID].Head().Value.Stop <- struct{}{}
+		}
 		lastPlayed[ctx.GuildID] = time.Now()
 		streams[ctx.GuildID] = new(lockQueue)
 		streamLock.Unlock()
@@ -154,7 +161,7 @@ func dc(ctx commands.Context, _ []string) error {
 				return err
 			}
 		}
-		if ls.Head().Value.Flags&strflag_noskip != 0 {
+		if ok && ls.Head() != nil && ls.Head().Value.Flags&strflag_noskip != 0 {
 			if ls.Head().Value.Flags&strflag_dconend != 0 {
 				return ctx.Send("Won't you at least wait for the outro?")
 			}
@@ -231,20 +238,24 @@ func onDc(self *discordgo.Session, event *discordgo.VoiceStateUpdate) {
 	vc := self.VoiceConnections[event.GuildID]
 	if vc != nil {
 		if self.State.User.ID == event.UserID && event.ChannelID == "" {
-			streamLock.RLock()
-			if streams[event.GuildID] != nil {
-				streams[event.GuildID].Lock()
-				elem := streams[event.GuildID].Head()
-				if elem != nil {
-					elem.Value.Stop <- true
+			lastPlayed[event.GuildID] = time.Time{}
+			time.AfterFunc(5*time.Second, func() {
+				streamLock.RLock()
+				if streams[event.GuildID] != nil && !lastPlayed[event.GuildID].IsZero() {
+					streams[event.GuildID].Lock()
+					elem := streams[event.GuildID].Head()
+					if elem != nil {
+						elem.Value.Stop <- struct{}{}
+					}
+					streams[event.GuildID].Unlock()
+					streamLock.RUnlock()
+					streamLock.Lock()
+					delete(streams, event.GuildID)
+					streamLock.Unlock()
+				} else {
+					streamLock.RUnlock()
 				}
-				streams[event.GuildID].Unlock()
-			}
-			streamLock.RUnlock()
-			streamLock.Lock()
-			delete(streams, event.GuildID)
-			// delete(lastPlayed, event.GuildID)
-			streamLock.Unlock()
+			})
 			return
 		}
 		vguild, err := self.State.Guild(event.GuildID)
@@ -288,7 +299,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 						vc.Disconnect()
 					}
 				} else if lp.Before(eggCutoff) && eggCutoff.Sub(lp) < popRefreshRate {
-					if rand.Intn(32) != 0 {
+					if rand.Intn(4) != 0 {
 						continue
 					}
 					f, err := os.Open("spook/")
@@ -456,15 +467,18 @@ func hasMusPerms(user *discordgo.Member, state *discordgo.State, guild string, i
 }
 
 func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
-	time.Sleep(popRefreshRate)
+	time.Sleep(time.Millisecond * 50)
 	for k, v := range self.VoiceConnections {
 		if lastPlayed[k].Sub(time.Now()) < dcTimeout {
 			v.Disconnect()
-		}
-		if streams[k] == nil {
+		} else if streams[k] == nil {
 			streams[k] = new(lockQueue)
-			// lastPlayed[k] = time.Now()
+			lastPlayed[k] = time.Now()
 			log.Warn("Reconnected to " + k)
+		} else if streams[k].Len() > 0 {
+			streams[k].Head().Value.Redirect <- v
+			lastPlayed[k] = time.Now()
+			log.Warn("Redirected on " + k)
 		}
 	}
 }
@@ -552,7 +566,7 @@ func Cleanup(self *discordgo.Session) {
 	for _, v := range streams {
 		if v.Len() != 0 {
 			obj := v.Head().Value
-			obj.Stop <- true
+			obj.Stop <- struct{}{}
 		}
 	}
 	streamLock.Unlock()

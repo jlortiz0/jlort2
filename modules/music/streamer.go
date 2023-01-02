@@ -56,11 +56,12 @@ func musicStreamer(vc *discordgo.VoiceConnection, data *StreamObj) {
 		f.Close()
 		return
 	}
-	data.Skippers = make(map[string]bool)
+	data.Skippers = make(map[string]struct{})
 	data.Flags |= strflag_playing
 	data.StartedAt = time.Now()
-	data.Stop = make(chan bool, 1)
-	data.Remake = make(chan bool, 1)
+	data.Stop = make(chan struct{}, 1)
+	data.Remake = make(chan struct{}, 1)
+	data.Redirect = make(chan *discordgo.VoiceConnection, 1)
 	rd := bufio.NewReaderSize(f, 4096)
 	header := make([]byte, 4)
 	var count byte
@@ -123,6 +124,10 @@ Streamer:
 			rd.Reset(f)
 		case <-data.Stop:
 			break Streamer
+		case v := <-data.Redirect:
+			if v != nil {
+				vc = v
+			}
 		default:
 		}
 		time.Sleep(2 * time.Millisecond)
@@ -192,7 +197,7 @@ func mp3(ctx commands.Context, args []string) error {
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
-				obj.Stop <- true
+				obj.Stop <- struct{}{}
 			}
 			ls.Remove(elem)
 		}
@@ -295,7 +300,7 @@ func play(ctx commands.Context, args []string) error {
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
-				obj.Stop <- true
+				obj.Stop <- struct{}{}
 			}
 			ls.Remove(elem)
 		}
@@ -354,7 +359,7 @@ func vol(ctx commands.Context, args []string) error {
 		vol = 200
 	}
 	strm.Vol = vol
-	strm.Remake <- true
+	strm.Remake <- struct{}{}
 	return ctx.Send(fmt.Sprintf("Volume set to %d", vol))
 }
 
@@ -402,7 +407,7 @@ func seek(ctx commands.Context, args []string) error {
 	}
 	strm := elem.Value
 	strm.StartedAt = time.Now().Add(time.Duration(-desired) * time.Second)
-	strm.Remake <- true
+	strm.Remake <- struct{}{}
 	return ctx.Send(fmt.Sprintf("Skipped to %d:%02d", desired/60, desired%60))
 }
 
