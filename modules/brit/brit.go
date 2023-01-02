@@ -127,12 +127,7 @@ var ballresp = [...]string{"Yes", "No", "Maybe so", "Hell yes", "Hell no", "Get 
 
 // ~!8ball <thing>
 // Ask the magic 8 ball a serious question, and get a stupid answer.
-// No, really. This one hates your guts. And my guts. It tried to kill me once.
-// Just dropped from the rafters while I was sleeping. And it wrote something in blood on the wall.
-// They ended up charging that chuunibyou girl with attempted murder, disregarding my testimony.
-// Thankfully the ball decided to testify itself and got torn a new one by that one public defender.
-// I think his name was Bagman? Paul Bagman, yeah.
-// After that the girl cursed me such that I would go to "the Demon Realm" on death. Then she stole all my BL doujins.
+// No, really. This one hates your guts. And my guts.
 func eightball(ctx commands.Context, args []string) error {
 	if len(args) == 0 {
 		return ctx.Send("Come on, ask me something.")
