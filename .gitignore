@@ -6,6 +6,7 @@ archive/*
 time/*
 spook/*
 outro/*
+pfps/*
 modules/music/bye.ogg
 modules/gacha/relics.json
 misc/ageList.go.bak

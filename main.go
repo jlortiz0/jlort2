@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2021-2022 jlortiz
+Copyright (C) 2021-2023 jlortiz
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -18,8 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"encoding/base64"
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -100,32 +98,20 @@ func crashMe(ch chan os.Signal) {
 	*test = 0
 }
 
-var notForThisOne map[string]bool = make(map[string]bool, 10)
+var notForThisOne map[string]struct{} = make(map[string]struct{}, 10)
 
 func ready(self *discordgo.Session, event *discordgo.Ready) {
 	time.Sleep(5 * time.Millisecond)
-	var err error
-	// notForThisOne = make(map[string]bool, len(event.Guilds))
+	// notForThisOne = make(map[string]struct{}, len(event.Guilds))
 	for i := 0; i < len(event.Guilds); i++ {
 		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, false)
-		notForThisOne[event.Guilds[i].ID] = true
+		notForThisOne[event.Guilds[i].ID] = struct{}{}
 		if err != nil {
 			panic(err)
 		}
 	}
+	updatePfp(self)
 	initModules(self)
-	avatar, err := os.ReadFile("avatar.png")
-	if err == nil {
-		_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar))
-		if err != nil {
-			log.Error(fmt.Errorf("could not set avatar: %w", err))
-		} else {
-			log.Warn("Updated profile picture")
-			os.Remove("avatar.png")
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Error(fmt.Errorf("could not read avatar: %w", err))
-	}
 
 	app, err := self.Application("@me")
 	if err != nil {
@@ -168,6 +154,15 @@ func messageCreate(self *discordgo.Session, event *discordgo.MessageCreate) {
 				}
 			}()
 			err = cmd(ctx, args[1:])
+		}
+	} else if event.GuildID == "" && event.Author.ID != ownerid {
+		channel, err2 := self.UserChannelCreate(ownerid)
+		if err2 == nil {
+			if len(event.Content) < 1965 {
+				self.ChannelMessageSend(channel.ID, "Non-command message from "+event.Author.Username+"\n"+event.Content)
+			} else {
+				self.ChannelMessageSend(channel.ID, "Non-command message from "+event.Author.Username)
+			}
 		}
 	}
 }
