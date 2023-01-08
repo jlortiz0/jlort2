@@ -14,7 +14,7 @@ Then the codebase stagnated for a while. But maybe I'll come up with something s
 
 ## Usage
 
-This program relies on some files existing before it can run. You must create a file called key.txt containing the bot key. This file should not have a trailing newline.
+This program relies on some files existing before it can run. You must create a file called `key.txt` containing the bot key. This file should not have a trailing newline.
 
 Additionally, most modules require an existing persistent storage file before they will work. The names and structures required in the files can be determined by looking at the globals and initialization functions for each module.
 
@@ -22,9 +22,9 @@ The program requires a help file for the help command to work. A help file for t
 
 The music module has a feature that requires a folder of sounds to surprise unsuspecting people with, called `spook`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k or 128k, and an audio rate of 48k.
 
-A feature of the `~!popcorn` command requires a folder called `time` containing similarly formatted files, one for each part of the date and time.
+A feature of the `~!popcorn` command requires a folder called `time` containing similarly formatted files, one for each part of the date and time. More specifically, the numbers 1-20, 30, 40, 50, the current year, AM/PM, the first three letters of the month names, and two files called `itis.ogg` and `on.ogg`.
 
-The `~!outro` command requires a folder called `outro` containing cimilarly formatted files.
+The `~!outro` command requires a folder called `outro` containing similarly formatted files.
 
 The bot will attempt to play a sound before leaving a channel. This sound should be in `modules/music/bye.ogg`, and be in the same format as the above.
 
