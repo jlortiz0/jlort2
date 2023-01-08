@@ -460,20 +460,26 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(avatar, "_avatar")
 	if runtime.GOOS != "windows" {
 		RegisterCommand(gsm, "gsm")
-		info, err := os.Stat("lastUpdate")
-		if err == nil {
-			since := time.Since(info.ModTime())
-			if since > 12*time.Hour {
+	}
+	info, err := os.Stat("lastUpdate")
+	if err == nil {
+		since := time.Since(info.ModTime())
+		if since > 12*time.Hour {
+			var cmd *exec.Cmd
+			if runtime.GOOS != "windows" {
 				bashLoc, _ := exec.LookPath("bash")
-				cmd := exec.Command(bashLoc, "gsm.sh", "update")
-				cmd.Start()
-				updating = true
-				go func() {
-					cmd.Wait()
-					os.Chtimes("lastUpdate", time.Now(), time.Now())
-					updating = false
-				}()
+				cmd = exec.Command(bashLoc, "gsm.sh", "update")
+			} else {
+				pipLoc, _ := exec.LookPath("pip")
+				cmd = exec.Command(pipLoc, "install", "--user", "-q", "-U", "yt-dlp")
 			}
+			cmd.Start()
+			updating = true
+			go func() {
+				cmd.Wait()
+				os.Chtimes("lastUpdate", time.Now(), time.Now())
+				updating = false
+			}()
 		}
 	}
 	saverVersion++
