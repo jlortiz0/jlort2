@@ -1,0 +1,14 @@
+go 1.19
+
+use (
+	.
+	./console
+	./modules/brit
+	./modules/commands
+	./modules/gacha
+	./modules/kek
+	./modules/log
+	./modules/music
+	./modules/quotes
+	./modules/zip
+)

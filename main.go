@@ -37,6 +37,8 @@ var sc chan os.Signal
 var ownerid string
 
 func main() {
+	log.Init()
+	defer log.Cleanup()
 	if !isatty.IsTerminal(os.Stdout.Fd()) {
 		log.SetLevel(log.LevelWarn)
 	}

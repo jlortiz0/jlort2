@@ -12,3 +12,4 @@ modules/gacha/relics.json
 misc/ageList.go.bak
 *.zip
 *.exe
+logs/*
