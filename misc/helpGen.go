@@ -28,7 +28,7 @@ type CmdDoc struct {
 	Doc     string
 }
 
-var docs map[string]*CmdDoc = make(map[string]*CmdDoc, 32)
+var docs map[string]*CmdDoc = make(map[string]*CmdDoc, 64)
 
 func loadData(file string) {
 	f, err := os.Open(file)
@@ -76,11 +76,11 @@ Outer:
 				break Outer
 			}
 		}
-        if output.Len() == 0 {
-            fmt.Printf("WARN: %s has no description\n", name)
-            delete(docs, name)
-            continue
-        }
+		if output.Len() == 0 {
+			fmt.Printf("WARN: %s has no description\n", name)
+			delete(docs, name)
+			continue
+		}
 		doc.Doc = output.String()[1:]
 	}
 	checkFatal(rd.Err())

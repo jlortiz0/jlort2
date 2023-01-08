@@ -53,7 +53,7 @@ func archive(channel *discordgo.Channel, _ *discordgo.Guild, count int) {
 			}
 		}
 	}
-	fmt.Println(fmt.Sprintf("Found %d messages, zipping...", len(files)))
+	fmt.Printf("Found %d messages, zipping...\n", len(files))
 	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {

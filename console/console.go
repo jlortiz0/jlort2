@@ -103,7 +103,7 @@ func main() {
 }
 
 func ready(self *discordgo.Session, event *discordgo.Ready) {
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	var err error
 	for i := 0; i < len(event.Guilds); i++ {
 		err = self.RequestGuildMembers(event.Guilds[i].ID, "", 250, false)
@@ -593,8 +593,8 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 					fmt.Println(err)
 					input.ReadBytes('\n')
 				}
-            case "reply":
-                client.ChannelMessageSendReply(channel.ID, strings.Join(cmd[2:], " "), &discordgo.MessageReference{cmd[1], channel.ID, channel.GuildID})
+			case "reply":
+				client.ChannelMessageSendReply(channel.ID, strings.Join(cmd[2:], " "), &discordgo.MessageReference{MessageID: cmd[1], ChannelID: channel.ID, GuildID: channel.GuildID})
 			default:
 				fmt.Print("\a")
 			}
