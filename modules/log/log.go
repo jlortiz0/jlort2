@@ -98,9 +98,15 @@ func Init() {
 		panic(err)
 	}
 	output = f
+	r, w, _ := os.Pipe()
+	w2 := io.MultiWriter(os.Stderr, f)
+	go io.Copy(w2, r)
+	os.Stderr = w
+	os.Stdout = w
 }
 
 func Cleanup() {
+	os.Stderr.Close()
 	output.Close()
 }
 
@@ -108,10 +114,8 @@ func logOut(level Level, msg string) {
 	if level <= curLvl {
 		if level != curLvl {
 			fmt.Fprint(os.Stderr, level.name(), ": ")
-			fmt.Fprint(output, level.name(), ": ")
 		}
 		fmt.Fprintln(os.Stderr, msg)
-		fmt.Fprintln(output, msg)
 	}
 }
 
