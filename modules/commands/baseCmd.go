@@ -19,7 +19,6 @@ package commands
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -197,87 +196,6 @@ func ping(ctx Context, _ []string) error {
 	return ctx.Send(fmt.Sprintf("Latency: %d ms", ctx.Bot.HeartbeatLatency().Milliseconds()))
 }
 
-// ~!nh <6 digits>
-// @Alias nhentai
-// @NSFW
-// Info about !?
-func nh(ctx Context, args []string) error {
-	channel, err := ctx.State.Channel(ctx.ChanID)
-	if err != nil {
-		return err
-	}
-	if channel.Type != discordgo.ChannelTypeDM && !channel.NSFW {
-		return ctx.Send("This command is restricted to NSFW channels and DMs.")
-	}
-	if len(args) == 0 {
-		return ctx.Send("~!nh <6 digits>")
-	}
-	if _, err := strconv.Atoi(args[0]); err != nil {
-		return ctx.Send(args[0] + " is not a number.")
-	}
-	resp, err := ctx.Bot.Client.Get("https://nhentai.net/api/gallery/" + args[0])
-	if err != nil {
-		return fmt.Errorf("Failed to fetch doujin: %w", err)
-	}
-	defer resp.Body.Close()
-	type nhdata struct {
-		Title struct {
-			English string
-		}
-		MediaID  string `json:"media_id"`
-		NumPages int    `json:"num_pages"`
-		Images   struct {
-			Cover struct {
-				T string
-			}
-		}
-		Tags []struct {
-			Name string
-			Type string
-			URL  string
-		}
-	}
-	data := nhdata{}
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	if err != nil {
-		return fmt.Errorf("Failed to read doujin: %w", err)
-	}
-	output := new(discordgo.MessageEmbed)
-	output.URL = "https://nhentai.net/g/" + args[0]
-	output.Type = discordgo.EmbedTypeImage
-	output.Title = data.Title.English
-	var coverext string
-	switch data.Images.Cover.T {
-	case "j":
-		coverext = "jpg"
-	case "p":
-		coverext = "png"
-	case "g":
-		coverext = "gif"
-	}
-	output.Image = &discordgo.MessageEmbedImage{URL: fmt.Sprintf("https://t.nhentai.net/galleries/%s/cover.%s", data.MediaID, coverext)}
-	tagStr := new(strings.Builder)
-	var author *discordgo.MessageEmbedAuthor
-	for _, tag := range data.Tags {
-		if tag.Type == "artist" {
-			author = &discordgo.MessageEmbedAuthor{URL: "https://nhentai.net/" + tag.URL, Name: tag.Name}
-		}
-		if tagStr.Len() != 0 {
-			tagStr.WriteString(", ")
-		}
-		tagStr.WriteString(tag.Name)
-	}
-	if author != nil {
-		output.Author = author
-	}
-	output.Fields = []*discordgo.MessageEmbedField{
-		{Name: "Pages", Value: strconv.Itoa(data.NumPages), Inline: true},
-		{Name: "Tags", Value: tagStr.String(), Inline: true},
-	}
-	_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, output)
-	return err
-}
-
 var updating bool
 
 // ~!gsm <arg1> [arg2]
@@ -451,8 +369,6 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(ppurge, "ppurge")
 	RegisterCommand(ping, "ping")
 	RegisterCommand(ping, "latency")
-	RegisterCommand(nh, "nh")
-	RegisterCommand(nh, "nhentai")
 	RegisterCommand(invite, "invite")
 	RegisterCommand(version, "version")
 	RegisterCommand(tpa, "tpa")
