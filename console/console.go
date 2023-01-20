@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2021-2022 jlortiz
+Copyright (C) 2021-2023 jlortiz
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -31,10 +31,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/nathan-fiscaletti/consolesize-go"
 )
-
-const tsFormat = "Jan _2 2006 15:04"
-const dateFormat = "[Jan _2 2006]\n"
-const timeFormat = "[15:04]"
 
 func checkFatal(e error) {
 	if e != nil {
@@ -256,14 +252,11 @@ func guildAndModeSel() {
 				case 4:
 					channel := channelSel(guild)
 					if channel != nil {
-						count := readInt("How many messages to save? Type 5738 for all. ", -1)
-						if count == -1 {
+						count := readInt("ID of first message to save or 1 for all: ", -1)
+						if count <= 0 {
 							break
 						}
-						if count == 5738 {
-							count = -1
-						}
-						chatlog(channel, guild, count)
+						chatlog(channel, guild, count-1)
 					}
 				}
 			}
@@ -295,117 +288,6 @@ func channelSel(guild *discordgo.Guild) *discordgo.Channel {
 		return nil
 	}
 	return channels[ind-1]
-}
-
-func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
-	f, err := os.OpenFile(fmt.Sprintf("jlort-jlort-%d.txt", time.Now().Unix()), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println(err)
-		input.ReadBytes('\n')
-		return
-	}
-	output := bufio.NewWriter(f)
-	output.WriteString("Discord Text Archive created on ")
-	output.WriteString(time.Now().Format(tsFormat))
-	output.WriteString(" by jlortiz's Discord Bot Console\n")
-	if guild != nil {
-		output.WriteString("Server: ")
-		output.WriteString(guild.Name)
-		output.WriteString("\nChannel: ")
-		output.WriteString(channel.Name)
-		if channel.Topic != "" {
-			output.WriteString(" (")
-			output.WriteString(channel.Topic)
-			output.WriteByte(')')
-		}
-	}
-	output.WriteByte('\n')
-	output.WriteByte('\n')
-	size := count
-	if count == -1 {
-		size = 65536
-	}
-	msgs := make([]*discordgo.Message, 0, size)
-	var lastMsg string
-	nicks := make(map[string]string)
-	for count != 0 {
-		toProc, err := client.ChannelMessages(channel.ID, 100, lastMsg, "", "")
-		if err != nil {
-			fmt.Println(err)
-			input.ReadBytes('\n')
-			return
-		}
-		if count >= 0 && len(toProc) > count {
-			toProc = toProc[:count-1]
-		}
-		if len(toProc) == 0 {
-			break
-		}
-		count -= len(toProc)
-		lastMsg = toProc[len(toProc)-1].ID
-		for _, v := range toProc {
-			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
-				continue
-			}
-			if nicks[v.Author.ID] == "" {
-				nicks[v.Author.ID] = v.Author.Username
-				if guild != nil {
-					mem, err := client.State.Member(guild.ID, v.Author.ID)
-					if err == nil && mem.Nick != "" {
-						nicks[v.Author.ID] = mem.Nick
-					}
-				}
-			}
-			msgs = append(msgs, v)
-		}
-	}
-	var lastDay int
-	for i := len(msgs) - 1; i >= 0; i-- {
-		v := msgs[i]
-		t := v.Timestamp.In(time.Local)
-		if t.YearDay() != lastDay {
-			output.WriteString(t.Format(dateFormat))
-			lastDay = t.YearDay()
-		}
-		output.WriteString(t.Format(timeFormat))
-		output.WriteString(" <")
-		output.WriteString(nicks[v.Author.ID])
-		output.WriteString("> ")
-		content, err := v.ContentWithMoreMentionsReplaced(client)
-		if err == nil {
-			output.WriteString(content)
-		} else {
-			output.WriteString(v.ContentWithMentionsReplaced())
-		}
-		if v.Pinned {
-			output.WriteString("\n - Pinned")
-		}
-		for _, attach := range v.Attachments {
-			output.WriteString("\n - Attachment: ")
-			output.WriteString(attach.URL)
-		}
-		for _, attach := range v.Embeds {
-			if attach.Image != nil {
-				output.WriteString("\n - Image: ")
-				output.WriteString(attach.Image.URL)
-			} else {
-				output.WriteString("\n - Embed: ")
-				if attach.URL != "" {
-					output.WriteString(attach.URL)
-				} else {
-					output.WriteString(attach.Title)
-					output.WriteString(" (")
-					output.WriteString(attach.Description)
-					output.WriteByte(')')
-				}
-			}
-		}
-		output.WriteByte('\n')
-	}
-	checkFatal(output.Flush())
-	checkFatal(f.Close())
-	fmt.Printf("Done! Check %s\n", f.Name())
-	input.ReadBytes('\n')
 }
 
 func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
@@ -519,12 +401,12 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 			case "pagedown":
 				pager = pager[:len(pager)-1]
 			case "help":
-				fmt.Println("/help - This message\n/exit - Quit this mode\n/pageup and /pagedown - Scroll\n/tar [count] - Log some or all messages\n/chatlog - Tar alias\n/nick - Set nickname\n/typing - Send typing notif\n/file - Upload file")
+				fmt.Println("/help - This message\n/exit - Quit this mode\n/pageup and /pagedown - Scroll\n/tar [first id] - Log some or all messages\n/chatlog - Tar alias\n/nick - Set nickname\n/typing - Send typing notif\n/file - Upload file")
 				input.ReadBytes('\n')
 			case "tar":
 				fallthrough
 			case "chatlog":
-				count := -1
+				count := 0
 				if len(cmd) > 1 {
 					count, err = strconv.Atoi(cmd[1])
 					if err != nil {

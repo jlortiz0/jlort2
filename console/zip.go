@@ -1,3 +1,20 @@
+/*
+Copyright (C) 2021-2023 jlortiz
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package main
 
 import (
@@ -6,11 +23,118 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+const tsFormat = "Jan _2 3:04 PM"
+const dateFormat = "[Jan _2 2006]\n"
+const timeFormat = "[15:04]"
+
+// ~!chatlog [flags]
+// @Alias logall
+// Puts messages in a file
+// Reply to the first message you want to be logged
+// Alternative, run as ~!logall to log all messages in the channel
+func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
+	fName := fmt.Sprintf("jlort-jlort-%d.txt", time.Now().Unix())
+	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		fmt.Printf("Failed to open output file %s: %s", fName, err.Error())
+		input.ReadBytes('\n')
+		return
+	}
+	defer f.Close()
+	output := bufio.NewWriter(f)
+	output.WriteString(time.Now().Format(tsFormat))
+	output.WriteString(" by jlortiz's Discord Bot Console")
+	if guild != nil {
+		output.WriteString("\nServer: ")
+		output.WriteString(guild.Name)
+		output.WriteString("\nChannel: #")
+		output.WriteString(channel.Name)
+		if channel.Topic != "" {
+			output.WriteString("\nTopic: ")
+			output.WriteString(channel.Topic)
+		}
+	}
+	output.WriteByte('\n')
+	output.WriteByte('\n')
+	lastMsg := strconv.FormatUint(uint64(count), 10)
+	nicks := make(map[string]string)
+	var lastDay int
+	for {
+		toProc, err := client.ChannelMessages(channel.ID, 100, "", lastMsg, "")
+		if err != nil {
+			fmt.Println(err)
+			input.ReadBytes('\n')
+			return
+		}
+		if len(toProc) == 0 {
+			break
+		}
+		lastMsg = toProc[0].ID
+		for i := len(toProc) - 1; i >= 0; i-- {
+			v := toProc[i]
+			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
+				continue
+			}
+			if v.Content == "" && len(v.Attachments) == 0 && len(v.Embeds) == 0 {
+				continue
+			}
+			if nicks[v.Author.ID] == "" {
+				nicks[v.Author.ID] = v.Author.Username
+				if guild != nil {
+					mem, err := client.State.Member(guild.ID, v.Author.ID)
+					if err == nil && mem.Nick != "" {
+						nicks[v.Author.ID] = mem.Nick
+					}
+				}
+			}
+			t := v.Timestamp.In(time.Local)
+			if t.YearDay() != lastDay {
+				output.WriteString(t.Format(dateFormat))
+				lastDay = t.YearDay()
+			}
+			output.WriteString(t.Format(timeFormat))
+			output.WriteString(" <")
+			output.WriteString(nicks[v.Author.ID])
+			output.WriteString("> ")
+			output.WriteString(v.ContentWithMentionsReplaced())
+			if v.Pinned {
+				output.WriteString("\n - Pinned")
+			}
+			for _, attach := range v.Attachments {
+				output.WriteString("\n - Attachment: ")
+				output.WriteString(attach.URL)
+			}
+			for _, attach := range v.Embeds {
+				if attach.Image != nil {
+					output.WriteString("\n - Image: ")
+					output.WriteString(attach.Image.URL)
+				} else {
+					output.WriteString("\n - Embed: ")
+					if attach.URL != "" {
+						output.WriteString(attach.URL)
+					} else {
+						output.WriteString(attach.Title)
+						output.WriteString(" (")
+						output.WriteString(attach.Description)
+						output.WriteByte(')')
+					}
+				}
+			}
+			output.WriteByte('\n')
+		}
+	}
+	checkFatal(output.Flush())
+	checkFatal(f.Close())
+	fmt.Println("Log complete! Look for " + fName)
+	input.ReadBytes('\n')
+}
 
 // ~!zip
 // @Alias archive
