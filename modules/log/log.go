@@ -62,7 +62,7 @@ func (l Level) name() string {
 func Init() {
 	os.Mkdir("logs", 0700)
 	stat, _ := os.Stat("logs/latest.log")
-	if stat != nil {
+	if stat != nil && stat.Size() > 0 {
 		ts := stat.ModTime().Format("2006-01-02-")
 		i := 1
 		for {
