@@ -82,13 +82,13 @@ func addsong(ctx commands.Context, args []string) error {
 		return ctx.Send("Usage: ~!addsong <song alias> <url>")
 	}
 	name := args[0]
-	if name == "list" {
+	if name == "list" || name == "all" {
 		return ctx.Send("This song name is not allowed.")
 	}
 	ctx.Bot.ChannelTyping(ctx.ChanID)
 	url := strings.Join(args[1:], " ")
 	var info YDLInfo
-	out, err := exec.Command("youtube-dl", "-f", "bestaudio/best", "-J", url).Output()
+	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", url).Output()
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			return ctx.Send("Could not get info from this URL. Note that ~!song does not support searches.")
@@ -135,7 +135,7 @@ func delsong(ctx commands.Context, args []string) error {
 	aliasLock.Lock()
 	defer aliasLock.Unlock()
 	mappings := aliases[ctx.GuildID]
-	if args[0] == "all" && mappings["all"] == "" {
+	if args[0] == "all" {
 		perms, err := ctx.State.MessagePermissions(ctx.Message)
 		if err != nil {
 			return fmt.Errorf("Failed to get permissions: %w", err)

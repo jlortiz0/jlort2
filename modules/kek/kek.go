@@ -121,6 +121,9 @@ func kekReport(ctx commands.Context, _ []string) error {
 		}
 	}
 	kekLock.RUnlock()
+	if output.Len() == 0 {
+		output.WriteString("All keks are zero.")
+	}
 	return ctx.Send(output.String())
 }
 
@@ -142,7 +145,7 @@ func kekOn(ctx commands.Context, _ []string) error {
 	dirty = true
 	kekLock.Lock()
 	defer kekLock.Unlock()
-	if _, ok := kekData.Guilds[ctx.GuildID]; ok {
+	if _, ok := kekData.Guilds[ctx.GuildID]; !ok {
 		kekData.Guilds[ctx.GuildID] = struct{}{}
 		return ctx.Send("Kek enabled on this server.")
 	}
@@ -184,7 +187,7 @@ func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 }
 
 func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd) {
-	if event.Emoji.Name != "\u2b06" && event.Emoji.Name != "\u2b07" {
+	if event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
 		return
 	}
 	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.UserID == botId {
@@ -199,9 +202,9 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	}
 	total := 0
 	for _, emoji := range msg.Reactions {
-		if emoji.Emoji.Name == "\u2b06" {
+		if emoji.Emoji.Name[:3] == "\u2b06" {
 			total += emoji.Count
-		} else if emoji.Emoji.Name == "\u2b07" {
+		} else if emoji.Emoji.Name[:3] == "\u2b07" {
 			total -= emoji.Count
 		}
 	}
@@ -278,6 +281,7 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onReactionAdd)
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
+	self.AddHandler(onGuildRemoveKek)
 	u, err := self.User("@me")
 	if err != nil {
 		log.Error(err)

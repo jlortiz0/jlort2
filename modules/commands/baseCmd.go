@@ -374,7 +374,7 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(tpa, "tpa")
 	RegisterCommand(tpa, "tpahere")
 	RegisterCommand(avatar, "_avatar")
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != "windows" && gsmServerID != "" {
 		RegisterCommand(gsm, "gsm")
 	}
 	info, err := os.Stat("lastUpdate")
