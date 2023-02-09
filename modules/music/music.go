@@ -18,10 +18,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package music
 
 import (
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -77,9 +79,8 @@ type StreamObj struct {
 
 var streams map[string]*lockQueue
 var lastPlayed map[string]time.Time
-var djRoles map[string]string
 var streamLock *sync.RWMutex = new(sync.RWMutex)
-var djLock *sync.RWMutex = new(sync.RWMutex)
+var queryDj *sql.Stmt
 
 const dcTimeout time.Duration = time.Minute * -10
 const eggTimeout time.Duration = time.Minute * -8
@@ -187,17 +188,15 @@ func dj(ctx commands.Context, args []string) error {
 		return ctx.Send("This command only works in servers.")
 	}
 	if len(args) == 0 {
-		djLock.RLock()
-		if djRoles[ctx.GuildID] == "" {
-			djLock.RUnlock()
+		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+		result := queryDj.QueryRow(gid)
+		var rid string
+		if result.Scan(&rid) != nil {
 			return ctx.Send("No DJ role set.")
 		}
-		role, err := ctx.State.Role(ctx.GuildID, djRoles[ctx.GuildID])
-		djLock.RUnlock()
+		role, err := ctx.State.Role(ctx.GuildID, rid)
 		if err != nil {
-			djLock.Lock()
-			delete(djRoles, ctx.GuildID)
-			djLock.Unlock()
+			ctx.Database.Exec("DELETE FROM djRole WHERE gid=?001;", gid)
 			return ctx.Send("No DJ role set.")
 		}
 		return ctx.Send("DJ role is " + role.Name)
@@ -209,22 +208,17 @@ func dj(ctx commands.Context, args []string) error {
 	if perms&discordgo.PermissionManageServer == 0 {
 		return ctx.Send("You need Manage Server to change the DJ role.")
 	}
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
 	if strings.ToLower(args[0]) == "none" {
-		djLock.Lock()
-		delete(djRoles, ctx.GuildID)
-		dirty = true
-		djLock.Unlock()
+		ctx.Database.Exec("DELETE FROM djRole WHERE gid=?001;", gid)
 		return ctx.Send("DJ role disabled.")
 	}
 	if !strings.HasPrefix(args[0], "<@&") || args[0][len(args[0])-1] != '>' {
 		return ctx.Send("Not a valid role mention.")
 	}
 	roleID := args[0][3 : len(args[0])-1]
-	djLock.Lock()
-	djRoles[ctx.GuildID] = roleID
-	dirty = true
-	role, err := ctx.State.Role(ctx.GuildID, djRoles[ctx.GuildID])
-	djLock.Unlock()
+	ctx.Database.Exec("INSERT OR REPLACE INTO djRole (gid, rid) VALUES (?001, ?002);", gid, roleID)
+	role, err := ctx.State.Role(ctx.GuildID, roleID)
 	if err != nil {
 		return err
 	}
@@ -452,9 +446,10 @@ func hasMusPerms(user *discordgo.Member, state *discordgo.State, guild string, i
 		return true
 	}
 	log.Debug("hasMusPerms: checked perms")
-	djLock.RLock()
-	DJ := djRoles[guild]
-	djLock.RUnlock()
+	gid, _ := strconv.ParseUint(guild, 10, 64)
+	result := queryDj.QueryRow(gid)
+	var DJ string
+	result.Scan(&DJ)
 	if DJ != "" {
 		for _, v := range user.Roles {
 			if v == DJ {
@@ -488,16 +483,6 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 func Init(self *discordgo.Session) {
 	streams = make(map[string]*lockQueue)
 	lastPlayed = make(map[string]time.Time)
-	err := commands.LoadPersistent("song", &aliases)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	err = commands.LoadPersistent("dj", &djRoles)
-	if err != nil {
-		log.Error(err)
-		return
-	}
 	self.AddHandler(onDc)
 	self.AddHandler(delGuildSongs)
 	self.AddHandler(handleReconnect)
@@ -530,37 +515,19 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(popcorn, "time")
 	commands.RegisterCommand(locket, "_locket")
 	commands.RegisterCommand(outro, "outro")
-	commands.RegisterSaver(saveData)
 	popLock++
 	go musicPopper(self, popLock)
-}
-
-func saveData() error {
-	if !dirty {
-		return nil
-	}
-	aliasLock.RLock()
-	err := commands.SavePersistent("song", &aliases)
-	aliasLock.RUnlock()
+	var err error
+	queryDj, err = commands.GetDatabase().Prepare("SELECT rid FROM djRole WHERE gid=?001;")
 	if err != nil {
-		return err
+		log.Error(err)
+		return
 	}
-	djLock.RLock()
-	err = commands.SavePersistent("dj", &djRoles)
-	if err == nil {
-		dirty = false
-	}
-	djLock.RUnlock()
-	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the song alias list, unregisters the disconnect handler, clears all queues, and disconnects all voice clients.
 func Cleanup(self *discordgo.Session) {
-	err := saveData()
-	if err != nil {
-		log.Error(err)
-	}
 	popLock++
 	streamLock.Lock()
 	for _, v := range streams {

@@ -49,9 +49,10 @@ func remove(ctx commands.Context, args []string) error {
 		perms, _ := ctx.State.UserChannelPermissions(ctx.Author.ID, ctx.ChanID)
 		permitted := perms&discordgo.PermissionManageServer != 0
 		if !permitted {
-			djLock.RLock()
-			DJ := djRoles[ctx.GuildID]
-			djLock.RUnlock()
+			gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+			result := queryDj.QueryRow(gid)
+			var DJ string
+			result.Scan(&DJ)
 			if DJ != "" {
 				for _, v := range ctx.Member.Roles {
 					if v == DJ {
