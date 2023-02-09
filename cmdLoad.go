@@ -49,11 +49,12 @@ func initModules(self *discordgo.Session) {
 }
 
 func cleanup(self *discordgo.Session) {
-	commands.Cleanup(self)
-	quotes.Cleanup(self)
-	kek.Cleanup(self)
-	zip.Cleanup(self)
+	voiceStatement.Close()
+	gacha.Cleanup(self)
 	music.Cleanup(self)
 	brit.Cleanup(self)
-	gacha.Cleanup(self)
+	zip.Cleanup(self)
+	kek.Cleanup(self)
+	quotes.Cleanup(self)
+	commands.Cleanup(self)
 }
