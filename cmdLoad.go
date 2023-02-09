@@ -44,8 +44,8 @@ func initModules(self *discordgo.Session) {
 	log.Info("Loaded music")
 	gacha.Init(self)
 	log.Info("Loaded gacha")
+	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?;")
 	commands.RegisterCommand(vachan, "vachan")
-	commands.RegisterSaver(saveVoice)
 }
 
 func cleanup(self *discordgo.Session) {
@@ -56,5 +56,4 @@ func cleanup(self *discordgo.Session) {
 	music.Cleanup(self)
 	brit.Cleanup(self)
 	gacha.Cleanup(self)
-	saveVoice()
 }
