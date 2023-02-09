@@ -114,7 +114,7 @@ func main() {
 		fmt.Println("inserted brit")
 	}
 
-	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512), PRIMARY KEY(gid, ind));")
+	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind));")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
