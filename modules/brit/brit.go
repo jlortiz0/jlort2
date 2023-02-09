@@ -74,8 +74,8 @@ func (duel *duelObj) other(mem string) *discordgo.Member {
 var cooldown map[string]time.Time
 var duels map[string]*duelObj
 var duelLock *sync.RWMutex = new(sync.RWMutex)
-var britGet *sql.Stmt
-var britIncr *sql.Stmt
+var queryBrit *sql.Stmt
+var incrBrit *sql.Stmt
 
 // ~!flip [times]
 // Flips a coin
@@ -154,7 +154,7 @@ func howbrit(ctx commands.Context, args []string) error {
 	}
 	name := commands.DisplayName(target)
 	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
-	result := britGet.QueryRow(uid)
+	result := queryBrit.QueryRow(uid)
 	var amnt int
 	if result.Scan(&amnt) != nil && !target.User.Bot {
 		amnt = 50
@@ -217,7 +217,7 @@ func brit(ctx commands.Context, args []string) error {
 	duelLock.Unlock()
 	myname := commands.DisplayName(ctx.Member)
 	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
-	britIncr.Exec(uid, 2)
+	incrBrit.Exec(uid, 2)
 	return ctx.Send(fmt.Sprintf("%s calls %s British!", myname, other))
 }
 
@@ -307,7 +307,7 @@ func duelCleanup(curDuel *duelObj, msg *discordgo.Message, ctx commands.Context)
 		losDiff += 8
 	}
 	tx, _ := ctx.Database.Begin()
-	stmt := tx.Stmt(britIncr)
+	stmt := tx.Stmt(incrBrit)
 	cid, _ := strconv.ParseUint(winner.User.ID, 10, 64)
 	stmt.Exec(cid, winDiff)
 	cid, _ = strconv.ParseUint(loser.User.ID, 10, 64)
@@ -333,11 +333,11 @@ func Init(_ *discordgo.Session) {
 	commands.RegisterCommand(eightball, "8ball")
 	db := commands.GetDatabase()
 	var err error
-	britGet, err = db.Prepare("SELECT score FROM brit WHERE uid=?001;")
+	queryBrit, err = db.Prepare("SELECT score FROM brit WHERE uid=?001;")
 	if err != nil {
 		log.Error(err)
 	}
-	britIncr, err = db.Prepare(`
+	incrBrit, err = db.Prepare(`
 	INSERT INTO brit (uid, score) VALUES (?001, 50 + ?002)
 		ON CONFLICT (uid) DO
 		UPDATE SET score = IIF(?002 > 0,
@@ -352,6 +352,6 @@ func Init(_ *discordgo.Session) {
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the scores to disk.
 func Cleanup(_ *discordgo.Session) {
-	britGet.Close()
-	britIncr.Close()
+	queryBrit.Close()
+	incrBrit.Close()
 }
