@@ -18,20 +18,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package quotes
 
 import (
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"
 	"jlortiz.org/jlort2/modules/log"
 )
 
-var quixote map[string][]string
-var dirty bool
-var quoteLock *sync.RWMutex = new(sync.RWMutex)
+var queryGetLen, queryGetInd *sql.Stmt
 
 // ~!quote [index]
 // @GuildOnly
@@ -42,10 +40,11 @@ func quote(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
 	}
-	quoteLock.RLock()
-	qList := quixote[ctx.GuildID]
-	quoteLock.RUnlock()
-	if len(qList) == 0 {
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := queryGetLen.QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
 		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
 	}
 	var sel int
@@ -55,14 +54,17 @@ func quote(ctx commands.Context, args []string) error {
 		if err != nil {
 			return ctx.Send("Usage: ~!quote <index>")
 		}
-		if sel < 1 || sel > len(qList) {
-			return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(len(qList)))
+		if sel < 1 || sel > total {
+			return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(total))
 		}
 		sel--
 	} else {
-		sel = rand.Intn(len(qList))
+		sel = rand.Intn(total)
 	}
-	return ctx.Send(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
+	result = queryGetInd.QueryRow(gid, sel)
+	var q string
+	result.Scan(&q)
+	return ctx.Send(fmt.Sprintf("%d. %s", sel+1, q))
 }
 
 // ~!quotes
@@ -72,10 +74,12 @@ func quotes(ctx commands.Context, _ []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
 	}
-	quoteLock.RLock()
-	defer quoteLock.RUnlock()
-	qList := quixote[ctx.GuildID]
-	if len(qList) == 0 {
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	results, err := ctx.Database.Query("SELECT ind, quote FROM quotes WHERE gid=?001;", gid)
+	if err != nil {
+		return err
+	}
+	if !results.Next() {
 		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
@@ -85,11 +89,17 @@ func quotes(ctx commands.Context, _ []string) error {
 	output := new(discordgo.MessageEmbed)
 	output.Title = "Quotes from " + guild.Name
 	builder := new(strings.Builder)
-	for i, v := range qList {
+	var i int
+	var v string
+	for {
+		results.Scan(&i, &v)
 		builder.WriteString(strconv.Itoa(i + 1))
 		builder.WriteString(". ")
 		builder.WriteString(v)
 		builder.WriteByte('\n')
+		if !results.Next() {
+			break
+		}
 	}
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
@@ -112,10 +122,8 @@ func addquote(ctx commands.Context, args []string) error {
 		data = ctx.Message.ContentWithMentionsReplaced()
 	}
 	ind := strings.IndexByte(data, ' ') + 1
-	dirty = true
-	quoteLock.Lock()
-	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], data[ind:])
-	quoteLock.Unlock()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	ctx.Database.Exec("INSERT INTO quotes (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes WHERE gid=?001;", gid, data[ind:])
 	return ctx.Send("Quote added.")
 }
 
@@ -129,14 +137,15 @@ func delquote(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
 	}
-	quoteLock.Lock()
-	defer quoteLock.Unlock()
-	qList := quixote[ctx.GuildID]
-	if len(qList) == 0 {
-		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
-	}
 	if len(args) == 0 {
 		return ctx.Send("Usage: ~!delquote <index>\nUse ~!quotes to see indexes.")
+	}
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := queryGetLen.QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
+		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
 	}
 	if args[0] == "all" {
 		perms, err := ctx.State.MessagePermissions(ctx.Message)
@@ -146,45 +155,28 @@ func delquote(ctx commands.Context, args []string) error {
 		if perms&discordgo.PermissionManageServer == 0 {
 			return ctx.Send("You need the Manage Server permission to clear all quotes.")
 		}
-		delete(quixote, ctx.GuildID)
-		dirty = true
+		ctx.Database.Exec("DELETE FROM quotes WHERE gid=?001;", gid)
 		return ctx.Send("All quotes removed.")
 	}
 	sel, err := strconv.Atoi(args[0])
 	if err != nil {
 		return ctx.Send(args[0] + " is not a number.")
 	}
-	if sel < 1 || sel > len(qList) {
-		return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(len(qList)))
+	if sel < 1 || sel > total {
+		return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(total))
 	}
-	sel--
-	if len(qList) == 1 {
-		delete(quixote, ctx.GuildID)
-	} else {
-		if sel < len(qList)-1 {
-			copy(qList[sel:], qList[sel+1:])
-		}
-		quixote[ctx.GuildID] = qList[:len(qList)-1]
-	}
-	dirty = true
+	ctx.Database.Exec("DELETE FROM quotes WHERE gid=?001 AND ind=?002; UPDATE quotes SET ind = ind - 1 WHERE gid=?001 AND ind > ?002;", gid, sel)
 	return ctx.Send("Quote removed.")
 }
 
 func guildDelete(_ *discordgo.Session, event *discordgo.GuildDelete) {
-	quoteLock.Lock()
-	delete(quixote, event.ID)
-	dirty = true
-	quoteLock.Unlock()
+	gid, _ := strconv.ParseUint(event.ID, 10, 64)
+	commands.GetDatabase().Exec("DELETE FROM quotes WHERE gid=?001;", gid)
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also loads the quotes from disk.
 func Init(self *discordgo.Session) {
-	err := commands.LoadPersistent("quotes", &quixote)
-	if err != nil {
-		log.Error(err)
-		return
-	}
 	commands.RegisterCommand(quote, "quote")
 	commands.RegisterCommand(quotes, "quotes")
 	commands.RegisterCommand(addquote, "addquote")
@@ -192,27 +184,22 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(delquote, "rmquote")
 	commands.RegisterCommand(delquote, "delquote")
 	self.AddHandler(guildDelete)
-	commands.RegisterSaver(saveQuotes)
-}
-
-func saveQuotes() error {
-	if !dirty {
-		return nil
+	db := commands.GetDatabase()
+	var err error
+	queryGetLen, err = db.Prepare("SELECT COUNT(*) FROM quotes WHERE gid=?001;")
+	if err != nil {
+		log.Error(err)
+		return
 	}
-	quoteLock.RLock()
-	err := commands.SavePersistent("quotes", &quixote)
-	if err == nil {
-		dirty = false
+	queryGetInd, err = db.Prepare("SELECT quote FROM quotes WHERE gid=?001 AND ind=?002;")
+	if err != nil {
+		log.Error(err)
 	}
-	quoteLock.RUnlock()
-	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the quotes to disk.
 func Cleanup(_ *discordgo.Session) {
-	err := saveQuotes()
-	if err != nil {
-		log.Error(err)
-	}
+	queryGetLen.Close()
+	queryGetInd.Close()
 }
