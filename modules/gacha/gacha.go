@@ -98,10 +98,10 @@ func relics(ctx commands.Context, args []string) error {
 		if err != nil {
 			return err
 		}
+		defer tx.Commit()
 		row := tx.QueryRow("SELECT COUNT(*) FROM gachaItems WHERE uid=?001;", uid)
 		row.Scan(&total)
 		results, err := tx.Query("SELECT itemId, count FROM gachaItems WHERE uid=?001 ORDER BY itemId LIMIT 100 OFFSET ?002 * 20;", uid, page-1)
-		tx.Commit()
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,8 @@ func relics(ctx commands.Context, args []string) error {
 			return err
 		}
 		defer tx.Commit()
-		tx.Exec("UPDATE gachaItems SET count = count - ?003 WHERE uid=?001 AND itemID=?002; UPDATE gachaPlayer SET tokens = tokens + ?003 WHERE uid=?001;", uid, id, count)
+		tx.Exec("UPDATE gachaItems SET count = count - ?003 WHERE uid=?001 AND itemID=?002;", uid, id, count)
+		tx.Exec("UPDATE gachaPlayer SET tokens = tokens + ?002 WHERE uid=?001;", uid, count)
 		return ctx.Send(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
 	} else if args[0] == "info" || args[0] == "show" {
 		if len(args) < 2 {
@@ -374,24 +375,30 @@ func trade(ctx commands.Context, args []string) error {
 				return ctx.Send("Trade recipient no longer has enough tokens.")
 			}
 		}
-		moveItem, _ := tx.Prepare(`UPDATE gachaItems SET count = count - ?004 WHERE uid=?001 AND itemId=?003;
-		INSERT INTO gachaItems (uid, itemId, count) VALUES (?002, ?003, ?004)
-		ON CONFLICT DO UPDATE SET count = count + ?004;`)
-		moveToken, _ := tx.Prepare(`UPDATE gachaPlayer SET tokens = tokens - ?003 WHERE uid=?001;
-		INSERT INTO gachaPlayer (uid, tokens) VALUES (?002, ?003)
-		ON CONFLICT DO UPDATE SET tokens = tokens + ?003;`)
+		moveItem1, _ := tx.Prepare("UPDATE gachaItems SET count = count - ?003 WHERE uid=?001 AND itemId=?002;")
+		moveItem2, _ := tx.Prepare(`INSERT INTO gachaItems (uid, itemId, count) VALUES (?001, ?002, ?003)
+		ON CONFLICT DO UPDATE SET count = count + ?003;`)
+		moveToken1, _ := tx.Prepare("UPDATE gachaPlayer SET tokens = tokens - ?002 WHERE uid=?001;")
+		moveToken2, _ := tx.Prepare(`INSERT INTO gachaPlayer (uid, tokens) VALUES (?001, ?002)
+		ON CONFLICT DO UPDATE SET tokens = tokens + ?002;`)
 		if trade.Giving >= 0 {
-			moveItem.Exec(fromId, toId, trade.Giving, trade.GiveCount)
+			moveItem1.Exec(fromId, trade.Giving, trade.GiveCount)
+			moveItem2.Exec(toId, trade.Giving, trade.GiveCount)
 		} else {
-			moveToken.Exec(fromId, toId, trade.GiveCount)
+			moveToken1.Exec(fromId, trade.GiveCount)
+			moveToken2.Exec(toId, trade.GiveCount)
 		}
 		if trade.Getting >= 0 {
-			moveItem.Exec(toId, fromId, trade.Getting, trade.GetCount)
+			moveItem1.Exec(toId, trade.Giving, trade.GiveCount)
+			moveItem2.Exec(fromId, trade.Giving, trade.GiveCount)
 		} else {
-			moveToken.Exec(toId, fromId, trade.GetCount)
+			moveToken1.Exec(toId, trade.GiveCount)
+			moveToken2.Exec(fromId, trade.GiveCount)
 		}
-		moveItem.Close()
-		moveToken.Close()
+		moveItem1.Close()
+		moveItem2.Close()
+		moveToken1.Close()
+		moveToken2.Close()
 		return ctx.Send("Trade successful.")
 	default:
 		return ctx.Send("Usage: ~!trade create <id to give> <count> <to> <id to take> <count>") // \n    or ~!trade gift <id to give> <count> <to>")
@@ -441,7 +448,7 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	queryGetItem, err = db.Prepare("SELECT count FROM gachaItem WHERE")
+	queryGetItem, err = db.Prepare("SELECT count FROM gachaItems WHERE uid=?001 AND itemId=?002;")
 	if err != nil {
 		log.Error(err)
 	}

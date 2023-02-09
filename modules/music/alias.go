@@ -18,7 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package music
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -56,7 +55,7 @@ func song(ctx commands.Context, args []string) error {
 			names.WriteString(s)
 			names.WriteByte('\n')
 		}
-		if results.Err() == sql.ErrNoRows {
+		if s == "" {
 			names.Reset()
 			names.WriteString("No song aliases have been set. Use ~!addsong to set a song alias.")
 		}
