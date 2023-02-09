@@ -1,8 +1,11 @@
 package gacha
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,11 +16,6 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-type UserData struct {
-	Items  map[int]uint16
-	Tokens uint16
-	Wait   time.Time
-}
 type TradeData struct {
 	From      string
 	To        string
@@ -30,30 +28,26 @@ type TradeData struct {
 
 var gachaItems [][4]string
 var gachaShortNames map[string]int
-var gachaData map[string]*UserData
 var trades map[int]*TradeData
-var dirty bool
-var gachaLock *sync.RWMutex = new(sync.RWMutex)
 var tradeLock *sync.RWMutex = new(sync.RWMutex)
+var queryGetData *sql.Stmt
+var queryGetItem *sql.Stmt
 
 // ~!pull [use token]
 // Pull on the general banner.
 // If you have already pulled today, pulling again will cost 3 reroll tokens.
 // You must confirm the spending of reroll tokens with ~!pull yes
 func pull(ctx commands.Context, args []string) error {
-	gachaLock.RLock()
-	data := gachaData[ctx.Author.ID]
-	gachaLock.RUnlock()
-	if data == nil {
+	uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+	result := queryGetData.QueryRow(uid)
+	var tokens uint
+	var nextPull time.Time
+	if result.Scan(&tokens, &nextPull) != nil {
 		if len(args) != 0 {
 			return ctx.Send("You don't have enough tokens.")
 		}
-		data = new(UserData)
-		data.Items = make(map[int]uint16)
-		// DEBUG CODE
-		// data.Tokens = 999
-	} else if len(args) == 0 && time.Now().Before(data.Wait) {
-		diff := time.Until(data.Wait)
+	} else if len(args) == 0 && time.Now().Before(nextPull) {
+		diff := time.Until(nextPull)
 		if diff > time.Hour {
 			return ctx.Send(fmt.Sprintf("Wait %d hours or use tokens to pull again.", diff/time.Hour))
 		} else if diff > time.Minute {
@@ -61,23 +55,21 @@ func pull(ctx commands.Context, args []string) error {
 		} else {
 			return ctx.Send("Wait a minute or two to pull again.")
 		}
-	} else if len(args) != 0 && data.Tokens < 3 {
+	} else if len(args) != 0 && tokens < 3 {
 		return ctx.Send("You don't have enough tokens.")
 	}
 	choice := rand.Intn(len(gachaItems))
 	embed := makeItemEmbed(choice)
-	gachaLock.Lock()
-	data.Items[choice] += 1
-	dirty = true
-	if data.Wait.IsZero() {
-		gachaData[ctx.Author.ID] = data
-	}
-	if time.Now().Before(data.Wait) {
-		data.Tokens -= 3
+	if time.Now().Before(nextPull) {
+		tokens -= 3
 	} else {
-		data.Wait = time.Now().Add(24 * time.Hour)
+		nextPull = time.Now().Add(24 * time.Hour)
 	}
-	gachaLock.Unlock()
+	ctx.Database.Exec(`
+	INSERT OR REPLACE INTO gachaPlayer (uid, tokens, nextPull) VALUES (?001, ?002, ?003);
+	INSERT INTO gachaItems (uid, itemId, count) VALUES (?001, ?004, 1)
+	ON CONFLICT DO SET count = count + 1;
+	`, uid, tokens, nextPull, choice)
 	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
 	return err
 }
@@ -100,38 +92,48 @@ func relics(ctx commands.Context, args []string) error {
 				return ctx.Send("Unable to parse page")
 			}
 		}
-		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
-		if data == nil || len(data.Items) == 0 {
-			gachaLock.RUnlock()
-			return ctx.Send("You don't have any relics.")
+		uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+		var total int
+		tx, err := ctx.Database.Begin()
+		if err != nil {
+			return err
 		}
-		if (len(data.Items)+19)/20 < page {
-			gachaLock.RUnlock()
-			return ctx.Send("Page number is too big.")
+		row := tx.QueryRow("SELECT COUNT(*) FROM gachaItems WHERE uid=?001;", uid)
+		row.Scan(&total)
+		results, err := tx.Query("SELECT itemId, count FROM gachaItems WHERE uid=?001 ORDER BY itemId LIMIT 100 OFFSET ?002 * 20;", uid, page-1)
+		tx.Commit()
+		if err != nil {
+			return err
+		}
+		if !results.Next() {
+			if (total+19)/20 < page {
+				return ctx.Send("Page number is too big.")
+			}
+			return ctx.Send("You don't have any relics.")
 		}
 		i := 0
 		output := new(strings.Builder)
-		for k, v := range data.Items {
-			if v == 0 {
-				continue
-			}
+		var itemId, count uint
+		for i < 20 {
 			i++
-			if i <= (page-1)*20 {
-				continue
+			results.Scan(&itemId, &count)
+			if count != 0 {
+				output.WriteString(fmt.Sprintf("%s (%s) x%d\n", gachaItems[itemId][0], gachaItems[itemId][3], count))
 			}
-			if i > page*20 {
+			if !results.Next() {
 				break
 			}
-			output.WriteString(fmt.Sprintf("%s (%s) x%d\n", gachaItems[k][0], gachaItems[k][3], v))
 		}
-		gachaLock.RUnlock()
+		results.Close()
 		embed := new(discordgo.MessageEmbed)
-		embed.Title = fmt.Sprintf("%s's Relics (Page %d of %d)", ctx.Author.Username, page, (len(data.Items)+19)/20)
+		embed.Title = fmt.Sprintf("%s's Relics (Page %d of %d)", ctx.Author.Username, page, (total+19)/20)
 		embed.Description = output.String()
 		embed.Footer = new(discordgo.MessageEmbedFooter)
-		embed.Footer.Text = fmt.Sprintf("You have %d tokens", data.Tokens)
-		_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
+		result := queryGetData.QueryRow(uid)
+		var tokens uint
+		result.Scan(&tokens, &sql.NullTime{})
+		embed.Footer.Text = fmt.Sprintf("You have %d tokens", tokens)
+		_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
 		return err
 	} else if args[0] == "sell" {
 		if len(args) == 1 {
@@ -149,18 +151,18 @@ func relics(ctx commands.Context, args []string) error {
 				return ctx.Send("Unable to parse count")
 			}
 		}
-		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
-		if data == nil || uint16(count) > data.Items[id] {
-			gachaLock.RUnlock()
+		uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+		results := queryGetItem.QueryRow(uid, id)
+		var total uint
+		if results.Scan(&total) != nil || uint(count) > total {
 			return ctx.Send("You are trying to sell more than you have.")
 		}
-		gachaLock.RUnlock()
-		gachaLock.Lock()
-		data.Tokens += uint16(count)
-		data.Items[id] -= uint16(count)
-		dirty = true
-		gachaLock.Unlock()
+		tx, err := ctx.Database.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Commit()
+		tx.Exec("UPDATE gachaItems SET count = count - ?003 WHERE uid=?001 AND itemID=?002; UPDATE gachaPlayer SET tokens = tokens + ?003 WHERE uid=?001;", uid, id, count)
 		return ctx.Send(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
 	} else if args[0] == "info" || args[0] == "show" {
 		if len(args) < 2 {
@@ -170,13 +172,13 @@ func relics(ctx commands.Context, args []string) error {
 		if !ok {
 			return ctx.Send("No such relic " + args[1])
 		}
-		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
-		if data == nil || data.Items[id] == 0 {
-			gachaLock.RUnlock()
+		uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+		results := queryGetItem.QueryRow(uid, id)
+		var total uint
+		results.Scan(&total)
+		if total == 0 {
 			return ctx.Send("You don't have this relic.")
 		}
-		gachaLock.RUnlock()
 		_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, makeItemEmbed(id))
 		return err
 	} else {
@@ -238,45 +240,34 @@ func trade(ctx commands.Context, args []string) error {
 		}
 		trade.GetCount = uint16(gc)
 
-		gachaLock.RLock()
-		dataFrom := gachaData[trade.From]
-		dataTo := gachaData[trade.To]
-		if dataFrom == nil {
-			dataFrom = new(UserData)
-			dataFrom.Items = make(map[int]uint16)
-			// DEBUG CODE
-			// dataFrom.Tokens = 999
-		}
-		if dataTo == nil {
-			dataTo = new(UserData)
-			dataTo.Items = make(map[int]uint16)
-			// DEBUG CODE
-			// dataTo.Tokens = 999
-		}
+		fromId, _ := strconv.ParseUint(trade.From, 10, 64)
+		toId, _ := strconv.ParseUint(trade.To, 10, 64)
+		var temp uint16
 		if trade.Giving >= 0 {
-			if dataFrom.Items[trade.Giving] < trade.GiveCount {
-				gachaLock.RUnlock()
+			result := queryGetItem.QueryRow(fromId, trade.Giving)
+			result.Scan(&temp)
+			if temp < trade.GiveCount {
 				return ctx.Send("Trade sender does not have enough relics.")
 			}
-		} else if dataFrom.Tokens < trade.GiveCount {
-			gachaLock.RUnlock()
-			return ctx.Send("Trade sender does not have enough tokens.")
+		} else {
+			result := queryGetData.QueryRow(fromId)
+			result.Scan(&temp, &sql.NullTime{})
+			if temp < trade.GiveCount {
+				return ctx.Send("Trade sender does not have enough tokens.")
+			}
 		}
 		if trade.Getting >= 0 {
-			if dataTo.Items[trade.Getting] < trade.GetCount {
-				gachaLock.RUnlock()
+			result := queryGetItem.QueryRow(toId, trade.Giving)
+			result.Scan(&temp)
+			if temp < trade.GetCount {
 				return ctx.Send("Trade recipient does not have enough relics.")
 			}
-		} else if dataTo.Tokens < trade.GetCount {
-			gachaLock.RUnlock()
-			return ctx.Send("Trade recipient does not have enough tokens.")
-		}
-		gachaLock.RUnlock()
-		if dataFrom.Wait.IsZero() || dataTo.Wait.IsZero() {
-			gachaLock.Lock()
-			gachaData[trade.From] = dataFrom
-			gachaData[trade.To] = dataTo
-			gachaLock.Unlock()
+		} else {
+			result := queryGetData.QueryRow(toId)
+			result.Scan(&temp, &sql.NullTime{})
+			if temp < trade.GetCount {
+				return ctx.Send("Trade recipient does not have enough tokens.")
+			}
 		}
 		tradeLock.Lock()
 		tcode := rand.Intn(9999)
@@ -349,45 +340,58 @@ func trade(ctx commands.Context, args []string) error {
 		if args[0] == "reject" {
 			return ctx.Send("Trade rejected/cancelled.")
 		}
-		gachaLock.RLock()
-		dataFrom := gachaData[trade.From]
-		dataTo := gachaData[trade.To]
+		tx, err := ctx.Database.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Commit()
+		fromId, _ := strconv.ParseUint(trade.From, 10, 64)
+		toId, _ := strconv.ParseUint(trade.To, 10, 64)
+		var temp uint16
 		if trade.Giving >= 0 {
-			if dataFrom.Items[trade.Giving] < trade.GiveCount {
-				gachaLock.RUnlock()
+			result := tx.Stmt(queryGetItem).QueryRow(fromId, trade.Giving)
+			result.Scan(&temp)
+			if temp < trade.GiveCount {
 				return ctx.Send("Trade sender no longer has enough relics.")
 			}
-		} else if dataFrom.Tokens < trade.GiveCount {
-			gachaLock.RUnlock()
-			return ctx.Send("Trade sender no longer has enough tokens.")
+		} else {
+			result := tx.Stmt(queryGetData).QueryRow(fromId)
+			result.Scan(&temp, &sql.NullTime{})
+			if temp < trade.GiveCount {
+				return ctx.Send("Trade sender no longer has enough tokens.")
+			}
 		}
 		if trade.Getting >= 0 {
-			if dataTo.Items[trade.Getting] < trade.GetCount {
-				gachaLock.RUnlock()
+			result := tx.Stmt(queryGetItem).QueryRow(toId, trade.Giving)
+			result.Scan(&temp)
+			if temp < trade.GetCount {
 				return ctx.Send("Trade recipient no longer has enough relics.")
 			}
-		} else if dataTo.Tokens < trade.GetCount {
-			gachaLock.RUnlock()
-			return ctx.Send("Trade recipient no longer has enough tokens.")
-		}
-		gachaLock.RUnlock()
-		gachaLock.Lock()
-		dirty = true
-		if trade.Giving >= 0 {
-			dataFrom.Items[trade.Giving] -= trade.GiveCount
-			dataTo.Items[trade.Giving] += trade.GiveCount
 		} else {
-			dataFrom.Tokens -= trade.GiveCount
-			dataTo.Tokens += trade.GiveCount
+			result := tx.Stmt(queryGetData).QueryRow(toId)
+			result.Scan(&temp, &sql.NullTime{})
+			if temp < trade.GetCount {
+				return ctx.Send("Trade recipient no longer has enough tokens.")
+			}
+		}
+		moveItem, _ := tx.Prepare(`UPDATE gachaItems SET count = count - ?004 WHERE uid=?001 AND itemId=?003;
+		INSERT INTO gachaItems (uid, itemId, count) VALUES (?002, ?003, ?004)
+		ON CONFLICT DO UPDATE SET count = count + ?004;`)
+		moveToken, _ := tx.Prepare(`UPDATE gachaPlayer SET tokens = tokens - ?003 WHERE uid=?001;
+		INSERT INTO gachaPlayer (uid, tokens) VALUES (?002, ?003)
+		ON CONFLICT DO UPDATE SET tokens = tokens + ?003;`)
+		if trade.Giving >= 0 {
+			moveItem.Exec(fromId, toId, trade.Giving, trade.GiveCount)
+		} else {
+			moveToken.Exec(fromId, toId, trade.GiveCount)
 		}
 		if trade.Getting >= 0 {
-			dataTo.Items[trade.Getting] -= trade.GetCount
-			dataFrom.Items[trade.Getting] += trade.GetCount
+			moveItem.Exec(toId, fromId, trade.Getting, trade.GetCount)
 		} else {
-			dataTo.Tokens -= trade.GetCount
-			dataFrom.Tokens += trade.GetCount
+			moveToken.Exec(toId, fromId, trade.GetCount)
 		}
-		gachaLock.Unlock()
+		moveItem.Close()
+		moveToken.Close()
 		return ctx.Send("Trade successful.")
 	default:
 		return ctx.Send("Usage: ~!trade create <id to give> <count> <to> <id to take> <count>") // \n    or ~!trade gift <id to give> <count> <to>")
@@ -408,12 +412,12 @@ func makeItemEmbed(id int) *discordgo.MessageEmbed {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also loads the gacha data into memory, including user data and the item schema.
 func Init(self *discordgo.Session) {
-	err := commands.LoadPersistent("../modules/gacha/relics.json", &gachaItems)
+	data, err := os.ReadFile("modules/gacha/relics.json")
 	if err != nil {
 		log.Error(err)
 		return
 	}
-	err = commands.LoadPersistent("gacha", &gachaData)
+	err = json.Unmarshal(data, &gachaItems)
 	if err != nil {
 		log.Error(err)
 		return
@@ -431,34 +435,22 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(relics, "relics")
 	commands.RegisterCommand(relics, "relic")
 	commands.RegisterCommand(trade, "trade")
-	commands.RegisterSaver(saveGacha)
-}
-
-func saveGacha() error {
-	if !dirty {
-		return nil
+	db := commands.GetDatabase()
+	queryGetData, err = db.Prepare("SELECT tokens, nextPull FROM gachaPlayer WHERE uid=?001;")
+	if err != nil {
+		log.Error(err)
+		return
 	}
-	gachaLock.Lock()
-	for _, x := range gachaData {
-		for k, v := range x.Items {
-			if v == 0 {
-				delete(x.Items, k)
-			}
-		}
+	queryGetItem, err = db.Prepare("SELECT count FROM gachaItem WHERE")
+	if err != nil {
+		log.Error(err)
 	}
-	err := commands.SavePersistent("gacha", &gachaData)
-	if err == nil {
-		dirty = false
-	}
-	gachaLock.Unlock()
-	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	err := saveGacha()
-	if err != nil {
-		log.Error(err)
-	}
+	commands.GetDatabase().Exec("DELETE FROM gachaItems WHERE count=0;")
+	queryGetData.Close()
+	queryGetItem.Close()
 }
