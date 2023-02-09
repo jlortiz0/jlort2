@@ -57,14 +57,13 @@ func quote(ctx commands.Context, args []string) error {
 		if sel < 1 || sel > total {
 			return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(total))
 		}
-		sel--
 	} else {
-		sel = rand.Intn(total)
+		sel = rand.Intn(total) + 1
 	}
 	result = queryGetInd.QueryRow(gid, sel)
 	var q string
 	result.Scan(&q)
-	return ctx.Send(fmt.Sprintf("%d. %s", sel+1, q))
+	return ctx.Send(fmt.Sprintf("%d. %s", sel, q))
 }
 
 // ~!quotes
@@ -93,7 +92,7 @@ func quotes(ctx commands.Context, _ []string) error {
 	var v string
 	for {
 		results.Scan(&i, &v)
-		builder.WriteString(strconv.Itoa(i + 1))
+		builder.WriteString(strconv.Itoa(i))
 		builder.WriteString(". ")
 		builder.WriteString(v)
 		builder.WriteByte('\n')
@@ -165,7 +164,27 @@ func delquote(ctx commands.Context, args []string) error {
 	if sel < 1 || sel > total {
 		return ctx.Send("Index out of bounds, expected 1-" + strconv.Itoa(total))
 	}
-	ctx.Database.Exec("DELETE FROM quotes WHERE gid=?001 AND ind=?002; UPDATE quotes SET ind = ind - 1 WHERE gid=?001 AND ind > ?002;", gid, sel)
+	if sel == total {
+		ctx.Database.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = ?002;", gid, sel)
+		return ctx.Send("Quote removed.")
+	}
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	// TODO: There has to be a better way to do this
+	_, err = tx.Exec(`
+	CREATE TABLE quotes_temp (ind INTEGER, quote VARCHAR(512));
+	INSERT INTO quotes_temp SELECT ind - 1, quote FROM quotes WHERE gid = ?001 AND ind > ?002;
+	DELETE FROM quotes WHERE gid = ?001 AND ind >= ?002;
+	INSERT OR ROLLBACK INTO quotes SELECT ?001, ind, quote FROM quotes_temp;
+	DROP TABLE quotes_temp;
+	`, gid, sel, gid, sel, gid)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
 	return ctx.Send("Quote removed.")
 }
 

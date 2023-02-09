@@ -31,7 +31,7 @@ import (
 
 var botId string
 var queryKekEnabled *sql.Stmt
-var setKekMsg *sql.Stmt
+var setKekMsg1, setKekMsg2 *sql.Stmt
 var queryKek *sql.Stmt
 
 // ~!kekage [user]
@@ -55,7 +55,7 @@ func kekage(ctx commands.Context, args []string) error {
 	}
 	name := commands.DisplayName(target)
 	var kekI int
-	uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
 	result := queryKek.QueryRow(uid)
 	result.Scan(&kekI)
 	kekI *= 50
@@ -107,18 +107,20 @@ func kekReport(ctx commands.Context, _ []string) error {
 		}
 		name := commands.DisplayName(mem)
 		var kekI int
-		uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
+		uid, _ := strconv.ParseUint(mem.User.ID, 10, 64)
 		result := queryKek.QueryRow(uid)
-		result.Scan(&kekI)
-		if kekI != 0 {
+		if result.Scan(&kekI) == nil && kekI != 0 {
 			output.WriteString(name)
 			output.WriteString(": ")
 			if kekI < 0 {
 				output.WriteByte('-')
 			}
-			output.WriteString(convertKek(kekI))
+			output.WriteString(convertKek(kekI * 50))
 			output.WriteByte('\n')
 		}
+	}
+	if output.Len() == 0 {
+		output.WriteString("All keks are zero.")
 	}
 	return ctx.Send(output.String())
 }
@@ -140,17 +142,17 @@ func kekOn(ctx commands.Context, _ []string) error {
 	}
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
 	result := queryKekEnabled.QueryRow(gid)
-	if result.Scan() != nil {
-		ctx.Database.Exec("INSERT INTO kekGuilds VALUES (?);", gid)
+	if result.Scan(&sql.NullInt64{}) != nil {
+		ctx.Database.Exec("INSERT INTO kekGuilds VALUES (?001);", gid)
 		return ctx.Send("Kek enabled on this server.")
 	}
-	ctx.Database.Exec("DELETE FROM kekGuilds WHERE gid=?;", gid)
+	ctx.Database.Exec("DELETE FROM kekGuilds WHERE gid=?001;", gid)
 	return ctx.Send("Kek disabled on this server.")
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
-	if event.Author.Bot || queryKekEnabled.QueryRow(gid).Scan() != nil {
+	if event.Author.Bot || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
 	perms, err := self.State.UserChannelPermissions(self.State.User.ID, event.ChannelID)
@@ -180,11 +182,11 @@ func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 }
 
 func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd) {
-	if event.Emoji.Name != "\u2b06" && event.Emoji.Name != "\u2b07" {
+	if event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
 		return
 	}
 	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
-	if event.UserID == botId || queryKekEnabled.QueryRow(gid).Scan() != nil {
+	if event.UserID == botId || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
@@ -196,15 +198,19 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	}
 	total := 0
 	for _, emoji := range msg.Reactions {
-		if emoji.Emoji.Name == "\u2b06" {
+		if emoji.Emoji.Name[:3] == "\u2b06" {
 			total += emoji.Count
-		} else if emoji.Emoji.Name == "\u2b07" {
+		} else if emoji.Emoji.Name[:3] == "\u2b07" {
 			total -= emoji.Count
 		}
 	}
 	uid, _ := strconv.ParseUint(msg.Author.ID, 10, 64)
 	mid, _ := strconv.ParseUint(msg.ID, 10, 64)
-	setKekMsg.Exec(uid, mid, total)
+	setKekMsg1.Exec(uid)
+	_, err = setKekMsg2.Exec(uid, mid, total)
+	if err != nil {
+		log.Error(err)
+	}
 }
 
 func onReactionRemoveWrapper(self *discordgo.Session, event *discordgo.MessageReactionRemove) {
@@ -255,20 +261,25 @@ func Init(self *discordgo.Session) {
 	botId = u.ID
 
 	db := commands.GetDatabase()
-	queryKekEnabled, err = db.Prepare("SELECT gid FROM kekGuilds WHERE gid=?;")
+	queryKekEnabled, err = db.Prepare("SELECT gid FROM kekGuilds WHERE gid=?001;")
 	if err != nil {
 		log.Error(err)
 		return
 	}
-	setKekMsg, err = db.Prepare(`
-	INSERT OR IGNORE INTO kekUsers (uid) VALUES (?001);
+	setKekMsg1, _ = db.Prepare("INSERT OR IGNORE INTO kekUsers (uid) VALUES (?001);")
+	setKekMsg2, err = db.Prepare(`
 	INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003)
 	ON CONFLICT DO UPDATE SET score=excluded.score;
 	`)
 	if err != nil {
 		log.Error(err)
 	}
-	queryKek, err = db.Prepare("SELECT u.score + SUM(m.score) FROM kekUsers u, kekMsgs m WHERE u.uid = ?001 AND u.uid = m.uid;")
+	queryKek, err = db.Prepare(`SELECT CASE
+		WHEN EXISTS (SELECT * FROM kekMsgs m WHERE m.uid=?001)
+		THEN (SELECT u.score + SUM(m.score) FROM kekMsgs m WHERE m.uid = ?001)
+		ELSE u.score END
+		FROM kekUsers u
+		WHERE u.uid = ?001;`)
 	if err != nil {
 		log.Error(err)
 	}
@@ -281,7 +292,7 @@ func Init(self *discordgo.Session) {
 		GROUP BY uid
 	) m WHERE m.uid = kekUsers.uid;
 	DELETE FROM kekMsgs WHERE mid < ?001;
-	`, snowflake)
+	`, snowflake, snowflake)
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
@@ -289,6 +300,7 @@ func Init(self *discordgo.Session) {
 func Cleanup(_ *discordgo.Session) {
 	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0;")
 	queryKekEnabled.Close()
-	setKekMsg.Close()
+	setKekMsg1.Close()
+	setKekMsg2.Close()
 	queryKek.Close()
 }
