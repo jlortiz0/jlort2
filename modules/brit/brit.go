@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package brit
 
 import (
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -70,12 +71,11 @@ func (duel *duelObj) other(mem string) *discordgo.Member {
 	return nil
 }
 
-var britdata map[string]int
 var cooldown map[string]time.Time
 var duels map[string]*duelObj
-var dirty bool
-var britLock *sync.Mutex = new(sync.Mutex)
 var duelLock *sync.RWMutex = new(sync.RWMutex)
+var britGet *sql.Stmt
+var britIncr *sql.Stmt
 
 // ~!flip [times]
 // Flips a coin
@@ -153,10 +153,10 @@ func howbrit(ctx commands.Context, args []string) error {
 		}
 	}
 	name := commands.DisplayName(target)
-	// britLock.RLock()
-	amnt, ok := britdata[target.User.ID]
-	// britLock.RUnlock()
-	if !ok && !target.User.Bot {
+	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
+	result := britGet.QueryRow(uid)
+	var amnt int
+	if result.Scan(&amnt) != nil && !target.User.Bot {
 		amnt = 50
 	}
 	return ctx.Send(fmt.Sprintf("%s is %d%% British", name, amnt))
@@ -199,6 +199,9 @@ func brit(ctx commands.Context, args []string) error {
 	if target.User.ID == ctx.Author.ID {
 		return ctx.Send("Self-deprecation isn't allowed here.")
 	}
+	if target.User.Bot {
+		return ctx.Send("Bots do not have nationalities.")
+	}
 	if curDuel != nil && curDuel.isParticipant(target.User.ID) {
 		myname := commands.DisplayName(curDuel.said(ctx.Author.ID))
 		return ctx.Send(fmt.Sprintf("%s taunts %s before the match!", myname, other))
@@ -213,18 +216,8 @@ func brit(ctx commands.Context, args []string) error {
 	cooldown[ctx.Author.ID] = time.Now().Add(3 * time.Minute)
 	duelLock.Unlock()
 	myname := commands.DisplayName(ctx.Member)
-	britLock.Lock()
-	amnt, ok := britdata[target.User.ID]
-	if !ok && !target.User.Bot {
-		amnt = 50
-	}
-	amnt += 2
-	if amnt > 100 {
-		amnt = 100
-	}
-	britdata[target.User.ID] = amnt
-	dirty = true
-	britLock.Unlock()
+	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
+	britIncr.Exec(uid, 2)
 	return ctx.Send(fmt.Sprintf("%s calls %s British!", myname, other))
 }
 
@@ -251,6 +244,9 @@ func duel(ctx commands.Context, args []string) error {
 	}
 	if target.User.ID == ctx.Author.ID {
 		return ctx.Send("Cannot duel yourself!")
+	}
+	if target.User.Bot {
+		return ctx.Send("Cannot duel a bot!")
 	}
 	duelLock.RLock()
 	if duels[ctx.Author.ID] != nil {
@@ -288,63 +284,45 @@ func duel(ctx commands.Context, args []string) error {
 func duelCleanup(curDuel *duelObj, msg *discordgo.Message, ctx commands.Context) {
 	embed := msg.Embeds[0]
 	winRng := rand.Intn(8)
-	var win bool
-	if curDuel.P2.User.Bot {
-		win = (winRng == 0)
-	} else {
-		win = (winRng&4 == 0)
-	}
-	var winner *discordgo.Member
-	if win {
+	var winner, loser *discordgo.Member
+	if winRng&4 == 0 {
 		winner = curDuel.P1
+		loser = curDuel.P2
 	} else {
 		winner = curDuel.P2
+		loser = curDuel.P1
 	}
-	loser := curDuel.other(winner.User.ID)
 	duelLock.Lock()
 	delete(duels, winner.User.ID)
 	delete(duels, loser.User.ID)
 	duelLock.Unlock()
 	embed.Description = commands.DisplayName(winner) + " won the duel!"
-	britLock.Lock()
-	winBrit, ok := britdata[winner.User.ID]
-	if !ok && !winner.User.Bot {
-		winBrit = 50
-	}
-	losBrit, ok := britdata[loser.User.ID]
-	if !ok && !loser.User.Bot {
-		losBrit = 50
-	}
-	winBrit -= 4
-	losBrit += 8
+	winDiff := -4
+	losDiff := 8
 	if curDuel.didSay(winner) {
-		winBrit -= 4
-		losBrit += 4
+		winDiff -= 4
+		losDiff += 4
 	}
 	if curDuel.didSay(loser) {
-		losBrit += 8
+		losDiff += 8
 	}
-	if losBrit > 100 {
-		losBrit = 100
+	tx, _ := ctx.Database.Begin()
+	stmt := tx.Stmt(britIncr)
+	cid, _ := strconv.ParseUint(winner.User.ID, 10, 64)
+	stmt.Exec(cid, winDiff)
+	cid, _ = strconv.ParseUint(loser.User.ID, 10, 64)
+	stmt.Exec(cid, losDiff)
+	stmt.Close()
+	err := tx.Commit()
+	if err != nil {
+		log.Error(err)
 	}
-	if winBrit < 0 {
-		winBrit = 0
-	}
-	britdata[winner.User.ID] = winBrit
-	britdata[loser.User.ID] = losBrit
-	dirty = true
-	britLock.Unlock()
 	ctx.Bot.ChannelMessageEditEmbed(ctx.ChanID, msg.ID, embed)
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the cooldown and duel maps and loads the scores from disk.
 func Init(_ *discordgo.Session) {
-	err := commands.LoadPersistent("brit", &britdata)
-	if err != nil {
-		log.Error(err)
-		return
-	}
 	cooldown = make(map[string]time.Time)
 	duels = make(map[string]*duelObj)
 	commands.RegisterCommand(flip, "flip")
@@ -353,27 +331,27 @@ func Init(_ *discordgo.Session) {
 	commands.RegisterCommand(brit, "brit")
 	commands.RegisterCommand(duel, "duel")
 	commands.RegisterCommand(eightball, "8ball")
-	commands.RegisterSaver(saveBrit)
-}
-
-func saveBrit() error {
-	if !dirty {
-		return nil
+	db := commands.GetDatabase()
+	var err error
+	britGet, err = db.Prepare("SELECT score FROM brit WHERE uid=?001;")
+	if err != nil {
+		log.Error(err)
 	}
-	britLock.Lock()
-	err := commands.SavePersistent("brit", &britdata)
-	if err == nil {
-		dirty = false
+	britIncr, err = db.Prepare(`
+	INSERT INTO brit VALUES (?001, 50 + ?002)
+		ON CONFLICT (uid) DO
+		UPDATE SET score = IIF(?002 > 0,
+			IIF(score + ?002 > 100, 100, score + ?002),
+			IIF(score + ?002 < 0, 0, score + ?002));
+	`)
+	if err != nil {
+		log.Error(err)
 	}
-	britLock.Unlock()
-	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the scores to disk.
 func Cleanup(_ *discordgo.Session) {
-	err := saveBrit()
-	if err != nil {
-		log.Error(err)
-	}
+	britGet.Close()
+	britIncr.Close()
 }
