@@ -338,7 +338,7 @@ func Init(_ *discordgo.Session) {
 		log.Error(err)
 	}
 	britIncr, err = db.Prepare(`
-	INSERT INTO brit VALUES (?001, 50 + ?002)
+	INSERT INTO brit (uid, score) VALUES (?001, 50 + ?002)
 		ON CONFLICT (uid) DO
 		UPDATE SET score = IIF(?002 > 0,
 			IIF(score + ?002 > 100, 100, score + ?002),

@@ -142,7 +142,7 @@ func vachan(ctx commands.Context, args []string) error {
 		}
 		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
 		cid, _ := strconv.ParseUint(ch.ID, 10, 64)
-		ctx.Database.Exec("UPDATE vachan SET cid=?002 WHERE gid=?001;", gid, cid)
+		ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, cid)
 		err = ctx.Send("Voice joins will be announced in " + ch.Name)
 		return err
 	}
