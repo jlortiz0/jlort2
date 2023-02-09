@@ -102,7 +102,7 @@ func remove(ctx commands.Context, args []string) error {
 	obj := elem.Value
 	msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Removed "+obj.Info.Title+".")
 	if err != nil {
-		return fmt.Errorf("Could not send message: %w", err)
+		return fmt.Errorf("could not send message: %w", err)
 	}
 	time.AfterFunc(2*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
 	return nil
@@ -194,11 +194,11 @@ func skip(ctx commands.Context, _ []string) error {
 	}
 	vstate, err := ctx.State.VoiceState(ctx.GuildID, ctx.Author.ID)
 	if err != nil {
-		return fmt.Errorf("Failed to get voice state: %w", err)
+		return fmt.Errorf("failed to get voice state: %w", err)
 	}
 	mystate, err := ctx.State.VoiceState(ctx.GuildID, ctx.Me.ID)
 	if err != nil {
-		return fmt.Errorf("Failed to get voice state: %w", err)
+		return fmt.Errorf("failed to get voice state: %w", err)
 	}
 	if vstate.ChannelID != mystate.ChannelID {
 		return ctx.Send("You have to be in the channel with me to cast a skip vote.")
@@ -216,7 +216,7 @@ func skip(ctx commands.Context, _ []string) error {
 		log.Debug("skip: checked obj.skippers")
 		guild, err := ctx.State.Guild(ctx.GuildID)
 		if err != nil {
-			return fmt.Errorf("Failed to get guild: %w", err)
+			return fmt.Errorf("failed to get guild: %w", err)
 		}
 		count := 0
 		for _, v := range guild.VoiceStates {
@@ -294,7 +294,7 @@ func np(ctx commands.Context, _ []string) error {
 	}
 	author, err := ctx.State.Member(ctx.GuildID, elem.Author)
 	if err != nil {
-		return fmt.Errorf("Failed to get member: %w", err)
+		return fmt.Errorf("failed to get member: %w", err)
 	}
 	footer = commands.DisplayName(author)
 	embed.Author = &discordgo.MessageEmbedAuthor{Name: footer, IconURL: author.User.AvatarURL("")}
@@ -344,7 +344,7 @@ func locket(ctx commands.Context, _ []string) error {
 	}
 	app, err := ctx.Bot.Application("@me")
 	if err != nil {
-		return fmt.Errorf("Failed to get app info: %w", err)
+		return fmt.Errorf("failed to get app info: %w", err)
 	}
 	if app.Owner.ID != ctx.Author.ID {
 		return ctx.Send("You do not have access to that command, and never will.")

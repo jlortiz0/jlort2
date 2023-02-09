@@ -93,7 +93,7 @@ func addsong(ctx commands.Context, args []string) error {
 		if _, ok := err.(*exec.ExitError); ok {
 			return ctx.Send("Could not get info from this URL. Note that ~!song does not support searches.")
 		}
-		return fmt.Errorf("Failed to run subprocess: %w", err)
+		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &info)
 	if err != nil {
@@ -138,7 +138,7 @@ func delsong(ctx commands.Context, args []string) error {
 	if args[0] == "all" {
 		perms, err := ctx.State.MessagePermissions(ctx.Message)
 		if err != nil {
-			return fmt.Errorf("Failed to get permissions: %w", err)
+			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionManageServer == 0 {
 			return ctx.Send("You need the Manage Server permission to clear all aliases.")

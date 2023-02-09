@@ -112,14 +112,14 @@ func connect(ctx commands.Context, _ []string) error {
 		if vc.ChannelID != authorVoice.ChannelID {
 			channel, err := ctx.State.Channel(vc.ChannelID)
 			if err != nil {
-				return fmt.Errorf("Failed to get channel info: %w", err)
+				return fmt.Errorf("failed to get channel info: %w", err)
 			}
 			return ctx.Send("Please move to voice channel " + channel.Name)
 		}
 	} else {
 		perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, authorVoice.ChannelID)
 		if err != nil {
-			return fmt.Errorf("Failed to get permissions: %w", err)
+			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionVoiceConnect == 0 {
 			return ctx.Send("I need the Connect permission to use this command.")
@@ -133,7 +133,7 @@ func connect(ctx commands.Context, _ []string) error {
 		streamLock.Unlock()
 		_, err = ctx.Bot.ChannelVoiceJoin(ctx.GuildID, authorVoice.ChannelID, false, true)
 		if err != nil {
-			return fmt.Errorf("Failed to connect to voice: %w", err)
+			return fmt.Errorf("failed to connect to voice: %w", err)
 		}
 	}
 	return nil
@@ -169,7 +169,7 @@ func dc(ctx commands.Context, _ []string) error {
 		}
 		err := vc.Disconnect()
 		if err != nil {
-			return fmt.Errorf("Failed to disconnect from voice: %w", err)
+			return fmt.Errorf("failed to disconnect from voice: %w", err)
 		}
 	}
 	return nil
@@ -469,7 +469,7 @@ func hasMusPerms(user *discordgo.Member, state *discordgo.State, guild string, i
 func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 	time.Sleep(time.Millisecond * 50)
 	for k, v := range self.VoiceConnections {
-		if lastPlayed[k].Sub(time.Now()) < dcTimeout {
+		if time.Until(lastPlayed[k]) < dcTimeout {
 			v.Disconnect()
 		} else if streams[k] == nil {
 			streams[k] = new(lockQueue)

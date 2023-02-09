@@ -50,7 +50,7 @@ func echo(ctx Context, args []string) error {
 	if ctx.GuildID != "" {
 		perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, ctx.Message.ChannelID)
 		if err != nil {
-			return fmt.Errorf("Failed to get permissions: %w", err)
+			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionManageMessages != 0 {
 			return ctx.Bot.ChannelMessageDelete(ctx.ChanID, ctx.Message.ID)
@@ -71,7 +71,7 @@ func purge(ctx Context, args []string) error {
 		ctx.Bot.ChannelTyping(ctx.ChanID)
 		msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
 		if err != nil {
-			return fmt.Errorf("Failed to get message list: %w", err)
+			return fmt.Errorf("failed to get message list: %w", err)
 		}
 		todel := make([]string, 0, len(msgs)-1)
 		for _, msg := range msgs {
@@ -82,7 +82,7 @@ func purge(ctx Context, args []string) error {
 		for _, msg := range todel {
 			err = ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg)
 			if err != nil {
-				return fmt.Errorf("Failed to delete message: %w", err)
+				return fmt.Errorf("failed to delete message: %w", err)
 			}
 		}
 		msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages")
@@ -91,7 +91,7 @@ func purge(ctx Context, args []string) error {
 	}
 	perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, ctx.Message.ChannelID)
 	if err != nil {
-		return fmt.Errorf("Failed to get permissions: %w", err)
+		return fmt.Errorf("failed to get permissions: %w", err)
 	}
 	if perms&discordgo.PermissionManageMessages == 0 {
 		return ctx.Send("I need the Manage Messages permission to use this command.")
@@ -100,7 +100,7 @@ func purge(ctx Context, args []string) error {
 	if len(args) > 0 {
 		perms, err = ctx.State.MessagePermissions(ctx.Message)
 		if err != nil {
-			return fmt.Errorf("Failed to get permissions: %w", err)
+			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionManageMessages == 0 {
 			return ctx.Send("You need the Manage Messages permission to clear other users' messages.")
@@ -117,7 +117,7 @@ func purge(ctx Context, args []string) error {
 	}
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
 	if err != nil {
-		return fmt.Errorf("Failed to get message list: %w", err)
+		return fmt.Errorf("failed to get message list: %w", err)
 	}
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs)-1)
@@ -131,11 +131,11 @@ func purge(ctx Context, args []string) error {
 	}
 	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChanID, todel)
 	if err != nil {
-		return fmt.Errorf("Failed to delete messages: %w", err)
+		return fmt.Errorf("failed to delete messages: %w", err)
 	}
 	channel, err := ctx.State.Channel(ctx.ChanID)
 	if err != nil {
-		return fmt.Errorf("Failed to get channel info: %w", err)
+		return fmt.Errorf("failed to get channel info: %w", err)
 	}
 	msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages from "+channel.Name)
 	time.AfterFunc(3*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
@@ -154,7 +154,7 @@ func ppurge(ctx Context, args []string) error {
 	}
 	perms, err := ctx.State.MessagePermissions(ctx.Message)
 	if err != nil {
-		return fmt.Errorf("Failed to get permissions: %w", err)
+		return fmt.Errorf("failed to get permissions: %w", err)
 	}
 	if perms&discordgo.PermissionManageMessages == 0 {
 		return ctx.Send("You need the Manage Messages permission to clear other users' messages.")
@@ -165,7 +165,7 @@ func ppurge(ctx Context, args []string) error {
 	}
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
 	if err != nil {
-		return fmt.Errorf("Failed to get message list: %w", err)
+		return fmt.Errorf("failed to get message list: %w", err)
 	}
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs))
@@ -179,11 +179,11 @@ func ppurge(ctx Context, args []string) error {
 	}
 	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChanID, todel)
 	if err != nil {
-		return fmt.Errorf("Failed to delete messages: %w", err)
+		return fmt.Errorf("failed to delete messages: %w", err)
 	}
 	channel, err := ctx.State.Channel(ctx.ChanID)
 	if err != nil {
-		return fmt.Errorf("Failed to get channel info: %w", err)
+		return fmt.Errorf("failed to get channel info: %w", err)
 	}
 	msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages from "+channel.Name)
 	time.AfterFunc(3*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
@@ -212,7 +212,7 @@ func gsm(ctx Context, args []string) error {
 	if len(args) > 0 && (args[0] == "update" || args[0] == "poweroff") {
 		app, err := ctx.Bot.Application("@me")
 		if err != nil {
-			return fmt.Errorf("Failed to get app info: %w", err)
+			return fmt.Errorf("failed to get app info: %w", err)
 		}
 		if app.Owner.ID != ctx.Author.ID {
 			return ctx.Send("You do not have access to that command, and never will.")
@@ -258,7 +258,7 @@ func gsm(ctx Context, args []string) error {
 		out, err = exec.Command(bashLoc, "gsm.sh", args[0], args[1]).Output()
 	}
 	if err != nil {
-		return fmt.Errorf("Failed to run gsm: %w", err)
+		return fmt.Errorf("failed to run gsm: %w", err)
 	}
 	return ctx.Send(string(out))
 }
@@ -313,7 +313,7 @@ func tpa(ctx Context, args []string) error {
 func avatar(ctx Context, _ []string) error {
 	app, err := ctx.Bot.Application("@me")
 	if err != nil {
-		return fmt.Errorf("Failed to get app info: %w", err)
+		return fmt.Errorf("failed to get app info: %w", err)
 	}
 	if app.Owner.ID != ctx.Author.ID {
 		return ctx.Send("You do not have access to that command, and never will.")

@@ -96,7 +96,7 @@ func kekReport(ctx commands.Context, _ []string) error {
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
-		return fmt.Errorf("Failed to get guild: %w", err)
+		return fmt.Errorf("failed to get guild: %w", err)
 	}
 	output := new(strings.Builder)
 	kekLock.RLock()
@@ -137,7 +137,7 @@ func kekOn(ctx commands.Context, _ []string) error {
 	}
 	perms, err := ctx.State.MessagePermissions(ctx.Message)
 	if err != nil {
-		return fmt.Errorf("Failed to get permissions: %w", err)
+		return fmt.Errorf("failed to get permissions: %w", err)
 	}
 	if perms&discordgo.PermissionManageServer == 0 {
 		return ctx.Send("You need the Manage Server permission to toggle kek.")

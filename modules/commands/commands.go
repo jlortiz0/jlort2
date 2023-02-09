@@ -43,7 +43,7 @@ type Context struct {
 func (ctx Context) Send(msg string) error {
 	_, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, msg)
 	if err != nil {
-		err = fmt.Errorf("Could not send message: %w", err)
+		err = fmt.Errorf("could not send message: %w", err)
 	}
 	return err
 }

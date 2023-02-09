@@ -250,7 +250,7 @@ func play(ctx commands.Context, args []string) error {
 		if ok {
 			return ctx.Send(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
-		return fmt.Errorf("Failed to run subprocess: %w", err)
+		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &entries)
 	if err != nil {

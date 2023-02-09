@@ -69,12 +69,12 @@ func chatlog(ctx commands.Context, args []string) error {
 	output.WriteString(ctx.Author.Username)
 	channel, err := ctx.State.Channel(ctx.ChanID)
 	if err != nil {
-		return fmt.Errorf("Failed to get channel: %w", err)
+		return fmt.Errorf("failed to get channel: %w", err)
 	}
 	if ctx.GuildID != "" {
 		guild, err := ctx.State.Guild(ctx.GuildID)
 		if err != nil {
-			return fmt.Errorf("Failed to get guild: %w", err)
+			return fmt.Errorf("failed to get guild: %w", err)
 		}
 		output.WriteString("\nServer: ")
 		output.WriteString(guild.Name)
@@ -101,7 +101,7 @@ func chatlog(ctx commands.Context, args []string) error {
 	for {
 		toProc, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", lastMsg, "")
 		if err != nil {
-			return fmt.Errorf("Failed to get channel messages: %w", err)
+			return fmt.Errorf("failed to get channel messages: %w", err)
 		}
 		if len(toProc) == 0 {
 			break
@@ -225,7 +225,7 @@ func archive(ctx commands.Context, _ []string) error {
 	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
-		return fmt.Errorf("Failed to open tempfile %s: %w", fName, err)
+		return fmt.Errorf("failed to open tempfile %s: %w", fName, err)
 	}
 	defer f.Close()
 	buf := bufio.NewWriter(f)
@@ -243,7 +243,7 @@ func archive(ctx commands.Context, _ []string) error {
 		}
 		fWriter, err := zWriter.CreateHeader(header)
 		if err != nil {
-			return fmt.Errorf("Failed to append to zip: %w", err)
+			return fmt.Errorf("failed to append to zip: %w", err)
 		}
 		resp, err := ctx.Bot.Client.Get(fInfo.URL)
 		if err != nil {
@@ -252,16 +252,16 @@ func archive(ctx commands.Context, _ []string) error {
 		}
 		_, err = io.Copy(fWriter, resp.Body)
 		if err != nil {
-			return fmt.Errorf("Failed to append to zip: %w", err)
+			return fmt.Errorf("failed to append to zip: %w", err)
 		}
 	}
 	err = zWriter.Close()
 	if err != nil {
-		return fmt.Errorf("Failed to close zip: %w", err)
+		return fmt.Errorf("failed to close zip: %w", err)
 	}
 	err = buf.Flush()
 	if err != nil {
-		return fmt.Errorf("Failed to close zip: %w", err)
+		return fmt.Errorf("failed to close zip: %w", err)
 	}
 	return ctx.Send("Zip complete! Ask jlortiz for " + fName)
 }
