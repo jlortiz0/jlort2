@@ -37,19 +37,16 @@ var aliasLock *sync.RWMutex = new(sync.RWMutex)
 // Plays a song alias
 // To get a list of aliases, do ~!song list
 // To register or unregister an alias, use ~!addsong and ~!delsong
-func song(ctx commands.Context, args []string) error {
+func song(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!song <song alias>\nFor a list of songs, use ~!song list")
-	}
-	name := args[0]
+	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	aliasLock.RLock()
 	mappings := aliases[ctx.GuildID]
 	if len(mappings) == 0 {
 		aliasLock.RUnlock()
-		return ctx.Send("No song aliases have been set. Use ~!addsong to set a song alias.")
+		return ctx.RespondPrivate("No song aliases have been set. Use ~!setsong to set a song alias.")
 	}
 	if name == "list" {
 		names := make([]string, len(mappings)+1)
@@ -60,51 +57,50 @@ func song(ctx commands.Context, args []string) error {
 			i++
 		}
 		aliasLock.RUnlock()
-		return ctx.Send(strings.Join(names, "\n"))
+		return ctx.Respond(strings.Join(names, "\n"))
 	}
 	url := mappings[name]
 	aliasLock.RUnlock()
 	if url == "" {
-		return ctx.Send("No song by that name. For a list, use ~!song list")
+		return ctx.RespondPrivate("No song by that name. For a list, use ~!song list")
 	}
-	return play(ctx, []string{url})
+	ctx.ApplicationCommandData().Options[0].Value = url
+	return play(ctx)
 }
 
 // ~!addsong <alias> <Youtube URL>
 // @GuildOnly
 // Registers a song alias
 // The Youtube URL can be any URL supported by ~!play, but it cannot be a Youtube search.
-func addsong(ctx commands.Context, args []string) error {
+func addsong(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	if len(args) < 2 {
-		return ctx.Send("Usage: ~!addsong <song alias> <url>")
-	}
-	name := args[0]
+	args := ctx.ApplicationCommandData().Options
+	name := args[0].StringValue()
 	if name == "list" || name == "all" {
-		return ctx.Send("This song name is not allowed.")
+		return ctx.RespondPrivate("This song name is not allowed.")
 	}
-	ctx.Bot.ChannelTyping(ctx.ChanID)
-	url := strings.Join(args[1:], " ")
+	ctx.DelayedRespond()
+	url := args[1].StringValue()
 	var info YDLInfo
 	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", url).Output()
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			return ctx.Send("Could not get info from this URL. Note that ~!song does not support searches.")
+			return ctx.EditResponse("Could not get info from this URL. Note that ~!song does not support searches.")
 		}
 		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &info)
 	if err != nil {
-		ctx.Send("Could not get info from this URL. Note that ~!song does not support searches.")
+		ctx.EditResponse("Could not get info from this URL. Note that ~!song does not support searches.")
 		return err
 	}
 	if info.Extractor == "Generic" {
-		return ctx.Send("~!song does not support direct links to files.")
+		return ctx.EditResponse("~!song does not support direct links to files.")
 	}
 	if info.URL == "" {
-		return ctx.Send("Could not get info from this URL.")
+		return ctx.EditResponse("Could not get info from this URL.")
 	}
 	aliasLock.Lock()
 	mappings := aliases[ctx.GuildID]
@@ -115,7 +111,7 @@ func addsong(ctx commands.Context, args []string) error {
 	mappings[name] = url
 	aliasLock.Unlock()
 	dirty = true
-	return ctx.Send(fmt.Sprintf("Set song alias %s", name))
+	return ctx.EditResponse(fmt.Sprintf("Set song alias %s", name))
 }
 
 // ~!delsong <alias>
@@ -124,31 +120,28 @@ func addsong(ctx commands.Context, args []string) error {
 // @GuildOnly
 // Unregisters a song alias
 // Do ~!delsong all to remove all songs. To remove all songs, you must have the Manage Messages permission.
-func delsong(ctx commands.Context, args []string) error {
+func delsong(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!delsong <song alias>")
-	}
-	name := args[0]
+	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	aliasLock.Lock()
 	defer aliasLock.Unlock()
 	mappings := aliases[ctx.GuildID]
-	if args[0] == "all" {
+	if name == "all" {
 		perms, err := ctx.State.MessagePermissions(ctx.Message)
 		if err != nil {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionManageServer == 0 {
-			return ctx.Send("You need the Manage Server permission to clear all aliases.")
+			return ctx.RespondPrivate("You need the Manage Server permission to clear all aliases.")
 		}
 		delete(aliases, ctx.GuildID)
-		return ctx.Send("All aliases deleted.")
+		return ctx.Respond("All aliases deleted.")
 	}
 	delete(mappings, name)
 	dirty = true
-	return ctx.Send("Alias deleted.")
+	return ctx.Respond("Alias deleted.")
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {

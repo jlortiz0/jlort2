@@ -40,33 +40,25 @@ var botId string
 // ~!kekage [user]
 // Checks someone's kekage
 // If not specified, gives the kekage of the command runner.
-func kekage(ctx commands.Context, args []string) error {
-	target := ctx.Member
-	var err error
-	if len(args) > 0 && ctx.GuildID != "" {
-		name := strings.Join(args, " ")
-		target, err = commands.FindMember(ctx.Bot, name, ctx.GuildID)
-		if err != nil {
-			return err
-		}
-		if target == nil {
-			return ctx.Send("No such member " + name)
-		}
+func kekage(ctx commands.Context) error {
+	target := ctx.User
+	if len(ctx.ApplicationCommandData().Options) > 0 && ctx.GuildID != "" {
+		target = ctx.ApplicationCommandData().Options[0].UserValue(nil)
 	}
-	if target.User.Bot {
-		return ctx.Send("Bots can't be kek.")
+	if target.Bot {
+		return ctx.RespondPrivate("Bots can't be kek.")
 	}
-	name := commands.DisplayName(target)
+	name := target.Username
 	kekI := 0
 	kekLock.RLock()
-	for _, v := range kekData.Users[target.User.ID] {
+	for _, v := range kekData.Users[target.ID] {
 		kekI += v
 	}
 	kekLock.RUnlock()
 	kekI *= 50
 	var msg string
 	if kekI == 0 {
-		return ctx.Send(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
+		return ctx.Respond(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
 	} else if kekI < 0 {
 		if kekI > -1000 {
 			msg = "%s is at %s cringe.\nThey should be wary, lest they falter further."
@@ -84,15 +76,15 @@ func kekage(ctx commands.Context, args []string) error {
 			msg = "%s is at %s kek.\nThey are blessed with the power of good vibes."
 		}
 	}
-	return ctx.Send(fmt.Sprintf(msg, name, convertKek(kekI)))
+	return ctx.Respond(fmt.Sprintf(msg, name, convertKek(kekI)))
 }
 
 // ~!kekReport
 // @GuildOnly
 // Gets the kekage of everyone
-func kekReport(ctx commands.Context, _ []string) error {
+func kekReport(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
@@ -124,33 +116,33 @@ func kekReport(ctx commands.Context, _ []string) error {
 	if output.Len() == 0 {
 		output.WriteString("All keks are zero.")
 	}
-	return ctx.Send(output.String())
+	return ctx.Respond(output.String())
 }
 
 // ~!kekOn
 // @GuildOnly
 // Toggles kekage on a server
 // You must have Manage Server to do this.
-func kekOn(ctx commands.Context, _ []string) error {
+func kekOn(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	perms, err := ctx.State.MessagePermissions(ctx.Message)
+	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 	if err != nil {
 		return fmt.Errorf("failed to get permissions: %w", err)
 	}
 	if perms&discordgo.PermissionManageServer == 0 {
-		return ctx.Send("You need the Manage Server permission to toggle kek.")
+		return ctx.RespondPrivate("You need the Manage Server permission to toggle kek.")
 	}
 	dirty = true
 	kekLock.Lock()
 	defer kekLock.Unlock()
-	if _, ok := kekData.Guilds[ctx.GuildID]; !ok {
+	if ctx.ApplicationCommandData().Options[0].BoolValue() {
 		kekData.Guilds[ctx.GuildID] = struct{}{}
-		return ctx.Send("Kek enabled on this server.")
+		return ctx.RespondPrivate("Kek enabled on this server.")
 	}
 	delete(kekData.Guilds, ctx.GuildID)
-	return ctx.Send("Kek disabled on this server.")
+	return ctx.RespondPrivate("Kek disabled on this server.")
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
@@ -272,10 +264,18 @@ func Init(self *discordgo.Session) {
 		}
 		keks["locked"] += total
 	}
-	commands.RegisterCommand(kekage, "kekage")
-	commands.RegisterCommand(kekOn, "kekOn")
-	commands.RegisterCommand(kekOn, "kekOff")
-	commands.RegisterCommand(kekReport, "kekReport")
+	optionUser := new(discordgo.ApplicationCommandOption)
+	optionUser.Type = discordgo.ApplicationCommandOptionUser
+	optionUser.Description = "Who shall I judge? If nobody, I choose you."
+	optionUser.Name = "user"
+	commands.RegisterCommand(kekage, "kekage", "Kek or cringe with jlort jlort", []*discordgo.ApplicationCommandOption{optionUser})
+	optionBool := new(discordgo.ApplicationCommandOption)
+	optionBool.Required = true
+	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
+	optionBool.Name = "enabled"
+	optionBool.Description = "Should kek be enabled on this server?"
+	commands.RegisterCommand(kekOn, "kekenabled", "Annoyed by those downvotes? Me too", []*discordgo.ApplicationCommandOption{optionBool})
+	commands.RegisterCommand(kekReport, "kekreport", "Reddit Recap but even less social", nil)
 	commands.RegisterSaver(saveKek)
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)

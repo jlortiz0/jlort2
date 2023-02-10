@@ -22,7 +22,6 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -90,13 +89,13 @@ const popRefreshRate = 3 * time.Second
 // Connects to voice
 // If you are in a voice channel and jlort jlort is in a different voice channel, you will be asked to move.
 // This function is automatically called if you queue something and jlort is not connected.
-func connect(ctx commands.Context, _ []string) error {
+func connect(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.Author.ID)
+	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
 	if err != nil || authorVoice.ChannelID == "" {
-		return ctx.Send("You must be in a voice channel to use this command.")
+		return ctx.RespondPrivate("You must be in a voice channel to use this command.")
 	}
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
@@ -114,7 +113,7 @@ func connect(ctx commands.Context, _ []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to get channel info: %w", err)
 			}
-			return ctx.Send("Please move to voice channel " + channel.Name)
+			return ctx.RespondPrivate("Please move to voice channel " + channel.Name)
 		}
 	} else {
 		perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, authorVoice.ChannelID)
@@ -122,7 +121,7 @@ func connect(ctx commands.Context, _ []string) error {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionVoiceConnect == 0 {
-			return ctx.Send("I need the Connect permission to use this command.")
+			return ctx.RespondPrivate("I need the Connect permission to use this command.")
 		}
 		streamLock.Lock()
 		if streams[ctx.GuildID] != nil && streams[ctx.GuildID].Len() > 0 {
@@ -136,6 +135,10 @@ func connect(ctx commands.Context, _ []string) error {
 			return fmt.Errorf("failed to connect to voice: %w", err)
 		}
 	}
+	if ctx.ApplicationCommandData().Name == "connect" {
+		ctx.RespondPrivate("Connected")
+		// return ctx.Bot.InteractionResponseDelete(commands.APP_ID, ctx.Interaction)
+	}
 	return nil
 }
 
@@ -146,9 +149,9 @@ func connect(ctx commands.Context, _ []string) error {
 // If streams are currently playing, paused, or queued, jlort jlort will not disconnect unless you have permissions to clear the queue.
 // jlort jlort will automatically disconnect after 5 minutes of inactivity or if there is nobody to listen to it.
 // Note that jlort jlort may consider bots valid listeners if they are not server deafened. For best results, you should server deafen other bots.
-func dc(ctx commands.Context, _ []string) error {
+func dc(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
@@ -156,16 +159,18 @@ func dc(ctx commands.Context, _ []string) error {
 		ls, ok := streams[ctx.GuildID]
 		streamLock.RUnlock()
 		if ok && ls.Len() > 1 {
-			err := remove(ctx, []string{"all-q"})
+			x := ctx.ApplicationCommandData()
+			x.Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
+			err := remove(ctx)
 			if ls.Len() > 1 {
 				return err
 			}
 		}
 		if ok && ls.Head() != nil && ls.Head().Value.Flags&strflag_noskip != 0 {
 			if ls.Head().Value.Flags&strflag_dconend != 0 {
-				return ctx.Send("Won't you at least wait for the outro?")
+				return ctx.RespondPrivate("Won't you at least wait for the outro?")
 			}
-			return ctx.Send("This stream cannot be ended.")
+			return ctx.RespondPrivate("This stream cannot be ended.")
 		}
 		err := vc.Disconnect()
 		if err != nil {
@@ -182,53 +187,49 @@ func dc(ctx commands.Context, _ []string) error {
 // Only people with the Manage Server permission can change the DJ role.
 // You must mention the DJ role to set it because I am lazy.
 // To disable the DJ role, set to "none" without quotes or @
-func dj(ctx commands.Context, args []string) error {
+func dj(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.RespondPrivate("This command only works in servers.")
 	}
+	args := ctx.ApplicationCommandData().Options
 	if len(args) == 0 {
 		djLock.RLock()
 		if djRoles[ctx.GuildID] == "" {
 			djLock.RUnlock()
-			return ctx.Send("No DJ role set.")
+			return ctx.Respond("No DJ role set.")
 		}
 		role, err := ctx.State.Role(ctx.GuildID, djRoles[ctx.GuildID])
 		djLock.RUnlock()
 		if err != nil {
+			dirty = true
 			djLock.Lock()
 			delete(djRoles, ctx.GuildID)
 			djLock.Unlock()
-			return ctx.Send("No DJ role set.")
+			return ctx.Respond("No DJ role set.")
 		}
-		return ctx.Send("DJ role is " + role.Name)
+		return ctx.Respond("DJ role is " + role.Name)
 	}
-	perms, err := ctx.State.UserChannelPermissions(ctx.Author.ID, ctx.ChanID)
+	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 	if err != nil {
 		return err
 	}
 	if perms&discordgo.PermissionManageServer == 0 {
-		return ctx.Send("You need Manage Server to change the DJ role.")
+		return ctx.RespondPrivate("You need Manage Server to change the DJ role.")
 	}
-	if strings.ToLower(args[0]) == "none" {
-		djLock.Lock()
-		delete(djRoles, ctx.GuildID)
-		dirty = true
-		djLock.Unlock()
-		return ctx.Send("DJ role disabled.")
+	role := args[0].RoleValue(ctx.Bot, ctx.GuildID)
+	if role.Managed {
+		return ctx.RespondPrivate("Role must be user-created.")
 	}
-	if !strings.HasPrefix(args[0], "<@&") || args[0][len(args[0])-1] != '>' {
-		return ctx.Send("Not a valid role mention.")
-	}
-	roleID := args[0][3 : len(args[0])-1]
 	djLock.Lock()
-	djRoles[ctx.GuildID] = roleID
 	dirty = true
-	role, err := ctx.State.Role(ctx.GuildID, djRoles[ctx.GuildID])
-	djLock.Unlock()
-	if err != nil {
-		return err
+	if role.Name == "@everyone" {
+		delete(djRoles, ctx.GuildID)
+		djLock.Unlock()
+		return ctx.Respond("DJ role disabled.")
 	}
-	return ctx.Send("DJ role set to " + role.Name)
+	djRoles[ctx.GuildID] = role.ID
+	djLock.Unlock()
+	return ctx.Respond("DJ role set to " + role.Name)
 }
 
 // onDc is called when a user, including the bot, disconnects from a voice channel.
@@ -453,7 +454,7 @@ func hasMusPerms(user *discordgo.Member, state *discordgo.State, guild string, i
 	}
 	log.Debug("hasMusPerms: checked perms")
 	djLock.RLock()
-	DJ := djRoles[guild]
+	DJ := djRoles[user.GuildID]
 	djLock.RUnlock()
 	if DJ != "" {
 		for _, v := range user.Roles {
@@ -501,36 +502,63 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onDc)
 	self.AddHandler(delGuildSongs)
 	self.AddHandler(handleReconnect)
-	commands.RegisterCommand(connect, "connect")
-	commands.RegisterCommand(dc, "dc")
-	commands.RegisterCommand(dj, "dj")
-	commands.RegisterCommand(mp3, "mp3")
-	commands.RegisterCommand(mp3, "mp3skip")
-	commands.RegisterCommand(mp3, "mp4")
-	commands.RegisterCommand(mp3, "mp4skip")
-	commands.RegisterCommand(loop, "loop")
-	commands.RegisterCommand(skip, "skip")
-	commands.RegisterCommand(play, "play")
-	commands.RegisterCommand(play, "playskip")
-	commands.RegisterCommand(pause, "pause")
-	commands.RegisterCommand(pause, "unpause")
-	commands.RegisterCommand(remove, "remove")
-	commands.RegisterCommand(remove, "rm")
-	commands.RegisterCommand(np, "np")
-	commands.RegisterCommand(np, "playing")
-	commands.RegisterCommand(queue, "queue")
-	commands.RegisterCommand(song, "song")
-	commands.RegisterCommand(addsong, "addsong")
-	commands.RegisterCommand(delsong, "delsong")
-	commands.RegisterCommand(delsong, "removesong")
-	commands.RegisterCommand(delsong, "rmsong")
-	commands.RegisterCommand(vol, "vol")
-	commands.RegisterCommand(seek, "seek")
-	commands.RegisterCommand(popcorn, "popcorn")
-	commands.RegisterCommand(popcorn, "time")
-	commands.RegisterCommand(locket, "_locket")
-	commands.RegisterCommand(outro, "outro")
+	// commands.RegisterCommand(locket, "_locket")
+	// commands.RegisterCommand(outro, "outro")
 	commands.RegisterSaver(saveData)
+	commands.RegisterCommand(connect, "connect", "Connect to voice", nil)
+	commands.RegisterCommand(dc, "dc", "Disconnect from voice", nil)
+	optionRole := new(discordgo.ApplicationCommandOption)
+	optionRole.Type = discordgo.ApplicationCommandOptionRole
+	optionRole.Name = "role"
+	optionRole.Description = "DJ role to set, @everyone to disable"
+	commands.RegisterCommand(dj, "dj", "Check or set DJ role", []*discordgo.ApplicationCommandOption{optionRole})
+	optionLink := new(discordgo.ApplicationCommandOption)
+	optionLink.Type = discordgo.ApplicationCommandOptionString
+	optionLink.Required = true
+	optionLink.Name = "url"
+	optionLink.Description = "Link to audio file, anything supported by ffmpeg"
+	commands.RegisterCommand(mp3, "mp3", "Play file from a link", []*discordgo.ApplicationCommandOption{optionLink})
+	commands.RegisterCommand(mp3, "mp3skip", "Skip to file from a link", []*discordgo.ApplicationCommandOption{optionLink})
+	optionBool := new(discordgo.ApplicationCommandOption)
+	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
+	optionBool.Required = true
+	optionBool.Name = "enabled"
+	optionBool.Description = "Loop this song?"
+	commands.RegisterCommand(loop, "loop", "Set stream loop", []*discordgo.ApplicationCommandOption{optionBool})
+	commands.RegisterCommand(skip, "skip", "Skip current song", nil)
+	optionVideo := new(discordgo.ApplicationCommandOption)
+	optionVideo.Type = discordgo.ApplicationCommandOptionString
+	optionVideo.Required = true
+	optionVideo.Name = "video"
+	optionVideo.Description = "Link to YouTube video, or anything supported by youtube-dl"
+	commands.RegisterCommand(play, "play", "Play YouTube video", []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.RegisterCommand(play, "playskip", "Skip to YouTube videa", []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.RegisterCommand(pause, "pause", "Pause or unpause current song", nil)
+	optionIndex := new(discordgo.ApplicationCommandOption)
+	optionIndex.Type = discordgo.ApplicationCommandOptionInteger
+	optionIndex.Required = true
+	optionIndex.Name = "index"
+	optionIndex.Description = "Index to remove, negative for all"
+	commands.RegisterCommand(remove, "remove", "Remove song from the queue", []*discordgo.ApplicationCommandOption{optionIndex})
+	commands.RegisterCommand(np, "np", "See details of current song", nil)
+	commands.RegisterCommand(queue, "queue", "See what's in the queue", nil)
+	// commands.RegisterCommand(song, "song")
+	// commands.RegisterCommand(addsong, "addsong")
+	// commands.RegisterCommand(delsong, "delsong")
+	// commands.RegisterCommand(delsong, "removesong")
+	// commands.RegisterCommand(delsong, "rmsong")
+	optionVol := new(discordgo.ApplicationCommandOption)
+	optionVol.Type = discordgo.ApplicationCommandOptionInteger
+	optionVol.Name = "vol"
+	optionVol.Description = "Volume in percent, will be clamped to 0%-200%"
+	commands.RegisterCommand(vol, "vol", "Check or change volume", []*discordgo.ApplicationCommandOption{optionVol})
+	optionPos := new(discordgo.ApplicationCommandOption)
+	optionPos.Type = discordgo.ApplicationCommandOptionString
+	optionPos.Required = true
+	optionPos.Name = "position"
+	optionPos.Description = "Position in mm:ss or ss format"
+	commands.RegisterCommand(seek, "seek", "Seek to a position in the stream", []*discordgo.ApplicationCommandOption{optionPos})
+	commands.RegisterCommand(popcorn, "time", "Check the current time (PST)", nil)
 	popLock++
 	go musicPopper(self, popLock)
 }

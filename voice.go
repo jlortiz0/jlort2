@@ -19,7 +19,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -112,46 +111,37 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // Only people with the Manage Server permission can change the voice announcement channel.
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
-func vachan(ctx commands.Context, args []string) error {
+func vachan(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+		return ctx.Respond("This command only works in servers.")
 	}
-	if len(args) > 0 {
-		perms, err := ctx.State.MessagePermissions(ctx.Message)
+	args := ctx.ApplicationCommandData().Options
+	if len(args) != 0 {
+		perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 		if err != nil {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionManageServer == 0 {
-			return ctx.Send("You need the Manage Server permission to change this setting.")
+			return ctx.Respond("You need the Manage Server permission to change this setting.")
 		}
 		voiceSettingLock.Lock()
 		defer voiceSettingLock.Unlock()
-		if strings.ToLower(args[0]) == "none" {
+		arg := args[0].ChannelValue(ctx.Bot)
+		if arg.Type != discordgo.ChannelTypeGuildText {
 			delete(voiceAnnounce, ctx.GuildID)
 			dirty = true
-			return ctx.Send("Voice announcements disabled.")
+			return ctx.Respond("Voice announcements disabled.")
 		}
-		if !strings.HasPrefix(args[0], "<#") || args[0][len(args[0])-1] != '>' {
-			return ctx.Send("Not a valid channel mention.")
-		}
-		ch, err := ctx.State.Channel(args[0][2 : len(args[0])-1])
-		if err != nil {
-			return err
-		}
-		voiceAnnounce[ctx.GuildID] = ch.ID
+		voiceAnnounce[ctx.GuildID] = arg.ID
 		dirty = true
-		err = ctx.Send("Voice joins will be announced in " + ch.Name)
+		err = ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 		return err
 	}
 	chID, ok := voiceAnnounce[ctx.GuildID]
-	ch, err := ctx.State.Channel(chID)
-	if !ok || err != nil {
-		if ok && err != nil {
-			log.Error(err)
-		}
-		return ctx.Send("Voice announcements are disabled on this server")
+	if !ok {
+		return ctx.Respond("Voice announcements are disabled on this server")
 	}
-	return ctx.Send("Voice joins are announced in " + ch.Name)
+	return ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", chID))
 }
 
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {

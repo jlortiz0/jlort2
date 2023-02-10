@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
-	"strings"
 	"syscall"
 	"time"
 
@@ -34,7 +33,6 @@ import (
 )
 
 var sc chan os.Signal
-var ownerid string
 
 func main() {
 	if !isatty.IsTerminal(os.Stdout.Fd()) {
@@ -115,48 +113,35 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	updatePfp(self)
 	initModules(self)
 
-	app, err := self.Application("@me")
-	if err != nil {
-		log.Error(fmt.Errorf("could not retrieve owner id: %w", err))
-	} else {
-		ownerid = app.Owner.ID
-	}
-	self.AddHandler(messageCreate)
+	self.AddHandler(interactionCreate)
 	self.AddHandler(voiceStateUpdate)
 	self.AddHandler(newGuild)
-	self.UpdateGameStatus(0, "~!help")
 	log.Info("Ready!")
 }
 
-func messageCreate(self *discordgo.Session, event *discordgo.MessageCreate) {
-	if event.Author.Bot {
+func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
+	if event.Type != discordgo.InteractionApplicationCommand {
+		if event.Type == discordgo.InteractionPing {
+			self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})
+		}
 		return
 	}
-
-	if strings.HasPrefix(event.Content, "~!") || strings.HasPrefix(event.Content, "!!") {
-		args := make([]string, 0, 8)
-		for _, v := range strings.Split(event.Content, " ") {
-			if len(v) > 0 {
-				args = append(args, v)
+	data := event.ApplicationCommandData()
+	cmd := commands.GetCommand(data.Name)
+	if cmd != nil {
+		ctx := commands.MakeContext(self, event.Interaction)
+		var err error
+		var stack string
+		defer func() {
+			if err == nil {
+				err, _ = recover().(error)
+				stack = string(debug.Stack())
 			}
-		}
-		cmd := commands.GetCommand(args[0][2:])
-		if cmd != nil {
-			log.Fine(event.Content)
-			ctx := commands.MakeContext(self, event, args[0][2:])
-			var err error
-			var stack string
-			defer func() {
-				if err == nil {
-					err, _ = recover().(error)
-					stack = string(debug.Stack())
-				}
-				if err != nil {
-					handleCommandError(err, ctx, args, stack)
-				}
-			}()
-			err = cmd(ctx, args[1:])
-		}
+			if err != nil {
+				handleCommandError(err, ctx, stack)
+			}
+		}()
+		err = cmd(ctx)
 	} else if event.GuildID == "" && event.Author.ID != ownerid {
 		channel, err2 := self.UserChannelCreate(ownerid)
 		if err2 == nil {
@@ -169,25 +154,25 @@ func messageCreate(self *discordgo.Session, event *discordgo.MessageCreate) {
 	}
 }
 
-func handleCommandError(err error, ctx commands.Context, args []string, stack string) {
-	log.Errors(fmt.Sprintf("Error in command %s", ctx.InvokedWith))
+func handleCommandError(err error, ctx commands.Context, stack string) {
+	log.Errors(fmt.Sprintf("Error in command %s", ctx.ApplicationCommandData().Name))
 	log.Error(err)
 	if stack != "" {
 		log.Errors(stack)
 	}
-	if ctx.Author.ID == ownerid {
+	if ctx.User.ID == commands.OWNER_ID {
 		if len(err.Error()) < 1990 {
-			ctx.Send(fmt.Sprintf("Error: %s", err.Error()))
+			ctx.Respond(fmt.Sprintf("Error: %s", err.Error()))
 		} else {
-			ctx.Send("A lengthy error occured.")
+			ctx.Respond("A lengthy error occured.")
 		}
 	} else {
-		err2 := ctx.Send("Sorry, something went wrong. An error report was sent to jlortiz.")
+		err2 := ctx.Respond("Sorry, something went wrong. An error report was sent to jlortiz.")
 		if err2 == nil {
 			channel, err2 := ctx.Bot.UserChannelCreate(ownerid)
 			if err2 == nil {
 				if len(err.Error()) < 1965 {
-					ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("Error in command %s: %s", ctx.InvokedWith, err.Error()))
+					ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("Error in command %s: %s", ctx.ApplicationCommandData().Name, err.Error()))
 				} else {
 					ctx.Bot.ChannelMessageSend(channel.ID, "A lengthy error occured.")
 				}

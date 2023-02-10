@@ -44,8 +44,14 @@ func initModules(self *discordgo.Session) {
 	log.Info("Loaded music")
 	gacha.Init(self)
 	log.Info("Loaded gacha")
-	commands.RegisterCommand(vachan, "vachan")
 	commands.RegisterSaver(saveVoice)
+	optionChannel := new(discordgo.ApplicationCommandOption)
+	// optionChannel.ChannelTypes = []discordgo.ChannelType{discordgo.ChannelTypeGuildText}
+	optionChannel.Name = "channel"
+	optionChannel.Description = "Channel to post join annoucements in"
+	optionChannel.Type = discordgo.ApplicationCommandOptionChannel
+	commands.RegisterCommand(vachan, "vachan", "Voice announcement channel", []*discordgo.ApplicationCommandOption{optionChannel})
+	commands.UploadCommands(self)
 }
 
 func cleanup(self *discordgo.Session) {
