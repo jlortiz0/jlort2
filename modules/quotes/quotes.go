@@ -172,14 +172,12 @@ func delquote(ctx commands.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	// TODO: There has to be a better way to do this
-	_, err = tx.Exec(`
-	CREATE TABLE quotes_temp (ind INTEGER, quote VARCHAR(512));
-	INSERT INTO quotes_temp SELECT ind - 1, quote FROM quotes WHERE gid = ?001 AND ind > ?002;
-	DELETE FROM quotes WHERE gid = ?001 AND ind >= ?002;
-	INSERT OR ROLLBACK INTO quotes SELECT ?001, ind, quote FROM quotes_temp;
-	DROP TABLE quotes_temp;
-	`, gid, sel, gid, sel, gid)
+	_, err = tx.Exec("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002;", gid, sel)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = (SELECT COUNT(*) FROM quotes WHERE gid = ?001);")
 	if err != nil {
 		tx.Rollback()
 		return err
