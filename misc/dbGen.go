@@ -25,6 +25,20 @@ func main() {
 		checkFatal(os.Chdir(".."))
 	}
 	os.Chdir("persistent")
+	_, err = os.Stat("../persistent.db")
+	if err == nil {
+		fmt.Print("[o]verwrite, [i]nsert, [a]bort? ")
+		var b [16]byte
+		os.Stdin.Read(b[:])
+		if b[0] == 'o' {
+			os.Remove("../persistent.db")
+		} else if b[0] == 'a' {
+			return
+		} else if b[0] != 'i' {
+			fmt.Println("specify one of o, i, a")
+			return
+		}
+	}
 	db, err := sql.Open("sqlite3", "../persistent.db")
 	checkFatal(err)
 	defer db.Close()
@@ -188,7 +202,7 @@ func main() {
 		checkFatal(json.Unmarshal(data, &vaChannels))
 		fmt.Println("read kek")
 		stmt, _ := db.Prepare("INSERT INTO kekGuilds VALUES (?);")
-		for k, _ := range vaChannels.Guilds {
+		for k := range vaChannels.Guilds {
 			k2, _ := strconv.ParseInt(k, 10, 64)
 			stmt.Exec(k2)
 		}
