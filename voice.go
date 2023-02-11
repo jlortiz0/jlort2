@@ -112,9 +112,6 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
 func vachan(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.Respond("This command only works in servers.")
-	}
 	args := ctx.ApplicationCommandData().Options
 	if len(args) != 0 {
 		perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)

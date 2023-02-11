@@ -155,9 +155,6 @@ Streamer:
 // Instead of linking a file, you can upload a file with ~!mp3 as the description. Do not delete the message until the stream has finished.
 // If invoked as ~!mp3skip, it will skip the current stream and play the linked file immediately if you have permission to do so.
 func mp3(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
@@ -219,9 +216,6 @@ func mp3(ctx commands.Context) error {
 // If a direct link is not provided, the first search result will be taken instead.
 // This command also supports direct links to sites other than Youtube. Check https://ytdl-org.github.io/youtube-dl/supportedsites.html for a list.
 func play(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
@@ -274,9 +268,8 @@ func play(ctx commands.Context) error {
 	if ls == nil {
 		return ctx.RespondPrivate("Discord network error while processing request. Please try again.")
 	}
-	// TODO: Reimplement this
-	// if strings.HasSuffix(ctx.InvokedWith, "skip") {
-	if false {
+	// TODO: Is there a better way to do this?
+	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 			return ctx.RespondPrivate("You do not have permission to modify the current stream.")
 		}
@@ -318,9 +311,6 @@ func play(ctx commands.Context) error {
 // Range is 0-200%
 // To set the volume, you must have permission to modify the current stream.
 func vol(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	if streams[ctx.GuildID] == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
 	}
@@ -353,9 +343,6 @@ func vol(ctx commands.Context) error {
 // Position can be in m:ss format or just a number of seconds.
 // To seek, you must have permission to modify the current stream. To simply view the current position, use ~!np
 func seek(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	if streams[ctx.GuildID] == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
 	}
@@ -463,9 +450,6 @@ func popcorn(ctx commands.Context) error {
 // Only works if nothing else is playing.
 // For a list of outros, do ~!outro list
 func outro(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command can only be used in servers.")
-	}
 	if len(args) == 0 {
 		return ctx.RespondPrivate("Usage: ~!outro <name>\nFor a list of outros, do ~!outro list")
 	}

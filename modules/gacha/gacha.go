@@ -177,9 +177,6 @@ func relics(ctx commands.Context) error {
 // ~!trade accept <code> or ~!trade reject <code> will end a trade.
 // Trades expire after some time, so you should ensure the other person is online. Maybe even @ them.
 func trade(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command can only be used in servers.")
-	}
 	op := ctx.ApplicationCommandData().Options[0].StringValue()
 	args := ctx.ApplicationCommandData().Options[0].Options
 	switch op {
@@ -397,93 +394,33 @@ func Init(self *discordgo.Session) {
 		log.Warn("gacha: duplicate short name!")
 	}
 
-	optionBool := new(discordgo.ApplicationCommandOption)
-	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
-	optionBool.Name = "tokens"
-	optionBool.Description = "If true, tokens will be used on this pull"
-	commands.RegisterCommand(pull, "pull", "Pull a relic", []*discordgo.ApplicationCommandOption{optionBool})
-	optionString := new(discordgo.ApplicationCommandOption)
-	optionString.Type = discordgo.ApplicationCommandOptionString
-	optionString.Name = "relic"
-	optionString.Description = "Short name of a relic"
-	optionString.Required = true
-	optionInt := new(discordgo.ApplicationCommandOption)
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	optionInt.Description = "Number to sell"
-	optionInt.Name = "count"
-	subcommandSell := new(discordgo.ApplicationCommandOption)
-	subcommandSell.Type = discordgo.ApplicationCommandOptionSubCommand
-	subcommandSell.Name = "sell"
-	subcommandSell.Description = "Sell relics to get tokens"
-	subcommandSell.Options = []*discordgo.ApplicationCommandOption{optionString, optionInt}
-	subcommandShow := new(discordgo.ApplicationCommandOption)
-	subcommandShow.Type = discordgo.ApplicationCommandOptionSubCommand
-	subcommandShow.Name = "show"
-	subcommandShow.Description = "Show info about a relic"
-	subcommandShow.Options = []*discordgo.ApplicationCommandOption{optionString}
-	subcommandList := new(discordgo.ApplicationCommandOption)
-	subcommandList.Description = "List the relics you have"
-	subcommandList.Name = "list"
-	subcommandList.Type = discordgo.ApplicationCommandOptionSubCommand
-	optionInt = new(discordgo.ApplicationCommandOption)
-	optionInt.Description = "Page number"
-	optionInt.Name = "page"
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	subcommandList.Options = []*discordgo.ApplicationCommandOption{optionInt}
-	commands.RegisterCommand(relics, "relic", "Manage your collection", []*discordgo.ApplicationCommandOption{subcommandList, subcommandShow, subcommandSell})
-
-	subcommandCreate := new(discordgo.ApplicationCommandOption)
-	subcommandCreate.Name = "create"
-	subcommandCreate.Description = "Create a new trade"
-	subcommandCreate.Type = discordgo.ApplicationCommandOptionSubCommand
-	optionUser := new(discordgo.ApplicationCommandOption)
-	optionUser.Name = "user"
-	optionUser.Type = discordgo.ApplicationCommandOptionUser
-	optionUser.Description = "User to trade with"
-	optionUser.Required = true
-	optionString = new(discordgo.ApplicationCommandOption)
-	optionString.Type = discordgo.ApplicationCommandOptionString
-	optionString.Name = "give"
-	optionString.Description = "Short name of a relic or \"token\" for tokens"
-	optionString.Required = true
-	optionString2 := new(discordgo.ApplicationCommandOption)
-	optionString2.Type = discordgo.ApplicationCommandOptionString
-	optionString2.Name = "relic"
-	optionString2.Description = "Short name of a relic or \"token\" for tokens"
-	optionString2.Required = true
-	optionInt = new(discordgo.ApplicationCommandOption)
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	optionInt.Description = "Number to give"
-	optionInt.Name = "togive"
-	optionInt.Required = true
-	optionInt2 := new(discordgo.ApplicationCommandOption)
-	optionInt2.Type = discordgo.ApplicationCommandOptionInteger
-	optionInt2.Description = "Number to get"
-	optionInt2.Name = "toget"
-	optionInt2.Required = true
-	subcommandCreate.Options = []*discordgo.ApplicationCommandOption{optionString, optionInt, optionUser, optionString2, optionInt2}
-
-	optionInt = new(discordgo.ApplicationCommandOption)
-	optionInt.Name = "code"
-	optionInt.Description = "Trade code"
-	optionInt.Required = true
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	subcommandInfo := new(discordgo.ApplicationCommandOption)
-	subcommandInfo.Name = "info"
-	subcommandInfo.Description = "Show info about a trade"
-	subcommandInfo.Type = discordgo.ApplicationCommandOptionSubCommand
-	subcommandInfo.Options = []*discordgo.ApplicationCommandOption{optionInt}
-	subcommandAccept := new(discordgo.ApplicationCommandOption)
-	subcommandAccept.Name = "accept"
-	subcommandAccept.Description = "Accept a trade"
-	subcommandAccept.Type = discordgo.ApplicationCommandOptionSubCommand
-	subcommandAccept.Options = subcommandInfo.Options
-	subcommandReject := new(discordgo.ApplicationCommandOption)
-	subcommandReject.Name = "cancel"
-	subcommandReject.Description = "Reject or cancel a trade"
-	subcommandReject.Type = discordgo.ApplicationCommandOptionSubCommand
-	subcommandReject.Options = subcommandInfo.Options
-	commands.RegisterCommand(trade, "trade", "Trade relics with others", []*discordgo.ApplicationCommandOption{subcommandCreate, subcommandInfo, subcommandAccept, subcommandReject})
+	commands.PrepareCommand("pull", "Pull a relic").Register(pull, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("usetoken", "If true, tokens will be used").AsBool().Finalize(),
+	})
+	shortName := commands.NewCommandOption("relic", "Short name of a relic").AsString().Required().Finalize()
+	commands.PrepareCommand("relic", "Manage your collection").Register(relics, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("sell", "Sell relics for tokens").AsSubcommand([]*discordgo.ApplicationCommandOption{
+			shortName,
+			commands.NewCommandOption("count", "Number to sell, default 1").AsInt().SetMinMax(1, 65535).Finalize(),
+		}),
+		commands.NewCommandOption("show", "Show info about a relic").AsSubcommand([]*discordgo.ApplicationCommandOption{shortName}),
+		commands.NewCommandOption("list", "List your relics").AsSubcommand([]*discordgo.ApplicationCommandOption{
+			commands.NewCommandOption("page", "Page number").AsInt().SetMinMax(1, 65535).Finalize(),
+		}),
+	})
+	tradeCode := commands.NewCommandOption("code", "Trade code").AsInt().Required().Finalize()
+	commands.PrepareCommand("trade", "Trade relics with others").Guild().Register(trade, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("create", "Create a new trade").AsSubcommand([]*discordgo.ApplicationCommandOption{
+			commands.NewCommandOption("give", "Short name of relic or \"token\" for tokens").AsString().Required().Finalize(),
+			commands.NewCommandOption("givecount", "Amount to give").AsInt().SetMinMax(1, 65535).Required().Finalize(),
+			commands.NewCommandOption("user", "User to trade with").AsUser().Required().Finalize(),
+			commands.NewCommandOption("get", "Short name of relic or \"token\" for tokens").AsString().Required().Finalize(),
+			commands.NewCommandOption("getcount", "Amount to get").AsInt().SetMinMax(1, 65535).Required().Finalize(),
+		}),
+		commands.NewCommandOption("info", "Show info about a trade").AsSubcommand([]*discordgo.ApplicationCommandOption{tradeCode}),
+		commands.NewCommandOption("accept", "Accept a trade").AsSubcommand([]*discordgo.ApplicationCommandOption{tradeCode}),
+		commands.NewCommandOption("cancel", "Cancel or reject trade").AsSubcommand([]*discordgo.ApplicationCommandOption{tradeCode}),
+	})
 	commands.RegisterSaver(saveGacha)
 }
 

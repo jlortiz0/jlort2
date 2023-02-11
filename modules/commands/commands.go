@@ -285,6 +285,32 @@ func (c *commandOption) AsString() *commandOption {
 	return c
 }
 
+func (c *commandOption) AsUser() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionUser
+	return c
+}
+
+func (c *commandOption) AsBool() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionBoolean
+	return c
+}
+
+func (c *commandOption) AsChannel() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionChannel
+	return c
+}
+
+func (c *commandOption) AsRole() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionRole
+	return c
+}
+
+func (c *commandOption) AsSubcommand(o []*discordgo.ApplicationCommandOption) *discordgo.ApplicationCommandOption {
+	c.Type = discordgo.ApplicationCommandOptionSubCommand
+	c.Options = o
+	return &c.ApplicationCommandOption
+}
+
 func (c *commandOption) SetMinMax(min, max int) *commandOption {
 	min2 := float64(min)
 	c.MinValue = &min2
@@ -299,5 +325,8 @@ func (c *commandOption) Required() *commandOption {
 }
 
 func (c *commandOption) Finalize() *discordgo.ApplicationCommandOption {
+	if c.Type == 0 {
+		panic("command option type not set")
+	}
 	return &(*c).ApplicationCommandOption
 }

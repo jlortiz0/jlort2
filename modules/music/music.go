@@ -90,9 +90,6 @@ const popRefreshRate = 3 * time.Second
 // If you are in a voice channel and jlort jlort is in a different voice channel, you will be asked to move.
 // This function is automatically called if you queue something and jlort is not connected.
 func connect(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
 	if err != nil || authorVoice.ChannelID == "" {
 		return ctx.RespondPrivate("You must be in a voice channel to use this command.")
@@ -150,9 +147,6 @@ func connect(ctx commands.Context) error {
 // jlort jlort will automatically disconnect after 5 minutes of inactivity or if there is nobody to listen to it.
 // Note that jlort jlort may consider bots valid listeners if they are not server deafened. For best results, you should server deafen other bots.
 func dc(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
 		streamLock.RLock()
@@ -188,9 +182,6 @@ func dc(ctx commands.Context) error {
 // You must mention the DJ role to set it because I am lazy.
 // To disable the DJ role, set to "none" without quotes or @
 func dj(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	args := ctx.ApplicationCommandData().Options
 	if len(args) == 0 {
 		djLock.RLock()
@@ -502,58 +493,37 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onDc)
 	self.AddHandler(delGuildSongs)
 	self.AddHandler(handleReconnect)
-	// commands.RegisterCommand(locket, "_locket")
-	// commands.RegisterCommand(outro, "outro")
 	commands.RegisterSaver(saveData)
-	commands.RegisterCommand(connect, "connect", "Connect to voice", nil)
-	commands.RegisterCommand(dc, "dc", "Disconnect from voice", nil)
-	optionRole := new(discordgo.ApplicationCommandOption)
-	optionRole.Type = discordgo.ApplicationCommandOptionRole
-	optionRole.Name = "role"
-	optionRole.Description = "DJ role to set, @everyone to disable"
-	commands.RegisterCommand(dj, "dj", "Check or set DJ role", []*discordgo.ApplicationCommandOption{optionRole})
-	optionLink := new(discordgo.ApplicationCommandOption)
-	optionLink.Type = discordgo.ApplicationCommandOptionString
-	optionLink.Required = true
-	optionLink.Name = "url"
-	optionLink.Description = "Link to audio file, anything supported by ffmpeg"
-	commands.RegisterCommand(mp3, "mp3", "Play file from a link", []*discordgo.ApplicationCommandOption{optionLink})
-	commands.RegisterCommand(mp3, "mp3skip", "Skip to file from a link", []*discordgo.ApplicationCommandOption{optionLink})
-	optionBool := new(discordgo.ApplicationCommandOption)
-	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
-	optionBool.Required = true
-	optionBool.Name = "enabled"
-	optionBool.Description = "Loop this song?"
-	commands.RegisterCommand(loop, "loop", "Set stream loop", []*discordgo.ApplicationCommandOption{optionBool})
-	commands.RegisterCommand(skip, "skip", "Skip current song", nil)
-	optionVideo := new(discordgo.ApplicationCommandOption)
-	optionVideo.Type = discordgo.ApplicationCommandOptionString
-	optionVideo.Required = true
-	optionVideo.Name = "video"
-	optionVideo.Description = "Link to YouTube video, or anything supported by youtube-dl"
-	commands.RegisterCommand(play, "play", "Play YouTube video", []*discordgo.ApplicationCommandOption{optionVideo})
-	commands.RegisterCommand(play, "playskip", "Skip to YouTube videa", []*discordgo.ApplicationCommandOption{optionVideo})
-	commands.RegisterCommand(pause, "pause", "Pause or unpause current song", nil)
-	optionIndex := new(discordgo.ApplicationCommandOption)
-	optionIndex.Type = discordgo.ApplicationCommandOptionInteger
-	optionIndex.Required = true
-	optionIndex.Name = "index"
-	optionIndex.Description = "Index to remove, negative for all"
-	commands.RegisterCommand(remove, "remove", "Remove song from the queue", []*discordgo.ApplicationCommandOption{optionIndex})
-	commands.RegisterCommand(np, "np", "See details of current song", nil)
-	commands.RegisterCommand(queue, "queue", "See what's in the queue", nil)
-	optionVol := new(discordgo.ApplicationCommandOption)
-	optionVol.Type = discordgo.ApplicationCommandOptionInteger
-	optionVol.Name = "vol"
-	optionVol.Description = "Volume in percent, will be clamped to 0%-200%"
-	commands.RegisterCommand(vol, "vol", "Check or change volume", []*discordgo.ApplicationCommandOption{optionVol})
-	optionPos := new(discordgo.ApplicationCommandOption)
-	optionPos.Type = discordgo.ApplicationCommandOptionString
-	optionPos.Required = true
-	optionPos.Name = "position"
-	optionPos.Description = "Position in mm:ss or ss format"
-	commands.RegisterCommand(seek, "seek", "Seek to a position in the stream", []*discordgo.ApplicationCommandOption{optionPos})
-	commands.RegisterCommand(popcorn, "time", "Check the current time (PST)", nil)
+	commands.PrepareCommand("connect", "Connect to voice").Guild().Register(connect, nil)
+	commands.PrepareCommand("dc", "Disconnect from voice").Guild().Register(dc, nil)
+	// TODO: Consider changing to admin-only command
+	commands.PrepareCommand("dj", "Check or set DJ role").Guild().Register(dj, []*discordgo.ApplicationCommandOption{
+		// TODO: Verify that @everyone works properly
+		commands.NewCommandOption("role", "DJ role to set, @everyone to disable").AsRole().Finalize(),
+	})
+	optionLink := commands.NewCommandOption("url", "Link to audio file").AsString().Required().Finalize()
+	commands.PrepareCommand("mp3", "Play file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3skip", "Skip to file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("loop", "Set stream loop").Guild().Register(loop, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("enabled", "Loop this song?").AsBool().Required().Finalize(),
+	})
+	commands.PrepareCommand("skip", "Skip current song").Guild().Register(skip, nil)
+	optionVideo := commands.NewCommandOption("url", "Link to YouTube video, or anything supported by yt-dlp").AsString().Required().Finalize()
+	commands.PrepareCommand("play", "Play YouTube video").Guild().Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Register(pause, nil)
+	commands.PrepareCommand("remove", "Remove stream from queue").Guild().Register(remove, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("index", "Index to remove, negative for all").AsInt().SetMinMax(-1, 127).Required().Finalize(),
+	})
+	commands.PrepareCommand("np", "Details of current stream").Guild().Register(np, nil)
+	commands.PrepareCommand("queue", "See what's in the queue").Guild().Register(queue, nil)
+	commands.PrepareCommand("vol", "Check or change volume").Guild().Register(vol, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("volume", "Volume in percent").AsInt().SetMinMax(0, 200).Finalize(),
+	})
+	commands.PrepareCommand("seek", "Seek to a position in the stream").Guild().Register(seek, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
+	})
+	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
 	// TODO: Reimplement outro, locket, song, addsong, removesong
 	popLock++
 	go musicPopper(self, popLock)

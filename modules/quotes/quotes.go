@@ -39,9 +39,6 @@ var quoteLock *sync.RWMutex = new(sync.RWMutex)
 // If you specifiy an index, it will try to get that quote.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
 func quote(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	quoteLock.RLock()
 	qList := quixote[ctx.GuildID]
 	quoteLock.RUnlock()
@@ -66,9 +63,6 @@ func quote(ctx commands.Context) error {
 // @GuildOnly
 // Gets all quotes
 func quotes(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	quoteLock.RLock()
 	defer quoteLock.RUnlock()
 	qList := quixote[ctx.GuildID]
@@ -98,9 +92,6 @@ func quotes(ctx commands.Context) error {
 // @GuildOnly
 // Adds a quote
 func addquote(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	dirty = true
 	quoteLock.Lock()
 	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], ctx.ApplicationCommandData().Options[0].StringValue())
@@ -116,9 +107,6 @@ func addquote(ctx commands.Context) error {
 // If you have Manage Server, you can do ~!delquote all to remove all quotes.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
 func delquote(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	quoteLock.Lock()
 	defer quoteLock.Unlock()
 	qList := quixote[ctx.GuildID]
@@ -169,24 +157,16 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	optionInt := new(discordgo.ApplicationCommandOption)
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	optionInt.Name = "index"
-	optionInt.Description = "Which quote to show?"
-	optionStr := new(discordgo.ApplicationCommandOption)
-	optionStr.Type = discordgo.ApplicationCommandOptionString
-	optionStr.Name = "quote"
-	optionStr.Required = true
-	optionStr.Description = "yeah?"
-	commands.RegisterCommand(quote, "quote", "15 minutes could save you 15% or more", []*discordgo.ApplicationCommandOption{optionInt})
-	commands.RegisterCommand(quotes, "quotes", "All the unfunny moments", nil)
-	commands.RegisterCommand(addquote, "addquote", "Quick, say something dumb!", []*discordgo.ApplicationCommandOption{optionStr})
-	optionInt = new(discordgo.ApplicationCommandOption)
-	optionInt.Type = discordgo.ApplicationCommandOptionInteger
-	optionInt.Name = "index"
-	optionInt.Required = true
-	optionInt.Description = "Which quote to delete?"
-	commands.RegisterCommand(delquote, "delquote", "Once you delete a quote, it will be gone forever (a long time)", []*discordgo.ApplicationCommandOption{optionInt})
+	commands.PrepareCommand("quote", "Hopefully it's actually funny").Guild().Register(quote, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().Finalize(),
+	})
+	commands.PrepareCommand("quotes", "Show all quotes").Guild().Register(quotes, nil)
+	commands.PrepareCommand("addquote", "Record that dumb thing your friend just said").Guild().Register(addquote, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("quote", "The thing, the funny thing").AsString().Required().Finalize(),
+	})
+	commands.PrepareCommand("delquote", "Guess it wasn't funny").Guild().Register(delquote, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("index", "Index of quote to remove").AsInt().Required().Finalize(),
+	})
 	self.AddHandler(guildDelete)
 	commands.RegisterSaver(saveQuotes)
 }

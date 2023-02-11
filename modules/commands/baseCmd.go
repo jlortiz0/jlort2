@@ -112,9 +112,6 @@ func purge(ctx Context) error {
 // You need Manage Messages to use this command.
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
 func ppurge(ctx Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 	if err != nil {
 		return fmt.Errorf("failed to get permissions: %w", err)
@@ -240,39 +237,29 @@ func version(ctx Context) error {
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
 	cmdMap = make(map[string]Command, 72)
-	optionUser := new(discordgo.ApplicationCommandOption)
-	// optionUser.Required = true
-	optionUser.Type = discordgo.ApplicationCommandOptionUser
-	optionUser.Name = "user"
-	optionString := new(discordgo.ApplicationCommandOption)
-	optionString.Required = true
-	optionString.Type = discordgo.ApplicationCommandOptionString
-	optionInteger := new(discordgo.ApplicationCommandOption)
-	optionInteger.Required = true
-	optionInteger.Type = discordgo.ApplicationCommandOptionInteger
-
-	optionString.Name = "stuff"
-	optionString.Description = "Something cool"
-	RegisterCommand(echo, "say", "Say stuff", []*discordgo.ApplicationCommandOption{optionString})
-	optionUser.Description = "User to purge. If ommited, will purge my messages"
-	RegisterCommand(purge, "purge", "Delete messages by user", []*discordgo.ApplicationCommandOption{optionUser})
-	optionString = new(discordgo.ApplicationCommandOption)
-	optionString.Required = true
-	optionString.Type = discordgo.ApplicationCommandOptionString
-	optionString.Name = "prefix"
-	optionString.Description = "Messages that start with this will be deleted"
-	RegisterCommand(ppurge, "ppurge", "Delete messages by prefix", []*discordgo.ApplicationCommandOption{optionString})
-	RegisterCommand(ping, "ping", "Get bot latency", nil)
-	optionUser.Required = true
-	optionUser.Description = "User to teleport to"
-	RegisterCommand(tpa, "tpa", "Teleport to a user", []*discordgo.ApplicationCommandOption{optionUser})
-	RegisterCommand(version, "version", "Get version info", nil)
+	PrepareCommand("echo", "Say stuff").Register(echo, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("stuff", "say something cool").AsString().Required().Finalize(),
+	})
+	PrepareCommand("purge", "Delete messages by user").Perms(discordgo.PermissionManageMessages).Register(purge, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("user", "User to purge, default me").AsUser().Finalize(),
+	})
+	PrepareCommand("ppurge", "Delete messages by prefix").Guild().Perms(discordgo.PermissionManageMessages).Register(ppurge, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("prefix", "Messages that start with this will be deleted").AsString().Required().Finalize(),
+	})
+	PrepareCommand("ping", "Get bot latency").Register(ping, nil)
+	PrepareCommand("tpa", "Teleport to a user").Guild().Register(tpa, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("user", "User to teleport to").AsUser().Required().Finalize(),
+	})
+	PrepareCommand("version", "Get version info").Register(version, nil)
 	if runtime.GOOS != "windows" && gsmServerID != "" {
 		optionString := new(discordgo.ApplicationCommandOption)
 		optionString.Type = discordgo.ApplicationCommandOptionString
 		optionString.Name = "arg"
 		optionString.Description = "Run /gsm help for a list of arguments"
-		RegisterCommand(gsm, "gsm", "Game Server Manager", []*discordgo.ApplicationCommandOption{optionString})
+		// TODO: Register this only in the GSM_GUILD
+		PrepareCommand("gsm", "Game Server Manager").Guild().Perms(discordgo.PermissionAll).Register(gsm, []*discordgo.ApplicationCommandOption{
+			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Finalize(),
+		})
 	}
 	info, err := os.Stat("lastUpdate")
 	if err == nil {

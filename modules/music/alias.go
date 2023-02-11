@@ -38,9 +38,6 @@ var aliasLock *sync.RWMutex = new(sync.RWMutex)
 // To get a list of aliases, do ~!song list
 // To register or unregister an alias, use ~!addsong and ~!delsong
 func song(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	aliasLock.RLock()
 	mappings := aliases[ctx.GuildID]
@@ -73,9 +70,6 @@ func song(ctx commands.Context) error {
 // Registers a song alias
 // The Youtube URL can be any URL supported by ~!play, but it cannot be a Youtube search.
 func addsong(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	args := ctx.ApplicationCommandData().Options
 	name := args[0].StringValue()
 	if name == "list" || name == "all" {
@@ -121,9 +115,6 @@ func addsong(ctx commands.Context) error {
 // Unregisters a song alias
 // Do ~!delsong all to remove all songs. To remove all songs, you must have the Manage Messages permission.
 func delsong(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	aliasLock.Lock()
 	defer aliasLock.Unlock()

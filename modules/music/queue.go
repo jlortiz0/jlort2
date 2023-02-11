@@ -39,9 +39,6 @@ import (
 // You must have permission over the stream to do so. Get stream indices with ~!queue.
 // To clear the queue, do ~!remove all. You must have permission over all streams to do so.
 func remove(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil || ls.Len() < 2 {
 		return ctx.RespondPrivate("Nothing in the queue.")
@@ -106,9 +103,6 @@ func remove(ctx commands.Context) error {
 // Toggles loop
 // You must have permission over the current stream to do so.
 func loop(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -138,9 +132,6 @@ func loop(ctx commands.Context) error {
 // Yes, it's the same command for pausing and unpausing.
 // You must have permission over the current stream to do so.
 func pause(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -170,9 +161,6 @@ func pause(ctx commands.Context) error {
 // To skip a stream, at least half the non-deafened and non-muted users in the channel must vote to skip.
 // Bots may still be counted in the channel count if they are not server deafened. For best results, server deafen bots.
 func skip(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -235,9 +223,6 @@ func skip(ctx commands.Context) error {
 // @GuildOnly
 // Info about what's playing
 func np(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Not connected to voice.")
@@ -301,9 +286,6 @@ func np(ctx commands.Context) error {
 // @GuildOnly
 // Info about the queue
 func queue(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil || ls.Len() < 2 {
 		return ctx.RespondPrivate("Nothing in the queue.")
@@ -331,9 +313,6 @@ func queue(ctx commands.Context) error {
 }
 
 func locket(ctx commands.Context, _ []string) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	if commands.OWNER_ID != ctx.User.ID {
 		return ctx.RespondPrivate("You do not have access to that command, and never will.")
 	}

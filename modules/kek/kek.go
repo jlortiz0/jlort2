@@ -83,9 +83,6 @@ func kekage(ctx commands.Context) error {
 // @GuildOnly
 // Gets the kekage of everyone
 func kekReport(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
@@ -124,9 +121,6 @@ func kekReport(ctx commands.Context) error {
 // Toggles kekage on a server
 // You must have Manage Server to do this.
 func kekOn(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command only works in servers.")
-	}
 	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 	if err != nil {
 		return fmt.Errorf("failed to get permissions: %w", err)
@@ -264,18 +258,13 @@ func Init(self *discordgo.Session) {
 		}
 		keks["locked"] += total
 	}
-	optionUser := new(discordgo.ApplicationCommandOption)
-	optionUser.Type = discordgo.ApplicationCommandOptionUser
-	optionUser.Description = "Who shall I judge? If nobody, I choose you."
-	optionUser.Name = "user"
-	commands.RegisterCommand(kekage, "kekage", "Kek or cringe with jlort jlort", []*discordgo.ApplicationCommandOption{optionUser})
-	optionBool := new(discordgo.ApplicationCommandOption)
-	optionBool.Required = true
-	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
-	optionBool.Name = "enabled"
-	optionBool.Description = "Should kek be enabled on this server?"
-	commands.RegisterCommand(kekOn, "kekenabled", "Annoyed by those downvotes? Me too", []*discordgo.ApplicationCommandOption{optionBool})
-	commands.RegisterCommand(kekReport, "kekreport", "Reddit Recap but even less social", nil)
+	commands.PrepareCommand("kek", "Kek or cringe with jlort jlort").Register(kekage, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
+	})
+	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Register(kekReport, nil)
+	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
+		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Finalize()})
 	commands.RegisterSaver(saveKek)
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)

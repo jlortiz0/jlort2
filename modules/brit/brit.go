@@ -152,9 +152,6 @@ func howbrit(ctx commands.Context) error {
 // If in a duel and no user is specified, your opponent will be called British.
 // In that case, your opponent's British score will not increase until after the duel.
 func brit(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command can only be used in servers.")
-	}
 	duelLock.RLock()
 	curDuel := duels[ctx.User.ID]
 	duelLock.RUnlock()
@@ -198,9 +195,6 @@ func brit(ctx commands.Context) error {
 // If you're certain of victory, you can call the other person British before the duel is decided. To do so, run ~!brit with no arguments.
 // Once the winner is decided, the Brit scores will be adjusted based on whether or not each called the other a Brit.
 func duel(ctx commands.Context) error {
-	if ctx.GuildID == "" {
-		return ctx.RespondPrivate("This command can only be used in servers.")
-	}
 	target := ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
 	if target.ID == ctx.User.ID {
 		return ctx.RespondPrivate("Cannot duel yourself.")
@@ -299,39 +293,24 @@ func Init(_ *discordgo.Session) {
 	}
 	cooldown = make(map[string]time.Time)
 	duels = make(map[string]*duelObj)
-	optionCoins := new(discordgo.ApplicationCommandOption)
-	optionCoins.Type = discordgo.ApplicationCommandOptionInteger
-	optionCoins.Name = "coins"
-	optionCoins.Description = "How many coins to flip"
-	commands.RegisterCommand(flip, "flip", "Flip a coin", []*discordgo.ApplicationCommandOption{optionCoins})
-	optionDice := new(discordgo.ApplicationCommandOption)
-	optionDice.Type = discordgo.ApplicationCommandOptionInteger
-	optionDice.Name = "dice"
-	optionDice.Description = "How many dice to roll"
-	commands.RegisterCommand(roll, "roll", "Roll a die", []*discordgo.ApplicationCommandOption{optionDice})
-	optionUser1 := new(discordgo.ApplicationCommandOption)
-	optionUser1.Type = discordgo.ApplicationCommandOptionUser
-	optionUser1.Name = "user"
-	optionUser1.Description = "Person to test the Britishness of, default you"
-	commands.RegisterCommand(howbrit, "howbrit", "^", []*discordgo.ApplicationCommandOption{optionUser1})
-	optionUser2 := new(discordgo.ApplicationCommandOption)
-	optionUser2.Type = discordgo.ApplicationCommandOptionUser
-	optionUser2.Name = "user"
-	optionUser2.Description = "Person to call British"
-	optionUser2.Required = true
-	commands.RegisterCommand(brit, "brit", "Call someone out", []*discordgo.ApplicationCommandOption{optionUser2})
-	optionUser3 := new(discordgo.ApplicationCommandOption)
-	optionUser3.Type = discordgo.ApplicationCommandOptionUser
-	optionUser3.Name = "user"
-	optionUser3.Description = "Person to duel"
-	optionUser3.Required = true
-	commands.RegisterCommand(duel, "duel", "Your nationality is on the line", []*discordgo.ApplicationCommandOption{optionUser3})
-	optionSomething := new(discordgo.ApplicationCommandOption)
-	optionSomething.Type = discordgo.ApplicationCommandOptionString
-	optionSomething.Name = "question"
-	optionSomething.Description = "Ask something"
-	optionSomething.Required = true
-	commands.RegisterCommand(eightball, "8ball", "Get a stupid answer", []*discordgo.ApplicationCommandOption{optionSomething})
+	commands.PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("coins", "How many coins to flip").AsInt().Finalize(),
+	})
+	commands.PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("dice", "How many dice to roll").AsInt().Finalize(),
+	})
+	commands.PrepareCommand("howbrit", "^").Register(howbrit, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("user", "Person to test the Britishness of, default you").AsUser().Finalize(),
+	})
+	commands.PrepareCommand("brit", "Call someone out").Guild().Register(brit, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("user", "Person to call British").AsUser().Required().Finalize(),
+	})
+	commands.PrepareCommand("duel", "Your nationality is on the line").Guild().Register(duel, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("user", "Person to duel").AsUser().Required().Finalize(),
+	})
+	commands.PrepareCommand("8ball", "Get a stupid answer").Register(eightball, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("question", "Ask something").AsString().Required().Finalize(),
+	})
 	commands.RegisterSaver(saveBrit)
 }
 
