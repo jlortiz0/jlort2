@@ -3,7 +3,6 @@ package gacha
 import (
 	"fmt"
 	"math/rand"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,29 +39,33 @@ var tradeLock *sync.RWMutex = new(sync.RWMutex)
 // Pull on the general banner.
 // If you have already pulled today, pulling again will cost 3 reroll tokens.
 // You must confirm the spending of reroll tokens with ~!pull yes
-func pull(ctx commands.Context, args []string) error {
+func pull(ctx commands.Context) error {
 	gachaLock.RLock()
-	data := gachaData[ctx.Author.ID]
+	data := gachaData[ctx.User.ID]
 	gachaLock.RUnlock()
+	useToken := false
+	if len(ctx.ApplicationCommandData().Options) > 0 {
+		useToken = ctx.ApplicationCommandData().Options[0].BoolValue()
+	}
 	if data == nil {
-		if len(args) != 0 {
-			return ctx.Send("You don't have enough tokens.")
+		if useToken {
+			return ctx.RespondPrivate("You don't have enough tokens.")
 		}
 		data = new(UserData)
 		data.Items = make(map[int]uint16)
 		// DEBUG CODE
 		// data.Tokens = 999
-	} else if len(args) == 0 && time.Now().Before(data.Wait) {
+	} else if !useToken && time.Now().Before(data.Wait) {
 		diff := time.Until(data.Wait)
 		if diff > time.Hour {
-			return ctx.Send(fmt.Sprintf("Wait %d hours or use tokens to pull again.", diff/time.Hour))
+			return ctx.RespondPrivate(fmt.Sprintf("Wait %d hours or use tokens to pull again.", diff/time.Hour))
 		} else if diff > time.Minute {
-			return ctx.Send(fmt.Sprintf("Wait %d minutes or use tokens to pull again.", diff/time.Minute))
+			return ctx.RespondPrivate(fmt.Sprintf("Wait %d minutes or use tokens to pull again.", diff/time.Minute))
 		} else {
-			return ctx.Send("Wait a minute or two to pull again.")
+			return ctx.RespondPrivate("Wait a minute or two to pull again.")
 		}
-	} else if len(args) != 0 && data.Tokens < 3 {
-		return ctx.Send("You don't have enough tokens.")
+	} else if useToken && data.Tokens < 3 {
+		return ctx.RespondPrivate("You don't have enough tokens.")
 	}
 	choice := rand.Intn(len(gachaItems))
 	embed := makeItemEmbed(choice)
@@ -70,7 +73,7 @@ func pull(ctx commands.Context, args []string) error {
 	data.Items[choice] += 1
 	dirty = true
 	if data.Wait.IsZero() {
-		gachaData[ctx.Author.ID] = data
+		gachaData[ctx.User.ID] = data
 	}
 	if time.Now().Before(data.Wait) {
 		data.Tokens -= 3
@@ -78,8 +81,7 @@ func pull(ctx commands.Context, args []string) error {
 		data.Wait = time.Now().Add(24 * time.Hour)
 	}
 	gachaLock.Unlock()
-	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
-	return err
+	return ctx.RespondEmbed(embed)
 }
 
 // ~!relics list [page] [user] or ~!relics sell <short name> [count] or ~!relics info <short name>
@@ -87,28 +89,23 @@ func pull(ctx commands.Context, args []string) error {
 // You can see another user's relics with ~!relics list 1 <user>
 // By default, ~!relic sell will sell one relic. Selling gives you reroll tokens.
 // The "short names" of relics are displayed in parenthesis on the list, and will never contain spaces.
-func relics(ctx commands.Context, args []string) error {
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!relics list [page] or ~!relics sell <short name> [count] or ~!relics info <short name>")
-	}
-	if args[0] == "list" {
+func relics(ctx commands.Context) error {
+	op := ctx.ApplicationCommandData().Options[0].StringValue()
+	args := ctx.ApplicationCommandData().Options[0].Options
+	if op == "list" {
 		page := 1
-		if len(args) > 1 {
-			var err error
-			page, err = strconv.Atoi(args[1])
-			if err != nil {
-				return ctx.Send("Unable to parse page")
-			}
+		if len(args) > 0 {
+			page = int(args[1].IntValue())
 		}
 		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
+		data := gachaData[ctx.User.ID]
 		if data == nil || len(data.Items) == 0 {
 			gachaLock.RUnlock()
-			return ctx.Send("You don't have any relics.")
+			return ctx.RespondPrivate("You don't have any relics.")
 		}
-		if (len(data.Items)+19)/20 < page {
+		if page > 1 || (len(data.Items)+19)/20 < page {
 			gachaLock.RUnlock()
-			return ctx.Send("Page number is too big.")
+			return ctx.RespondPrivate(fmt.Sprintf("Page number out of range, expected 1-%d.", (len(data.Items)+19)/20))
 		}
 		i := 0
 		output := new(strings.Builder)
@@ -127,33 +124,26 @@ func relics(ctx commands.Context, args []string) error {
 		}
 		gachaLock.RUnlock()
 		embed := new(discordgo.MessageEmbed)
-		embed.Title = fmt.Sprintf("%s's Relics (Page %d of %d)", ctx.Author.Username, page, (len(data.Items)+19)/20)
+		embed.Title = fmt.Sprintf("%s's Relics (Page %d of %d)", ctx.User.Username, page, (len(data.Items)+19)/20)
 		embed.Description = output.String()
 		embed.Footer = new(discordgo.MessageEmbedFooter)
 		embed.Footer.Text = fmt.Sprintf("You have %d tokens", data.Tokens)
-		_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
-		return err
-	} else if args[0] == "sell" {
-		if len(args) == 1 {
-			return ctx.Send("Usage: ~!relics sell <short name> [count]")
-		}
-		id, ok := gachaShortNames[args[1]]
+		return ctx.RespondEmbed(embed)
+	} else if op == "sell" {
+		name := args[0].StringValue()
+		id, ok := gachaShortNames[name]
 		if !ok {
-			return ctx.Send("No such relic " + args[1])
+			return ctx.RespondPrivate(name)
 		}
-		count := uint64(1)
-		if len(args) > 2 {
-			var err error
-			count, err = strconv.ParseUint(args[2], 10, 16)
-			if err != nil {
-				return ctx.Send("Unable to parse count")
-			}
+		count := int64(1)
+		if len(args) > 1 {
+			count = args[1].IntValue()
 		}
 		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
+		data := gachaData[ctx.User.ID]
 		if data == nil || uint16(count) > data.Items[id] {
 			gachaLock.RUnlock()
-			return ctx.Send("You are trying to sell more than you have.")
+			return ctx.RespondPrivate("You are trying to sell more than you have.")
 		}
 		gachaLock.RUnlock()
 		gachaLock.Lock()
@@ -161,27 +151,23 @@ func relics(ctx commands.Context, args []string) error {
 		data.Items[id] -= uint16(count)
 		dirty = true
 		gachaLock.Unlock()
-		return ctx.Send(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
-	} else if args[0] == "info" || args[0] == "show" {
-		if len(args) < 2 {
-			return ctx.Send("Usage: ~!relics info <short name>")
-		}
-		id, ok := gachaShortNames[args[1]]
+		return ctx.Respond(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
+	} else if op == "show" {
+		name := args[0].StringValue()
+		id, ok := gachaShortNames[name]
 		if !ok {
-			return ctx.Send("No such relic " + args[1])
+			return ctx.RespondPrivate("No such relic " + name)
 		}
 		gachaLock.RLock()
-		data := gachaData[ctx.Author.ID]
+		data := gachaData[ctx.User.ID]
 		if data == nil || data.Items[id] == 0 {
 			gachaLock.RUnlock()
-			return ctx.Send("You don't have this relic.")
+			return ctx.RespondPrivate("You don't have this relic.")
 		}
 		gachaLock.RUnlock()
-		_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, makeItemEmbed(id))
-		return err
-	} else {
-		return ctx.Send("Usage: ~!relics list [page] [user]\n    or ~!relics sell <id> [count]\n    or ~!relics info <id>")
+		return ctx.RespondEmbed(makeItemEmbed(id))
 	}
+	return fmt.Errorf("illegal subcommand: %s", op)
 }
 
 // ~!trade create <name to give> <count> <user> <name to take> <count>
@@ -190,53 +176,44 @@ func relics(ctx commands.Context, args []string) error {
 // ~!trade info <code> will show info about the trade.
 // ~!trade accept <code> or ~!trade reject <code> will end a trade.
 // Trades expire after some time, so you should ensure the other person is online. Maybe even @ them.
-func trade(ctx commands.Context, args []string) error {
+func trade(ctx commands.Context) error {
 	if ctx.GuildID == "" {
-		return ctx.Send("This command can only be used in servers.")
+		return ctx.RespondPrivate("This command can only be used in servers.")
 	}
-	if len(args) < 2 {
-		return ctx.Send("Usage: ~!trade create <name to give> <count> <to> <name to take> <count>")
-	}
-	switch args[0] {
+	op := ctx.ApplicationCommandData().Options[0].StringValue()
+	args := ctx.ApplicationCommandData().Options[0].Options
+	switch op {
 	case "create":
-		if len(args) < 6 {
-			return ctx.Send("Usage: ~!trade create <name to give> <count> <to> <name to take> <count>")
-		}
 		trade := new(TradeData)
-		trade.From = ctx.Author.ID
-		target, err := commands.FindMember(ctx.Bot, args[3], ctx.GuildID)
-		if err != nil {
-			return ctx.Send("No such member " + args[3])
-		}
-		trade.To = target.User.ID
+		trade.From = ctx.User.ID
+		target := args[2].UserValue(ctx.Bot)
+		trade.To = target.ID
 		trade.Expire = time.Now().Add(5 * time.Minute)
 		var ok bool
-		if args[1] == "token" {
-			trade.Giving = -1
-		} else {
-			trade.Giving, ok = gachaShortNames[args[1]]
-			if !ok {
-				return ctx.Send("No such relic " + args[1])
+		trade.GiveCount = uint16(args[1].IntValue())
+		trade.GetCount = uint16(args[4].IntValue())
+		if trade.GiveCount != 0 {
+			name := args[0].StringValue()
+			if name == "token" {
+				trade.Giving = -1
+			} else {
+				trade.Giving, ok = gachaShortNames[name]
+				if !ok {
+					return ctx.RespondPrivate("No such relic " + name)
+				}
 			}
 		}
-		if args[4] == "token" {
-			trade.Getting = -1
-		} else {
-			trade.Getting, ok = gachaShortNames[args[4]]
-			if !ok {
-				return ctx.Send("No such relic " + args[4])
+		if trade.GetCount != 0 {
+			name := args[3].StringValue()
+			if name == "token" {
+				trade.Getting = -1
+			} else {
+				trade.Getting, ok = gachaShortNames[name]
+				if !ok {
+					return ctx.RespondPrivate("No such relic " + name)
+				}
 			}
 		}
-		gc, err := strconv.ParseUint(args[2], 10, 16)
-		if err != nil {
-			return ctx.Send("Unable to parse give count")
-		}
-		trade.GiveCount = uint16(gc)
-		gc, err = strconv.ParseUint(args[5], 10, 16)
-		if err != nil {
-			return ctx.Send("Unable to parse get count")
-		}
-		trade.GetCount = uint16(gc)
 
 		gachaLock.RLock()
 		dataFrom := gachaData[trade.From]
@@ -256,20 +233,20 @@ func trade(ctx commands.Context, args []string) error {
 		if trade.Giving >= 0 {
 			if dataFrom.Items[trade.Giving] < trade.GiveCount {
 				gachaLock.RUnlock()
-				return ctx.Send("Trade sender does not have enough relics.")
+				return ctx.RespondPrivate("Trade sender does not have enough relics.")
 			}
 		} else if dataFrom.Tokens < trade.GiveCount {
 			gachaLock.RUnlock()
-			return ctx.Send("Trade sender does not have enough tokens.")
+			return ctx.RespondPrivate("Trade sender does not have enough tokens.")
 		}
 		if trade.Getting >= 0 {
 			if dataTo.Items[trade.Getting] < trade.GetCount {
 				gachaLock.RUnlock()
-				return ctx.Send("Trade recipient does not have enough relics.")
+				return ctx.RespondPrivate("Trade recipient does not have enough relics.")
 			}
 		} else if dataTo.Tokens < trade.GetCount {
 			gachaLock.RUnlock()
-			return ctx.Send("Trade recipient does not have enough tokens.")
+			return ctx.RespondPrivate("Trade recipient does not have enough tokens.")
 		}
 		gachaLock.RUnlock()
 		if dataFrom.Wait.IsZero() || dataTo.Wait.IsZero() {
@@ -285,20 +262,17 @@ func trade(ctx commands.Context, args []string) error {
 		}
 		trades[tcode] = trade
 		tradeLock.Unlock()
-		return ctx.Send(fmt.Sprintf("Trade created. <@%s>, accept the trade with ~!trade accept %04d\nEither of you can cancel the trade with ~!trade reject %04d", trade.To, tcode, tcode))
+		return ctx.Respond(fmt.Sprintf("Trade created. <@%s>, accept the trade with ~!trade accept %04d\nEither of you can cancel the trade with ~!trade reject %04d", trade.To, tcode, tcode))
 	case "info":
-		tcode, err := strconv.Atoi(args[1])
-		if err != nil {
-			return ctx.Send("Unable to parse code")
-		}
+		tcode := int(args[0].IntValue())
 		tradeLock.RLock()
 		trade := trades[tcode]
 		tradeLock.RUnlock()
 		if trade == nil {
-			return ctx.Send("Invalid code")
+			return ctx.RespondPrivate("Invalid code")
 		}
-		if ctx.Author.ID != trade.To && ctx.Author.ID != trade.From {
-			return ctx.Send("You are not a participant in this trade")
+		if ctx.User.ID != trade.To && ctx.User.ID != trade.From {
+			return ctx.RespondPrivate("You are not a participant in this trade")
 		}
 		embed := new(discordgo.MessageEmbed)
 		embed.Title = "Trade offer"
@@ -319,35 +293,31 @@ func trade(ctx commands.Context, args []string) error {
 			embed.Fields[1].Value = fmt.Sprintf("%s x%d", gachaItems[trade.Getting][0], trade.GetCount)
 		}
 		embed.Fields[1].Inline = true
-		_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
-		return err
+		return ctx.RespondEmbed(embed)
 	case "accept":
 		fallthrough
 	case "reject":
-		tcode, err := strconv.Atoi(args[1])
-		if err != nil {
-			return ctx.Send("Unable to parse code")
-		}
+		tcode := int(args[0].IntValue())
 		tradeLock.RLock()
 		trade := trades[tcode]
 		tradeLock.RUnlock()
 		if trade == nil {
-			return ctx.Send("Invalid code")
+			return ctx.RespondPrivate("Invalid code")
 		}
-		if ctx.Author.ID != trade.To && ctx.Author.ID != trade.From {
-			return ctx.Send("You are not a participant in this trade")
+		if ctx.User.ID != trade.To && ctx.User.ID != trade.From {
+			return ctx.RespondPrivate("You are not a participant in this trade")
 		}
-		if args[0] == "accept" && ctx.Author.ID == trade.From {
-			return ctx.Send("Sender cannot force accept trade.")
+		if op == "accept" && ctx.User.ID == trade.From {
+			return ctx.RespondPrivate("Sender cannot force accept trade.")
 		}
 		tradeLock.Lock()
 		trades[tcode] = nil
 		tradeLock.Unlock()
 		if time.Now().After(trade.Expire) {
-			return ctx.Send("Trade expired")
+			return ctx.Respond("Trade expired")
 		}
-		if args[0] == "reject" {
-			return ctx.Send("Trade rejected/cancelled.")
+		if op == "reject" {
+			return ctx.Respond("Trade rejected/cancelled.")
 		}
 		gachaLock.RLock()
 		dataFrom := gachaData[trade.From]
@@ -355,20 +325,20 @@ func trade(ctx commands.Context, args []string) error {
 		if trade.Giving >= 0 {
 			if dataFrom.Items[trade.Giving] < trade.GiveCount {
 				gachaLock.RUnlock()
-				return ctx.Send("Trade sender no longer has enough relics.")
+				return ctx.RespondPrivate("Trade sender no longer has enough relics.")
 			}
 		} else if dataFrom.Tokens < trade.GiveCount {
 			gachaLock.RUnlock()
-			return ctx.Send("Trade sender no longer has enough tokens.")
+			return ctx.RespondPrivate("Trade sender no longer has enough tokens.")
 		}
 		if trade.Getting >= 0 {
 			if dataTo.Items[trade.Getting] < trade.GetCount {
 				gachaLock.RUnlock()
-				return ctx.Send("Trade recipient no longer has enough relics.")
+				return ctx.RespondPrivate("Trade recipient no longer has enough relics.")
 			}
 		} else if dataTo.Tokens < trade.GetCount {
 			gachaLock.RUnlock()
-			return ctx.Send("Trade recipient no longer has enough tokens.")
+			return ctx.RespondPrivate("Trade recipient no longer has enough tokens.")
 		}
 		gachaLock.RUnlock()
 		gachaLock.Lock()
@@ -388,9 +358,9 @@ func trade(ctx commands.Context, args []string) error {
 			dataFrom.Tokens += trade.GetCount
 		}
 		gachaLock.Unlock()
-		return ctx.Send("Trade successful.")
+		return ctx.Respond("Trade successful.")
 	default:
-		return ctx.Send("Usage: ~!trade create <id to give> <count> <to> <id to take> <count>") // \n    or ~!trade gift <id to give> <count> <to>")
+		return fmt.Errorf("illegal subcommand: %s", op)
 	}
 }
 
@@ -427,10 +397,88 @@ func Init(self *discordgo.Session) {
 		log.Warn("gacha: duplicate short name!")
 	}
 
-	commands.RegisterCommand(pull, "pull")
-	commands.RegisterCommand(relics, "relics")
-	commands.RegisterCommand(relics, "relic")
-	commands.RegisterCommand(trade, "trade")
+	optionBool := new(discordgo.ApplicationCommandOption)
+	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
+	optionBool.Name = "tokens?"
+	optionBool.Description = "If true, tokens will be used on this pull"
+	commands.RegisterCommand(pull, "pull", "Pull a relic", []*discordgo.ApplicationCommandOption{optionBool})
+	optionString := new(discordgo.ApplicationCommandOption)
+	optionString.Type = discordgo.ApplicationCommandOptionString
+	optionString.Name = "relic"
+	optionString.Description = "Short name of a relic"
+	optionString.Required = true
+	optionInt := new(discordgo.ApplicationCommandOption)
+	optionInt.Type = discordgo.ApplicationCommandOptionInteger
+	optionInt.Description = "Number to sell"
+	optionInt.Name = "count"
+	subcommandSell := new(discordgo.ApplicationCommandOption)
+	subcommandSell.Type = discordgo.ApplicationCommandOptionSubCommand
+	subcommandSell.Name = "sell"
+	subcommandSell.Description = "Sell relics to get tokens"
+	subcommandSell.Options = []*discordgo.ApplicationCommandOption{optionString, optionInt}
+	subcommandShow := new(discordgo.ApplicationCommandOption)
+	subcommandShow.Type = discordgo.ApplicationCommandOptionSubCommand
+	subcommandShow.Name = "show"
+	subcommandShow.Description = "Show info about a relic"
+	subcommandShow.Options = []*discordgo.ApplicationCommandOption{optionString}
+	subcommandList := new(discordgo.ApplicationCommandOption)
+	subcommandList.Description = "List the relics you have"
+	subcommandList.Name = "list"
+	optionInt = new(discordgo.ApplicationCommandOption)
+	optionInt.Description = "Page number"
+	optionInt.Name = "page"
+	optionInt.Type = discordgo.ApplicationCommandOptionInteger
+	subcommandList.Options = []*discordgo.ApplicationCommandOption{optionInt}
+	commands.RegisterCommand(relics, "relic", "Manage your collection", []*discordgo.ApplicationCommandOption{subcommandList, subcommandShow, subcommandSell})
+
+	subcommandCreate := new(discordgo.ApplicationCommandOption)
+	subcommandCreate.Name = "create"
+	subcommandCreate.Description = "Create a new trade"
+	subcommandCreate.Type = discordgo.ApplicationCommandOptionSubCommand
+	optionUser := new(discordgo.ApplicationCommandOption)
+	optionUser.Name = "user"
+	optionUser.Type = discordgo.ApplicationCommandOptionUser
+	optionUser.Description = "User to trade with"
+	optionUser.Required = true
+	optionString = new(discordgo.ApplicationCommandOption)
+	optionString.Type = discordgo.ApplicationCommandOptionString
+	optionString.Name = "give"
+	optionString.Description = "Short name of a relic or \"token\" for tokens"
+	optionString.Required = true
+	optionString2 := new(discordgo.ApplicationCommandOption)
+	optionString2.Type = discordgo.ApplicationCommandOptionString
+	optionString2.Name = "relic"
+	optionString2.Description = "Short name of a relic or \"token\" for tokens"
+	optionString2.Required = true
+	optionInt = new(discordgo.ApplicationCommandOption)
+	optionInt.Type = discordgo.ApplicationCommandOptionInteger
+	optionInt.Description = "Number to give"
+	optionInt.Name = "giveCount"
+	optionInt.Required = true
+	optionInt2 := new(discordgo.ApplicationCommandOption)
+	optionInt2.Type = discordgo.ApplicationCommandOptionInteger
+	optionInt2.Description = "Number to get"
+	optionInt2.Name = "getCount"
+	optionInt2.Required = true
+	subcommandCreate.Options = []*discordgo.ApplicationCommandOption{optionString, optionInt, optionUser, optionString2, optionInt2}
+
+	optionInt = new(discordgo.ApplicationCommandOption)
+	optionInt.Name = "code"
+	optionInt.Description = "Trade code"
+	optionInt.Required = true
+	subcommandInfo := new(discordgo.ApplicationCommandOption)
+	subcommandInfo.Name = "info"
+	subcommandInfo.Description = "Show info about a trade"
+	subcommandInfo.Options = []*discordgo.ApplicationCommandOption{optionInt}
+	subcommandAccept := new(discordgo.ApplicationCommandOption)
+	subcommandAccept.Name = "accept"
+	subcommandAccept.Description = "Accept a trade"
+	subcommandAccept.Options = subcommandInfo.Options
+	subcommandReject := new(discordgo.ApplicationCommandOption)
+	subcommandReject.Name = "cancel"
+	subcommandReject.Description = "Reject or cancel a trade"
+	subcommandReject.Options = subcommandInfo.Options
+	commands.RegisterCommand(trade, "trade", "Trade relics with others", []*discordgo.ApplicationCommandOption{subcommandCreate, subcommandInfo, subcommandAccept, subcommandReject})
 	commands.RegisterSaver(saveGacha)
 }
 
