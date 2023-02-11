@@ -158,9 +158,15 @@ func mp3(ctx commands.Context) error {
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
-		return nil
+		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
-	source := ctx.ApplicationCommandData().Options[0].StringValue()
+	var source string
+	cmData := ctx.ApplicationCommandData()
+	if cmData.Name == "mp3file" {
+		source = cmData.Resolved.Attachments[cmData.Options[0].Value.(string)].URL
+	} else {
+		source = cmData.Options[0].StringValue()
+	}
 	_, err := url.ParseRequestURI(source)
 	if err != nil {
 		return ctx.RespondPrivate("Not a valid URL.")
@@ -218,7 +224,7 @@ func play(ctx commands.Context) error {
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
-		return nil
+		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
 	ctx.DelayedRespond()
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
@@ -490,5 +496,5 @@ func outro(ctx commands.Context) error {
 	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: "outro" + string(os.PathSeparator) + name + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
-	return nil
+	return ctx.EmptyResponse()
 }

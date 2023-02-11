@@ -133,8 +133,7 @@ func connect(ctx commands.Context) error {
 		}
 	}
 	if ctx.ApplicationCommandData().Name == "connect" {
-		ctx.RespondPrivate("Connected")
-		// return ctx.Bot.InteractionResponseDelete(commands.APP_ID, ctx.Interaction)
+		return ctx.EmptyResponse()
 	}
 	return nil
 }
@@ -153,8 +152,7 @@ func dc(ctx commands.Context) error {
 		ls, ok := streams[ctx.GuildID]
 		streamLock.RUnlock()
 		if ok && ls.Len() > 1 {
-			x := ctx.ApplicationCommandData()
-			x.Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
+			ctx.Data.(*discordgo.ApplicationCommandInteractionData).Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
 			err := remove(ctx)
 			if ls.Len() > 1 {
 				return err
@@ -171,7 +169,7 @@ func dc(ctx commands.Context) error {
 			return fmt.Errorf("failed to disconnect from voice: %w", err)
 		}
 	}
-	return nil
+	return ctx.EmptyResponse()
 }
 
 // ~!dj [@role]

@@ -75,11 +75,8 @@ func chatlog(ctx commands.Context) error {
 	output.WriteByte('\n')
 	ctx.DelayedRespond()
 	lastMsg := "0"
-	if ctx.Message != nil {
-		if ctx.Message.ChannelID != ctx.ChannelID {
-			return ctx.Respond("Cannot log a crossposted message.")
-		}
-		temp, _ := strconv.ParseUint(ctx.Message.ID, 10, 64)
+	if ctx.ApplicationCommandData().TargetID != "" {
+		temp, _ := strconv.ParseUint(ctx.ApplicationCommandData().TargetID, 10, 64)
 		lastMsg = strconv.FormatUint(temp-1, 10)
 	}
 	nicks := make(map[string]string)

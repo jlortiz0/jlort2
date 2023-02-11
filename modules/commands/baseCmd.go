@@ -164,8 +164,7 @@ func gsm(ctx Context) error {
 		cmd.Wait()
 		os.Chtimes("lastUpdate", time.Now(), time.Now())
 		updating = false
-		ctx.EditResponse("Update complete!")
-		return nil
+		return ctx.EditResponse("Update complete!")
 	}
 	for _, x := range arg {
 		if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {

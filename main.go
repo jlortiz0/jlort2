@@ -19,6 +19,7 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -138,6 +139,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 }
 
 // TODO: Autocomplete?
+// TODO: Check EVERY command to ensure that it uses Respond, RespondPrivate, and EmptyResponse at the right time
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type != discordgo.InteractionApplicationCommand {
 		if event.Type == discordgo.InteractionPing {
@@ -153,7 +155,15 @@ func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCrea
 		var stack string
 		defer func() {
 			if err == nil {
-				err, _ = recover().(error)
+				x := recover()
+				var ok bool
+				err, ok = x.(error)
+				if !ok {
+					s, _ := x.(string)
+					if s != "" {
+						err = errors.New(s)
+					}
+				}
 				stack = string(debug.Stack())
 			}
 			if err != nil {

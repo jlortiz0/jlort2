@@ -110,6 +110,16 @@ func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 	return err
 }
 
+func (ctx Context) EmptyResponse() error {
+	resp := new(discordgo.InteractionResponse)
+	resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
+	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
+	if err != nil {
+		return fmt.Errorf("failed to send response: %w", err)
+	}
+	return ctx.Bot.InteractionResponseDelete(ctx.Interaction)
+}
+
 // MakeContext returns a Context populated with data from the message event.
 func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context {
 	ctx := Context{Interaction: event}
