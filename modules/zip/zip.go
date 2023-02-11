@@ -98,9 +98,6 @@ func chatlog(ctx commands.Context) error {
 			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
 				continue
 			}
-			if v.ID == ctx.Message.ID {
-				continue
-			}
 			if v.Content == "" && len(v.Attachments) == 0 && len(v.Embeds) == 0 {
 				continue
 			}
@@ -141,7 +138,7 @@ func chatlog(ctx commands.Context) error {
 	}
 	resp := new(discordgo.WebhookEdit)
 	resp.Files = []*discordgo.File{{Name: "jlort-jlort-" + channel.Name + ".txt", Reader: output}}
-	_, err = ctx.Bot.InteractionResponseEdit(commands.APP_ID, ctx.Interaction, resp)
+	_, err = ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	return err
 }
 

@@ -102,7 +102,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	time.Sleep(50 * time.Millisecond)
 	var err error
 	for i := 0; i < len(event.Guilds); i++ {
-		err = self.RequestGuildMembers(event.Guilds[i].ID, "", 250, false)
+		err = self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
 		checkFatal(err)
 	}
 	usd := discordgo.UpdateStatusData{Status: "invisible"}

@@ -91,8 +91,8 @@ func (ctx Context) DelayedRespond() error {
 
 func (ctx Context) EditResponse(msg string) error {
 	resp := new(discordgo.WebhookEdit)
-	resp.Content = msg
-	_, err := ctx.Bot.InteractionResponseEdit(APP_ID, ctx.Interaction, resp)
+	resp.Content = &msg
+	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to edit response: %w", err)
 	}
@@ -101,8 +101,8 @@ func (ctx Context) EditResponse(msg string) error {
 
 func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 	resp := new(discordgo.WebhookEdit)
-	resp.Embeds = []*discordgo.MessageEmbed{embed}
-	_, err := ctx.Bot.InteractionResponseEdit(APP_ID, ctx.Interaction, resp)
+	resp.Embeds = &[]*discordgo.MessageEmbed{embed}
+	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to edit response: %w", err)
 	}
