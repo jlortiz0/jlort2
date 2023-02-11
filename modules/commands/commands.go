@@ -232,32 +232,40 @@ func SavePersistent(name string, data interface{}) error {
 	return os.Rename("persistent/"+name+".new", "persistent/"+name)
 }
 
-func NewOptionInt(name, description string) *discordgo.ApplicationCommandOption {
-	ret := new(discordgo.ApplicationCommandOption)
-	ret.Type = discordgo.ApplicationCommandOptionInteger
+type commandOption struct {
+	discordgo.ApplicationCommandOption
+}
+
+func NewCommandOption(name, description string) *commandOption {
+	ret := new(commandOption)
 	ret.Name = name
 	ret.Description = description
 	return ret
 }
 
-func OptionRequired(r *discordgo.ApplicationCommandOption) *discordgo.ApplicationCommandOption {
-	r.Required = true
-	return r
+func (c *commandOption) AsInt() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionInteger
+	return c
 }
 
-func NewOptionIntMinMax(name, description string, min, max int) *discordgo.ApplicationCommandOption {
-	ret := NewOptionInt(name, description)
+func (c *commandOption) AsString() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionString
+	return c
+}
+
+func (c *commandOption) SetMinMax(min, max int) *commandOption {
 	min2 := float64(min)
-	ret.MinValue = &min2
+	c.MinValue = &min2
 	max2 := float64(max)
-	ret.MaxValue = max2
-	return ret
+	c.MaxValue = max2
+	return c
 }
 
-func NewOptionString(name, description string) *discordgo.ApplicationCommandOption {
-	ret := new(discordgo.ApplicationCommandOption)
-	ret.Type = discordgo.ApplicationCommandOptionString
-	ret.Name = name
-	ret.Description = description
-	return ret
+func (c *commandOption) Required() *commandOption {
+	c.ApplicationCommandOption.Required = true
+	return c
+}
+
+func (c *commandOption) Finalize() *discordgo.ApplicationCommandOption {
+	return &(*c).ApplicationCommandOption
 }
