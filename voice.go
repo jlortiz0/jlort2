@@ -161,7 +161,7 @@ func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 		}
 	}
 	if chanID != "" {
-		_, err := self.ChannelMessageSend(chanID, "Hello! Run ~!help for a list of commands.\nTo manage automatic voice announcements, do ~!vachan\nTo set the DJ role, do ~!dj")
+		_, err := self.ChannelMessageSend(chanID, "Hello!\nTo manage automatic voice announcements, do /vachan\nTo set the DJ role, do /dj")
 		if err != nil {
 			log.Error(err)
 			return

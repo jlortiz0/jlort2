@@ -312,7 +312,7 @@ func queue(ctx commands.Context) error {
 	return ctx.RespondEmbed(embed)
 }
 
-func locket(ctx commands.Context, _ []string) error {
+func locket(ctx commands.Context) error {
 	if commands.OWNER_ID != ctx.User.ID {
 		return ctx.RespondPrivate("You do not have access to that command, and never will.")
 	}

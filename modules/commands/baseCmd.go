@@ -74,13 +74,6 @@ func purge(ctx Context) error {
 	target := ctx.Me.ID
 	if len(ctx.ApplicationCommandData().Options) != 0 {
 		args := ctx.ApplicationCommandData().Options[0].UserValue(nil)
-		perms, err = ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions: %w", err)
-		}
-		if perms&discordgo.PermissionManageMessages == 0 {
-			return ctx.RespondPrivate("You need the Manage Messages permission to clear other users' messages.")
-		}
 		target = args.ID
 	}
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
@@ -112,17 +105,7 @@ func purge(ctx Context) error {
 // You need Manage Messages to use this command.
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
 func ppurge(ctx Context) error {
-	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageMessages == 0 {
-		return ctx.RespondPrivate("You need the Manage Messages permission to clear other users' messages.")
-	}
-	prefix := "~!"
-	if len(ctx.ApplicationCommandData().Options) != 0 {
-		prefix = ctx.ApplicationCommandData().Options[0].StringValue()
-	}
+	prefix := ctx.ApplicationCommandData().Options[0].StringValue()
 	// ctx.DelayedRespond()
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {

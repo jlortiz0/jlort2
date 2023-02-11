@@ -142,11 +142,13 @@ func PrepareCommand(name, description string) commandStruct {
 
 func (c commandStruct) AsMsg() commandStruct {
 	c.Type = discordgo.MessageApplicationCommand
+	c.Description = ""
 	return c
 }
 
 func (c commandStruct) AsUser() commandStruct {
 	c.Type = discordgo.UserApplicationCommand
+	c.Description = ""
 	return c
 }
 

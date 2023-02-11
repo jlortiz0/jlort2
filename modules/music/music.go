@@ -524,7 +524,21 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
-	// TODO: Reimplement outro, locket, song, addsong, removesong
+	commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Finalize(),
+	})
+	// TODO: Register with only OWNER_ID
+	commands.PrepareCommand("locket", "Lock the current stream").Guild().Perms(discordgo.PermissionAll).Register(locket, nil)
+	commands.PrepareCommand("song", "Play a song from the alias list").Guild().Register(song, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("alias", "Song alias to play, use \"list\" for a list").AsString().Required().Finalize(),
+	})
+	commands.PrepareCommand("addsong", "Add a song to the alias list").Guild().Register(addsong, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("alias", "Song alias to register").AsString().Required().Finalize(),
+		optionVideo,
+	})
+	commands.PrepareCommand("delsong", "Remove a song alias").Guild().Register(delsong, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("alias", "Song alias to remove or \"all\"").AsString().Required().Finalize(),
+	})
 	popLock++
 	go musicPopper(self, popLock)
 }

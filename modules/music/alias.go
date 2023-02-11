@@ -43,7 +43,7 @@ func song(ctx commands.Context) error {
 	mappings := aliases[ctx.GuildID]
 	if len(mappings) == 0 {
 		aliasLock.RUnlock()
-		return ctx.RespondPrivate("No song aliases have been set. Use ~!setsong to set a song alias.")
+		return ctx.RespondPrivate("No song aliases have been set. Use /addsong to set a song alias.")
 	}
 	if name == "list" {
 		names := make([]string, len(mappings)+1)
@@ -59,7 +59,7 @@ func song(ctx commands.Context) error {
 	url := mappings[name]
 	aliasLock.RUnlock()
 	if url == "" {
-		return ctx.RespondPrivate("No song by that name. For a list, use ~!song list")
+		return ctx.RespondPrivate("No song by that name. For a list, use /song list")
 	}
 	ctx.ApplicationCommandData().Options[0].Value = url
 	return play(ctx)
@@ -80,18 +80,18 @@ func addsong(ctx commands.Context) error {
 	var info YDLInfo
 	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", url).Output()
 	if err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
-			return ctx.EditResponse("Could not get info from this URL. Note that ~!song does not support searches.")
+		if err2, ok := err.(*exec.ExitError); ok {
+			return ctx.EditResponse(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
 		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &info)
 	if err != nil {
-		ctx.EditResponse("Could not get info from this URL. Note that ~!song does not support searches.")
+		ctx.EditResponse("Could not get info from this URL. Note that /song does not support searches.")
 		return err
 	}
 	if info.Extractor == "Generic" {
-		return ctx.EditResponse("~!song does not support direct links to files.")
+		return ctx.EditResponse("/song does not support direct links to files.")
 	}
 	if info.URL == "" {
 		return ctx.EditResponse("Could not get info from this URL.")

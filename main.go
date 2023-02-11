@@ -137,6 +137,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	log.Info("Ready!")
 }
 
+// TODO: Autocomplete?
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type != discordgo.InteractionApplicationCommand {
 		if event.Type == discordgo.InteractionPing {

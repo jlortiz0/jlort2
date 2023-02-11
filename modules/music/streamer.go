@@ -251,7 +251,7 @@ func play(ctx commands.Context) error {
 		info = entries.Entries[0]
 	}
 	if info.Extractor == "Generic" {
-		return ctx.EditResponse("Use ~!mp3 for direct links to files.")
+		return ctx.EditResponse("Use /mp3 for direct links to files.")
 	}
 	if info.URL == "" {
 		return ctx.EditResponse("Could not get info from this URL.")
@@ -449,11 +449,9 @@ func popcorn(ctx commands.Context) error {
 // Plays an unskippable outro, then disconnects.
 // Only works if nothing else is playing.
 // For a list of outros, do ~!outro list
-func outro(ctx commands.Context, args []string) error {
-	if len(args) == 0 {
-		return ctx.RespondPrivate("Usage: ~!outro <name>\nFor a list of outros, do ~!outro list")
-	}
-	if args[0] == "list" {
+func outro(ctx commands.Context) error {
+	name := ctx.ApplicationCommandData().Options[0].StringValue()
+	if name == "list" {
 		f, err := os.Open("outro")
 		if err != nil {
 			return err
@@ -482,7 +480,7 @@ func outro(ctx commands.Context, args []string) error {
 	if ls.Len() > 0 {
 		return ctx.RespondPrivate("Can't play an outro while something else is playing.")
 	}
-	_, err := os.Stat("outro" + string(os.PathSeparator) + args[0] + ".ogg")
+	_, err := os.Stat("outro" + string(os.PathSeparator) + name + ".ogg")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return ctx.RespondPrivate("That outro does not exist.")
@@ -490,7 +488,7 @@ func outro(ctx commands.Context, args []string) error {
 		return err
 	}
 	ls.Lock()
-	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: "outro" + string(os.PathSeparator) + args[0] + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
+	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: "outro" + string(os.PathSeparator) + name + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
 	return nil

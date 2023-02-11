@@ -111,7 +111,7 @@ func delquote(ctx commands.Context) error {
 	defer quoteLock.Unlock()
 	qList := quixote[ctx.GuildID]
 	if len(qList) == 0 {
-		return ctx.RespondPrivate("There are no quotes. Use ~!addquote to add some.")
+		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	sel := int(ctx.ApplicationCommandData().Options[0].IntValue())
 	if sel < 0 {

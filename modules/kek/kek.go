@@ -121,13 +121,6 @@ func kekReport(ctx commands.Context) error {
 // Toggles kekage on a server
 // You must have Manage Server to do this.
 func kekOn(ctx commands.Context) error {
-	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageServer == 0 {
-		return ctx.RespondPrivate("You need the Manage Server permission to toggle kek.")
-	}
 	dirty = true
 	kekLock.Lock()
 	defer kekLock.Unlock()
@@ -264,7 +257,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Register(kekReport, nil)
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
 		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Finalize()})
+		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Required().Finalize()})
 	commands.RegisterSaver(saveKek)
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)
