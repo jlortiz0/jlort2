@@ -141,6 +141,37 @@ func RegisterCommand(cmd Command, name string, description string, options []*di
 	cmdMap[name] = cmd
 }
 
+func RegisterCommandPerms(cmd Command, name, description string, options []*discordgo.ApplicationCommandOption, guild bool, permissions int64) {
+	cmdStruct := new(discordgo.ApplicationCommand)
+	cmdStruct.Description = description
+	cmdStruct.Name = name
+	cmdStruct.ApplicationID = APP_ID
+	cmdStruct.Options = options
+	cmdStruct.Type = discordgo.ChatApplicationCommand
+	cmdStruct.DMPermission = &guild
+	cmdStruct.DefaultMemberPermissions = &permissions
+	batchCmdList = append(batchCmdList, cmdStruct)
+	cmdMap[name] = cmd
+}
+
+func RegisterCommandMessage(cmd Command, name, description string) {
+	cmdStruct := new(discordgo.ApplicationCommand)
+	cmdStruct.Description = description
+	cmdStruct.Name = name
+	cmdStruct.ApplicationID = APP_ID
+	cmdStruct.Type = discordgo.MessageApplicationCommand
+	batchCmdList = append(batchCmdList, cmdStruct)
+}
+
+func RegisterCommandUser(cmd Command, name, description string) {
+	cmdStruct := new(discordgo.ApplicationCommand)
+	cmdStruct.Description = description
+	cmdStruct.Name = name
+	cmdStruct.ApplicationID = APP_ID
+	cmdStruct.Type = discordgo.UserApplicationCommand
+	batchCmdList = append(batchCmdList, cmdStruct)
+}
+
 func UploadCommands(self *discordgo.Session) {
 	var err error
 	if TEST_MODE {
