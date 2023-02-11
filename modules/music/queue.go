@@ -334,11 +334,7 @@ func locket(ctx commands.Context, _ []string) error {
 	if ctx.GuildID == "" {
 		return ctx.RespondPrivate("This command only works in servers.")
 	}
-	app, err := ctx.Bot.Application("@me")
-	if err != nil {
-		return fmt.Errorf("failed to get app info: %w", err)
-	}
-	if app.Owner.ID != ctx.User.ID {
+	if commands.OWNER_ID != ctx.User.ID {
 		return ctx.RespondPrivate("You do not have access to that command, and never will.")
 	}
 	ls := streams[ctx.GuildID]

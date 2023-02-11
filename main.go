@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"os"
@@ -159,15 +160,6 @@ func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCrea
 			}
 		}()
 		err = cmd(ctx)
-	} else if event.GuildID == "" && event.Author.ID != ownerid {
-		channel, err2 := self.UserChannelCreate(ownerid)
-		if err2 == nil {
-			if len(event.Content) < 1965 {
-				self.ChannelMessageSend(channel.ID, "Non-command message from "+event.Author.Username+"\n"+event.Content)
-			} else {
-				self.ChannelMessageSend(channel.ID, "Non-command message from "+event.Author.Username)
-			}
-		}
 	}
 }
 
@@ -186,7 +178,7 @@ func handleCommandError(err error, ctx commands.Context, stack string) {
 	} else {
 		err2 := ctx.Respond("Sorry, something went wrong. An error report was sent to jlortiz.")
 		if err2 == nil {
-			channel, err2 := ctx.Bot.UserChannelCreate(ownerid)
+			channel, err2 := ctx.Bot.UserChannelCreate(commands.OWNER_ID)
 			if err2 == nil {
 				if len(err.Error()) < 1965 {
 					ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("Error in command %s: %s", ctx.ApplicationCommandData().Name, err.Error()))

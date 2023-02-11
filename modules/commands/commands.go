@@ -213,3 +213,33 @@ func SavePersistent(name string, data interface{}) error {
 	}
 	return os.Rename("persistent/"+name+".new", "persistent/"+name)
 }
+
+func NewOptionInt(name, description string) *discordgo.ApplicationCommandOption {
+	ret := new(discordgo.ApplicationCommandOption)
+	ret.Type = discordgo.ApplicationCommandOptionInteger
+	ret.Name = name
+	ret.Description = description
+	return ret
+}
+
+func OptionRequired(r *discordgo.ApplicationCommandOption) *discordgo.ApplicationCommandOption {
+	r.Required = true
+	return r
+}
+
+func NewOptionIntMinMax(name, description string, min, max int) *discordgo.ApplicationCommandOption {
+	ret := NewOptionInt(name, description)
+	min2 := float64(min)
+	ret.MinValue = &min2
+	max2 := float64(max)
+	ret.MaxValue = max2
+	return ret
+}
+
+func NewOptionString(name, description string) *discordgo.ApplicationCommandOption {
+	ret := new(discordgo.ApplicationCommandOption)
+	ret.Type = discordgo.ApplicationCommandOptionString
+	ret.Name = name
+	ret.Description = description
+	return ret
+}

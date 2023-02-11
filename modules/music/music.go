@@ -542,11 +542,6 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(remove, "remove", "Remove song from the queue", []*discordgo.ApplicationCommandOption{optionIndex})
 	commands.RegisterCommand(np, "np", "See details of current song", nil)
 	commands.RegisterCommand(queue, "queue", "See what's in the queue", nil)
-	// commands.RegisterCommand(song, "song")
-	// commands.RegisterCommand(addsong, "addsong")
-	// commands.RegisterCommand(delsong, "delsong")
-	// commands.RegisterCommand(delsong, "removesong")
-	// commands.RegisterCommand(delsong, "rmsong")
 	optionVol := new(discordgo.ApplicationCommandOption)
 	optionVol.Type = discordgo.ApplicationCommandOptionInteger
 	optionVol.Name = "vol"
@@ -559,6 +554,7 @@ func Init(self *discordgo.Session) {
 	optionPos.Description = "Position in mm:ss or ss format"
 	commands.RegisterCommand(seek, "seek", "Seek to a position in the stream", []*discordgo.ApplicationCommandOption{optionPos})
 	commands.RegisterCommand(popcorn, "time", "Check the current time (PST)", nil)
+	// TODO: Reimplement outro, locket, song, addsong, removesong
 	popLock++
 	go musicPopper(self, popLock)
 }
