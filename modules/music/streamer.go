@@ -160,7 +160,6 @@ func mp3(ctx commands.Context) error {
 	if vc == nil {
 		return nil
 	}
-	// TODO: Readd attachment support
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	_, err := url.ParseRequestURI(source)
 	if err != nil {

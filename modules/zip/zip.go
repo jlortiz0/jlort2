@@ -232,7 +232,7 @@ func Init(_ *discordgo.Session) {
 	commands.PrepareCommand("logall", "Log this channel to a file").Register(chatlog, nil)
 	commands.PrepareCommand("Log From Here", "Log messages starting from here").AsMsg().Register(chatlog, nil)
 	// TODO: Restrict to just OWNER_ID
-	commands.PrepareCommand("zip", "Zip attarchments").Guild().Perms(discordgo.PermissionAll).Register(archive, nil)
+	commands.PrepareCommand("zip", "Zip attachments").Guild().Perms(discordgo.PermissionAll).Register(archive, nil)
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.

@@ -504,6 +504,9 @@ func Init(self *discordgo.Session) {
 	optionLink := commands.NewCommandOption("url", "Link to audio file").AsString().Required().Finalize()
 	commands.PrepareCommand("mp3", "Play file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
 	commands.PrepareCommand("mp3skip", "Skip to file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3file", "Play an uploaded file").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{
+		{Name: "file", Description: "File to play", Type: discordgo.ApplicationCommandOptionAttachment, Required: true},
+	})
 	commands.PrepareCommand("loop", "Set stream loop").Guild().Register(loop, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("enabled", "Loop this song?").AsBool().Required().Finalize(),
 	})
