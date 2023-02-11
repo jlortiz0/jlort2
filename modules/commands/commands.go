@@ -127,49 +127,50 @@ type Command func(Context) error
 var batchCmdList []*discordgo.ApplicationCommand
 var cmdMap map[string]Command
 
-// RegisterCommand registers a command with the commands module.
-// The name need not be the same as the function, but it must be unique.
-// A command can have multiple names, and can see which is used to call it.
-func RegisterCommand(cmd Command, name string, description string, options []*discordgo.ApplicationCommandOption) {
-	cmdStruct := new(discordgo.ApplicationCommand)
-	cmdStruct.Description = description
-	cmdStruct.Name = name
-	cmdStruct.ApplicationID = APP_ID
-	cmdStruct.Options = options
-	cmdStruct.Type = discordgo.ChatApplicationCommand
-	batchCmdList = append(batchCmdList, cmdStruct)
-	cmdMap[name] = cmd
+type commandStruct struct {
+	*discordgo.ApplicationCommand
 }
 
-func RegisterCommandPerms(cmd Command, name, description string, options []*discordgo.ApplicationCommandOption, guild bool, permissions int64) {
-	cmdStruct := new(discordgo.ApplicationCommand)
-	cmdStruct.Description = description
-	cmdStruct.Name = name
-	cmdStruct.ApplicationID = APP_ID
-	cmdStruct.Options = options
-	cmdStruct.Type = discordgo.ChatApplicationCommand
-	cmdStruct.DMPermission = &guild
-	cmdStruct.DefaultMemberPermissions = &permissions
-	batchCmdList = append(batchCmdList, cmdStruct)
-	cmdMap[name] = cmd
+func PrepareCommand(name, description string) commandStruct {
+	cmd := new(discordgo.ApplicationCommand)
+	cmd.Description = description
+	cmd.Name = name
+	cmd.ApplicationID = APP_ID
+	cmd.Type = discordgo.ChatApplicationCommand
+	return commandStruct{cmd}
 }
 
-func RegisterCommandMessage(cmd Command, name, description string) {
-	cmdStruct := new(discordgo.ApplicationCommand)
-	cmdStruct.Description = description
-	cmdStruct.Name = name
-	cmdStruct.ApplicationID = APP_ID
-	cmdStruct.Type = discordgo.MessageApplicationCommand
-	batchCmdList = append(batchCmdList, cmdStruct)
+func (c commandStruct) AsMsg() commandStruct {
+	c.Type = discordgo.MessageApplicationCommand
+	return c
 }
 
-func RegisterCommandUser(cmd Command, name, description string) {
-	cmdStruct := new(discordgo.ApplicationCommand)
-	cmdStruct.Description = description
-	cmdStruct.Name = name
-	cmdStruct.ApplicationID = APP_ID
-	cmdStruct.Type = discordgo.UserApplicationCommand
-	batchCmdList = append(batchCmdList, cmdStruct)
+func (c commandStruct) AsUser() commandStruct {
+	c.Type = discordgo.UserApplicationCommand
+	return c
+}
+
+func (c commandStruct) NSFW() commandStruct {
+	b := true
+	c.ApplicationCommand.NSFW = &b
+	return c
+}
+
+func (c commandStruct) Guild() commandStruct {
+	b := false
+	c.DMPermission = &b
+	return c
+}
+
+func (c commandStruct) Perms(p int64) commandStruct {
+	c.DefaultMemberPermissions = &p
+	return c
+}
+
+func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
+	c.Options = options
+	batchCmdList = append(batchCmdList, c.ApplicationCommand)
+	cmdMap[c.Name] = cmd
 }
 
 func UploadCommands(self *discordgo.Session) {
