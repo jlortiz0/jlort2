@@ -326,11 +326,12 @@ func Init(_ *discordgo.Session) {
 	optionUser3.Description = "Person to duel"
 	optionUser3.Required = true
 	commands.RegisterCommand(duel, "duel", "Your nationality is on the line", []*discordgo.ApplicationCommandOption{optionUser3})
-    optionSomething := new(discordgo.ApplicationCommandOption)
-    optionSomething.Type = discordgo.ApplicationCommandOptionString
-    optionSomething.Name = "question"
-    optionSomething.Required = true
-    commands.RegisterCommand(eightball, "8ball", "Get a stupid answer", []*discordgo.ApplicationCommandOption{optionSomething})
+	optionSomething := new(discordgo.ApplicationCommandOption)
+	optionSomething.Type = discordgo.ApplicationCommandOptionString
+	optionSomething.Name = "question"
+	optionSomething.Description = "Ask something"
+	optionSomething.Required = true
+	commands.RegisterCommand(eightball, "8ball", "Get a stupid answer", []*discordgo.ApplicationCommandOption{optionSomething})
 	commands.RegisterSaver(saveBrit)
 }
 

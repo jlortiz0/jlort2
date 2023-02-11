@@ -13,3 +13,5 @@ misc/ageList.go.bak
 *.zip
 *.exe
 logs/*
+*.swp
+jlort2

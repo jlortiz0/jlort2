@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -148,6 +149,23 @@ func UploadCommands(self *discordgo.Session) {
 		_, err = self.ApplicationCommandBulkOverwrite(APP_ID, "", batchCmdList)
 	}
 	if err != nil {
+		if TEST_MODE {
+			err2 := err.(*discordgo.RESTError)
+			var errBody struct {
+				Code   int
+				Errors map[string]interface{}
+			}
+			json.Unmarshal(err2.ResponseBody, &errBody)
+			if errBody.Code == discordgo.ErrCodeInvalidFormBody {
+				for k := range errBody.Errors {
+					i, _ := strconv.Atoi(k)
+					fmt.Printf("%d: %s\n", i, batchCmdList[i].Name)
+					for _, v := range batchCmdList[i].Options {
+						fmt.Printf(" - %s (%d)\n", v.Name, v.Type)
+					}
+				}
+			}
+		}
 		panic(err)
 	}
 	batchCmdList = nil

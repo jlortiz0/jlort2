@@ -399,7 +399,7 @@ func Init(self *discordgo.Session) {
 
 	optionBool := new(discordgo.ApplicationCommandOption)
 	optionBool.Type = discordgo.ApplicationCommandOptionBoolean
-	optionBool.Name = "tokens?"
+	optionBool.Name = "tokens"
 	optionBool.Description = "If true, tokens will be used on this pull"
 	commands.RegisterCommand(pull, "pull", "Pull a relic", []*discordgo.ApplicationCommandOption{optionBool})
 	optionString := new(discordgo.ApplicationCommandOption)
@@ -424,6 +424,7 @@ func Init(self *discordgo.Session) {
 	subcommandList := new(discordgo.ApplicationCommandOption)
 	subcommandList.Description = "List the relics you have"
 	subcommandList.Name = "list"
+	subcommandList.Type = discordgo.ApplicationCommandOptionSubCommand
 	optionInt = new(discordgo.ApplicationCommandOption)
 	optionInt.Description = "Page number"
 	optionInt.Name = "page"
@@ -453,12 +454,12 @@ func Init(self *discordgo.Session) {
 	optionInt = new(discordgo.ApplicationCommandOption)
 	optionInt.Type = discordgo.ApplicationCommandOptionInteger
 	optionInt.Description = "Number to give"
-	optionInt.Name = "giveCount"
+	optionInt.Name = "togive"
 	optionInt.Required = true
 	optionInt2 := new(discordgo.ApplicationCommandOption)
 	optionInt2.Type = discordgo.ApplicationCommandOptionInteger
 	optionInt2.Description = "Number to get"
-	optionInt2.Name = "getCount"
+	optionInt2.Name = "toget"
 	optionInt2.Required = true
 	subcommandCreate.Options = []*discordgo.ApplicationCommandOption{optionString, optionInt, optionUser, optionString2, optionInt2}
 
@@ -466,17 +467,21 @@ func Init(self *discordgo.Session) {
 	optionInt.Name = "code"
 	optionInt.Description = "Trade code"
 	optionInt.Required = true
+	optionInt.Type = discordgo.ApplicationCommandOptionInteger
 	subcommandInfo := new(discordgo.ApplicationCommandOption)
 	subcommandInfo.Name = "info"
 	subcommandInfo.Description = "Show info about a trade"
+	subcommandInfo.Type = discordgo.ApplicationCommandOptionSubCommand
 	subcommandInfo.Options = []*discordgo.ApplicationCommandOption{optionInt}
 	subcommandAccept := new(discordgo.ApplicationCommandOption)
 	subcommandAccept.Name = "accept"
 	subcommandAccept.Description = "Accept a trade"
+	subcommandAccept.Type = discordgo.ApplicationCommandOptionSubCommand
 	subcommandAccept.Options = subcommandInfo.Options
 	subcommandReject := new(discordgo.ApplicationCommandOption)
 	subcommandReject.Name = "cancel"
 	subcommandReject.Description = "Reject or cancel a trade"
+	subcommandReject.Type = discordgo.ApplicationCommandOptionSubCommand
 	subcommandReject.Options = subcommandInfo.Options
 	commands.RegisterCommand(trade, "trade", "Trade relics with others", []*discordgo.ApplicationCommandOption{subcommandCreate, subcommandInfo, subcommandAccept, subcommandReject})
 	commands.RegisterSaver(saveGacha)
