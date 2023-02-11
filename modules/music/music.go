@@ -530,8 +530,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Finalize(),
 	})
-	// TODO: Register with only OWNER_ID
-	commands.PrepareCommand("locket", "Lock the current stream").Guild().Perms(discordgo.PermissionAll).Register(locket, nil)
+	commands.PrepareCommand("locket", "Lock the current stream").Guild().Perms(discordgo.PermissionAdministrator).Register(locket, nil)
 	commands.PrepareCommand("song", "Play a song from the alias list").Guild().Register(song, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("alias", "Song alias to play, use \"list\" for a list").AsString().Required().Finalize(),
 	})

@@ -28,8 +28,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-const gsmServerID = ""
-
 // ~!echo <message>
 // Says stuff back
 func echo(ctx Context) error {
@@ -141,7 +139,7 @@ var updating bool
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
 func gsm(ctx Context) error {
-	if _, err := ctx.State.Member(gsmServerID, ctx.User.ID); err != nil {
+	if _, err := ctx.State.Member(GSM_GUILD, ctx.User.ID); err != nil {
 		return ctx.RespondPrivate("You do not have access to these servers.")
 	}
 	if updating {
@@ -234,13 +232,14 @@ func Init(self *discordgo.Session) {
 		NewCommandOption("user", "User to teleport to").AsUser().Required().Finalize(),
 	})
 	PrepareCommand("version", "Get version info").Register(version, nil)
-	if runtime.GOOS != "windows" && gsmServerID != "" {
+	if runtime.GOOS != "windows" && GSM_GUILD != "" {
 		optionString := new(discordgo.ApplicationCommandOption)
 		optionString.Type = discordgo.ApplicationCommandOptionString
 		optionString.Name = "arg"
 		optionString.Description = "Run /gsm help for a list of arguments"
-		// TODO: Register this only in the GSM_GUILD
-		PrepareCommand("gsm", "Game Server Manager").Guild().Perms(discordgo.PermissionAll).Register(gsm, []*discordgo.ApplicationCommandOption{
+		// TODO: Make a way to delete old guild commands to avoid traces in case I change GSM_GUILD
+		tmp := PrepareCommand("gsm", "Game Server Manager").Guild().Perms(discordgo.PermissionAll)
+		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
 			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Finalize(),
 		})
 	}

@@ -313,9 +313,6 @@ func queue(ctx commands.Context) error {
 }
 
 func locket(ctx commands.Context) error {
-	if commands.OWNER_ID != ctx.User.ID {
-		return ctx.RespondPrivate("You do not have access to that command, and never will.")
-	}
 	ls := streams[ctx.GuildID]
 	if ls == nil || ls.Len() == 0 {
 		return ctx.RespondPrivate("Nothing is playing.")

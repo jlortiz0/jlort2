@@ -228,11 +228,12 @@ func archive(ctx commands.Context) error {
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-func Init(_ *discordgo.Session) {
+func Init(self *discordgo.Session) {
 	commands.PrepareCommand("logall", "Log this channel to a file").Register(chatlog, nil)
 	commands.PrepareCommand("Log From Here", "Log messages starting from here").AsMsg().Register(chatlog, nil)
-	// TODO: Restrict to just OWNER_ID
-	commands.PrepareCommand("zip", "Zip attachments").Guild().Perms(discordgo.PermissionAll).Register(archive, nil)
+	// TODO: Disable on servers that I'm not in
+	tmp := commands.PrepareCommand("zip", "Zip attachments").Guild().Perms(discordgo.PermissionManageMessages)
+	commands.RegisterGsmGuildCommand(self, tmp, archive, nil)
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.

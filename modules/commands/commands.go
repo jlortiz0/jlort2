@@ -29,6 +29,7 @@ import (
 const APP_ID = ""
 const OWNER_ID = ""
 const TEST_GUILD_ID = ""
+const GSM_GUILD = ""
 const TEST_MODE = true
 
 // Context is a helper struct for defining a command invokation context.
@@ -172,6 +173,19 @@ func (c commandStruct) Perms(p int64) commandStruct {
 func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
 	c.Options = options
 	batchCmdList = append(batchCmdList, c.ApplicationCommand)
+	cmdMap[c.Name] = cmd
+}
+
+func RegisterGsmGuildCommand(self *discordgo.Session, c commandStruct, cmd Command, options []*discordgo.ApplicationCommandOption) {
+	if TEST_MODE {
+		c.Register(cmd, options)
+		return
+	}
+	c.Options = options
+	_, err := self.ApplicationCommandCreate(APP_ID, GSM_GUILD, c.ApplicationCommand)
+	if err != nil {
+		panic(err)
+	}
 	cmdMap[c.Name] = cmd
 }
 
