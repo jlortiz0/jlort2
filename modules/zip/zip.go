@@ -73,7 +73,7 @@ func chatlog(ctx commands.Context) error {
 	}
 	output.WriteByte('\n')
 	output.WriteByte('\n')
-    ctx.DelayedRespond()
+	ctx.DelayedRespond()
 	lastMsg := "0"
 	if ctx.Message != nil {
 		if ctx.Message.ChannelID != ctx.ChannelID {
@@ -102,7 +102,7 @@ func chatlog(ctx commands.Context) error {
 				continue
 			}
 			if v.Content == "" && len(v.Attachments) == 0 && len(v.Embeds) == 0 {
-                continue
+				continue
 			}
 			if nicks[v.Author.ID] == "" {
 				nicks[v.Author.ID] = v.Author.Username
@@ -185,7 +185,7 @@ func archive(ctx commands.Context) error {
 	if err != nil {
 		return err
 	}
-    ctx.DelayedRespond()
+	ctx.DelayedRespond()
 	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
@@ -233,7 +233,7 @@ func archive(ctx commands.Context) error {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 func Init(_ *discordgo.Session) {
 	commands.RegisterCommand(chatlog, "logall", "Log messages to a file", nil)
-    // TODO: Register message command
+	// TODO: Register message command
 	commands.RegisterCommand(archive, "zip", "Zip attachments", nil)
 }
 

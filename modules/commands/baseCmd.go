@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package commands
 
 import (
-    "fmt"
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -189,12 +189,12 @@ func gsm(ctx Context) error {
 		ctx.EditResponse("Update complete!")
 		return nil
 	}
-    for _, x := range arg {
-        if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
-            return ctx.RespondPrivate("Illegal character.")
-        }
-    }
-    out, err := exec.Command(bashLoc, "gsm.sh", arg).Output()
+	for _, x := range arg {
+		if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
+			return ctx.RespondPrivate("Illegal character.")
+		}
+	}
+	out, err := exec.Command(bashLoc, "gsm.sh", arg).Output()
 	if err != nil {
 		return fmt.Errorf("failed to run gsm: %w", err)
 	}
@@ -273,13 +273,13 @@ func Init(self *discordgo.Session) {
 		optionString.Name = "arg"
 		optionString.Description = "Run /gsm help for a list of arguments"
 		RegisterCommand(gsm, "gsm", "Game Server Manager", []*discordgo.ApplicationCommandOption{optionString})
-    }
-    info, err := os.Stat("lastUpdate")
-    if err == nil {
-        since := time.Since(info.ModTime())
-        if since > 12*time.Hour {
-            var cmd *exec.Cmd
-            if runtime.GOOS != "windows" {
+	}
+	info, err := os.Stat("lastUpdate")
+	if err == nil {
+		since := time.Since(info.ModTime())
+		if since > 12*time.Hour {
+			var cmd *exec.Cmd
+			if runtime.GOOS != "windows" {
 				bashLoc, _ := exec.LookPath("bash")
 				cmd = exec.Command(bashLoc, "gsm.sh", "update")
 			} else {

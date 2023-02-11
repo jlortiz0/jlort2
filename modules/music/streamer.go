@@ -163,7 +163,7 @@ func mp3(ctx commands.Context) error {
 	if vc == nil {
 		return nil
 	}
-    // TODO: Readd attachment support
+	// TODO: Readd attachment support
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	_, err := url.ParseRequestURI(source)
 	if err != nil {
@@ -274,9 +274,9 @@ func play(ctx commands.Context) error {
 	if ls == nil {
 		return ctx.RespondPrivate("Discord network error while processing request. Please try again.")
 	}
-    // TODO: Reimplement this
+	// TODO: Reimplement this
 	// if strings.HasSuffix(ctx.InvokedWith, "skip") {
-    if false {
+	if false {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 			return ctx.RespondPrivate("You do not have permission to modify the current stream.")
 		}
