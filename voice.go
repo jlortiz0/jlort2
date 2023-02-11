@@ -112,33 +112,17 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
 func vachan(ctx commands.Context) error {
-	args := ctx.ApplicationCommandData().Options
-	if len(args) != 0 {
-		perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions: %w", err)
-		}
-		if perms&discordgo.PermissionManageServer == 0 {
-			return ctx.Respond("You need the Manage Server permission to change this setting.")
-		}
-		voiceSettingLock.Lock()
-		defer voiceSettingLock.Unlock()
-		arg := args[0].ChannelValue(ctx.Bot)
-		if arg.Type != discordgo.ChannelTypeGuildText {
-			delete(voiceAnnounce, ctx.GuildID)
-			dirty = true
-			return ctx.Respond("Voice announcements disabled.")
-		}
-		voiceAnnounce[ctx.GuildID] = arg.ID
+	voiceSettingLock.Lock()
+	defer voiceSettingLock.Unlock()
+	arg := ctx.ApplicationCommandData().Options[0].ChannelValue(ctx.Bot)
+	if arg.Type != discordgo.ChannelTypeGuildText {
+		delete(voiceAnnounce, ctx.GuildID)
 		dirty = true
-		err = ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
-		return err
+		return ctx.Respond("Voice announcements disabled.")
 	}
-	chID, ok := voiceAnnounce[ctx.GuildID]
-	if !ok {
-		return ctx.Respond("Voice announcements are disabled on this server")
-	}
-	return ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", chID))
+	voiceAnnounce[ctx.GuildID] = arg.ID
+	dirty = true
+	return ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 }
 
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {

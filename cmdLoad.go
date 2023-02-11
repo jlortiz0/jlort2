@@ -50,9 +50,8 @@ func initModules(self *discordgo.Session) {
 	optionChannel.Name = "channel"
 	optionChannel.Description = "Channel to post join annoucements in"
 	optionChannel.Type = discordgo.ApplicationCommandOptionChannel
-	// TODO: Consider changing to be admin only, removing the read part
-	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Register(vachan, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Finalize(),
+	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Required().Finalize(),
 	})
 	commands.UploadCommands(self)
 }
