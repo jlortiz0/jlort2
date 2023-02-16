@@ -229,6 +229,13 @@ func UploadCommands(self *discordgo.Session) {
 	batchCmdList = nil
 }
 
+func clearGuildCommands(self *discordgo.Session, guildID string) {
+	_, err := self.ApplicationCommandBulkOverwrite(APP_ID, guildID, nil)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // GetCommand returns the command associated with the given name
 func GetCommand(name string) Command {
 	return cmdMap[name]

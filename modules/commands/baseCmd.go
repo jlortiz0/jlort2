@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"jlortiz.org/jlort2/modules/log"
 )
 
 // ~!echo <message>
@@ -43,7 +44,7 @@ func echo(ctx Context) error {
 // Due to Discord limitations, this only scans the 100 most recent messages.
 func purge(ctx Context) error {
 	if ctx.GuildID == "" {
-		// ctx.DelayedRespond()
+		ctx.DelayedRespond()
 		msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 		if err != nil {
 			return fmt.Errorf("failed to get message list: %w", err)
@@ -72,13 +73,23 @@ func purge(ctx Context) error {
 	target := ctx.Me.ID
 	if len(ctx.ApplicationCommandData().Options) != 0 {
 		args := ctx.ApplicationCommandData().Options[0].UserValue(nil)
+		// Uncomment this if Perms(discordgo.ManageMessages) is removed for this command
+		// if args.ID != target {
+		// 	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
+		// 	if err != nil {
+		// 		return fmt.Errorf("failed to get permissions: %w", err)
+		// 	}
+		// 	if perms&discordgo.PermissionManageMessages == 0 {
+		// 		return ctx.RespondPrivate("You need the Manage Messages permission to purge other people's messages.")
+		// 	}
+		// }
 		target = args.ID
 	}
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
 	}
-	// ctx.DelayedRespond()
+	ctx.DelayedRespond()
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs)-1)
 	for _, msg := range msgs {
@@ -104,7 +115,7 @@ func purge(ctx Context) error {
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
 func ppurge(ctx Context) error {
 	prefix := ctx.ApplicationCommandData().Options[0].StringValue()
-	// ctx.DelayedRespond()
+	ctx.DelayedRespond()
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
@@ -139,8 +150,12 @@ var updating bool
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
 func gsm(ctx Context) error {
-	if _, err := ctx.State.Member(GSM_GUILD, ctx.User.ID); err != nil {
-		return ctx.RespondPrivate("You do not have access to these servers.")
+	if ctx.GuildID != GSM_GUILD {
+		err := ctx.Bot.ApplicationCommandDelete(APP_ID, ctx.GuildID, "gsm")
+		if err != nil {
+			return err
+		}
+		return ctx.RespondPrivate("Oops, looks like a test command got out.\nThis command should now disappear...")
 	}
 	if updating {
 		return ctx.Respond("The servers are currently updating.")
@@ -174,6 +189,10 @@ func gsm(ctx Context) error {
 	out, err := exec.Command(bashLoc, "gsm.sh", arg).Output()
 	if err != nil {
 		return fmt.Errorf("failed to run gsm: %w", err)
+	}
+	if len(out) == 0 {
+		log.Warn("Empty output from /gsm " + arg)
+		return ctx.EmptyResponse()
 	}
 	return ctx.Respond(string(out))
 }
@@ -232,12 +251,7 @@ func Init(self *discordgo.Session) {
 	})
 	PrepareCommand("version", "Get version info").Register(version, nil)
 	if runtime.GOOS != "windows" && GSM_GUILD != "" {
-		optionString := new(discordgo.ApplicationCommandOption)
-		optionString.Type = discordgo.ApplicationCommandOptionString
-		optionString.Name = "arg"
-		optionString.Description = "Run /gsm help for a list of arguments"
-		// TODO: Make a way to delete old guild commands to avoid traces in case I change GSM_GUILD
-		tmp := PrepareCommand("gsm", "Game Server Manager").Guild().Perms(discordgo.PermissionAll)
+		tmp := PrepareCommand("gsm", "Game Server Manager").Guild()
 		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
 			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Finalize(),
 		})
