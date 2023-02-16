@@ -135,6 +135,10 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 }
 
 // TODO: Autocomplete?
+// Could be useful for the following commands: gsm, relic, trade, song, outro
+// Also, components could be useful for duel (call other person brit), tpa (non-functional to accept or reject),
+// kekreport, relic list, quotes, song list, outro list (pagination), trade (accept or reject), skip (quick cast additional votes),
+// play (quick remove from queue), pause (quick unpause), and maybe if I ever readd ytsearch
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type != discordgo.InteractionApplicationCommand {
 		if event.Type == discordgo.InteractionPing {

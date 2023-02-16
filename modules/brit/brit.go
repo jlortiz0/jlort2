@@ -285,10 +285,10 @@ func Init(_ *discordgo.Session) {
 	cooldown = make(map[string]time.Time)
 	duels = make(map[string]*duelObj)
 	commands.PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("coins", "How many coins to flip").AsInt().Finalize(),
+		commands.NewCommandOption("coins", "How many coins to flip").AsInt().SetMinMax(1, 255).Finalize(),
 	})
 	commands.PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("dice", "How many dice to roll").AsInt().Finalize(),
+		commands.NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
 	})
 	commands.PrepareCommand("howbrit", "^").Register(howbrit, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to test the Britishness of, default you").AsUser().Finalize(),

@@ -144,7 +144,6 @@ var updating bool
 // @Hidden
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
-// TODO: Readd "silent" second argument
 func gsm(ctx Context) error {
 	if ctx.GuildID != GSM_GUILD {
 		err := ctx.Bot.ApplicationCommandDelete(ctx.AppID, ctx.GuildID, ctx.ApplicationCommandData().Name)
@@ -182,7 +181,13 @@ func gsm(ctx Context) error {
 			return ctx.RespondPrivate("Illegal character.")
 		}
 	}
-	out, err := exec.Command(bashLoc, "gsm.sh", arg).Output()
+	var cmd *exec.Cmd
+	if len(ctx.ApplicationCommandData().Options) == 1 {
+		exec.Command(bashLoc, "gsm.sh", arg)
+	} else {
+		exec.Command(bashLoc, "gsm.sh", arg, "silent")
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run gsm: %w", err)
 	}
@@ -249,7 +254,8 @@ func Init(self *discordgo.Session) {
 	if runtime.GOOS != "windows" && GSM_GUILD != "" {
 		tmp := PrepareCommand("gsm", "Game Server Manager").Guild()
 		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
-			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Finalize(),
+			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Finalize(),
+			NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
 		})
 	}
 	info, err := os.Stat("lastUpdate")
