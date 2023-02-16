@@ -116,15 +116,6 @@ func roll(ctx commands.Context) error {
 	return ctx.Respond("Rolled " + strconv.Itoa(total))
 }
 
-var ballresp = [...]string{"Yes", "No", "Maybe so", "Hell yes", "Hell no", "Get back to me when jlort jlort 3 comes out", "Not until you get negative kek", "Of course", "Go to jail, go directly... oh, wrong game.", "When I learn to talk, I'll tell you", "Turn around.", "You? HAHAHAHAHA no", "aaa eee ooo", "500 Internal Server Error", "404 Possibility Not Found", "302 Possibility Found"}
-
-// ~!8ball <thing>
-// Ask the magic 8 ball a serious question, and get a stupid answer.
-// No, really. This one hates your guts. And my guts.
-func eightball(ctx commands.Context) error {
-	return ctx.Respond(ballresp[rand.Intn(len(ballresp))])
-}
-
 // ~!howbrit [user]
 // @Hidden
 // Checks someone's Britishness
@@ -141,7 +132,7 @@ func howbrit(ctx commands.Context) error {
 	if !ok && !target.Bot {
 		amnt = 50
 	}
-	return ctx.Respond(fmt.Sprintf("%s is %d%% British", target.Username, amnt))
+	return ctx.RespondPrivate(fmt.Sprintf("%s is %d%% British", target.Username, amnt))
 }
 
 // ~!brit <user>
@@ -307,9 +298,6 @@ func Init(_ *discordgo.Session) {
 	})
 	commands.PrepareCommand("duel", "Your nationality is on the line").Guild().Register(duel, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to duel").AsUser().Required().Finalize(),
-	})
-	commands.PrepareCommand("8ball", "Get a stupid answer").Register(eightball, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("question", "Ask something").AsString().Required().Finalize(),
 	})
 	commands.RegisterSaver(saveBrit)
 }
