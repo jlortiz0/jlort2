@@ -400,6 +400,17 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				pager = append(pager, topMsg)
 			case "pagedown":
 				pager = pager[:len(pager)-1]
+			case "delete":
+				if len(cmd) == 1 {
+					fmt.Println("Usage: /delete <message id>")
+				} else {
+					msg = strings.Join(cmd[1:], " ")
+					err = client.ChannelMessageDelete(channel.ID, msg)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+				input.ReadBytes('\n')
 			case "help":
 				fmt.Println("/help - This message\n/exit - Quit this mode\n/pageup and /pagedown - Scroll\n/tar [first id] - Log some or all messages\n/chatlog - Tar alias\n/nick - Set nickname\n/typing - Send typing notif\n/file - Upload file")
 				input.ReadBytes('\n')
