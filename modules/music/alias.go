@@ -75,26 +75,26 @@ func addsong(ctx commands.Context) error {
 	if name == "list" || name == "all" {
 		return ctx.RespondPrivate("This song name is not allowed.")
 	}
-	ctx.DelayedRespond()
+	ctx.RespondDelayed(true)
 	url := args[1].StringValue()
 	var info YDLInfo
 	out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", url).Output()
 	if err != nil {
 		if err2, ok := err.(*exec.ExitError); ok {
-			return ctx.EditResponse(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
+			return ctx.RespondEdit(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
 		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &info)
 	if err != nil {
-		ctx.EditResponse("Could not get info from this URL. Note that /song does not support searches.")
+		ctx.RespondEdit("Could not get info from this URL. Note that /song does not support searches.")
 		return err
 	}
 	if info.Extractor == "Generic" {
-		return ctx.EditResponse("/song does not support direct links to files.")
+		return ctx.RespondEdit("/song does not support direct links to files.")
 	}
 	if info.URL == "" {
-		return ctx.EditResponse("Could not get info from this URL.")
+		return ctx.RespondEdit("Could not get info from this URL.")
 	}
 	aliasLock.Lock()
 	mappings := aliases[ctx.GuildID]
@@ -105,7 +105,7 @@ func addsong(ctx commands.Context) error {
 	mappings[name] = url
 	aliasLock.Unlock()
 	dirty = true
-	return ctx.EditResponse(fmt.Sprintf("Set song alias %s", name))
+	return ctx.RespondEdit(fmt.Sprintf("Set song alias %s", name))
 }
 
 // ~!delsong <alias>
@@ -120,7 +120,7 @@ func delsong(ctx commands.Context) error {
 	defer aliasLock.Unlock()
 	mappings := aliases[ctx.GuildID]
 	if name == "all" {
-		perms, err := ctx.State.MessagePermissions(ctx.Message)
+		perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
 		if err != nil {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
@@ -128,11 +128,11 @@ func delsong(ctx commands.Context) error {
 			return ctx.RespondPrivate("You need the Manage Server permission to clear all aliases.")
 		}
 		delete(aliases, ctx.GuildID)
-		return ctx.Respond("All aliases deleted.")
+		return ctx.RespondPrivate("All aliases deleted.")
 	}
 	delete(mappings, name)
 	dirty = true
-	return ctx.Respond("Alias deleted.")
+	return ctx.RespondPrivate("Alias deleted.")
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {

@@ -133,7 +133,7 @@ func connect(ctx commands.Context) error {
 		}
 	}
 	if ctx.ApplicationCommandData().Name == "connect" {
-		return ctx.EmptyResponse()
+		return ctx.RespondEmpty()
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func dc(ctx commands.Context) error {
 			return fmt.Errorf("failed to disconnect from voice: %w", err)
 		}
 	}
-	return ctx.EmptyResponse()
+	return ctx.RespondEmpty()
 }
 
 // ~!dj <@role>

@@ -84,7 +84,7 @@ func quotes(ctx commands.Context) error {
 	}
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
-	err = ctx.RespondEmbed(output)
+	err = ctx.RespondEmbed(output, false)
 	return err
 }
 

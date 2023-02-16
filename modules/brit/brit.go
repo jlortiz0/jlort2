@@ -216,7 +216,7 @@ func duel(ctx commands.Context) error {
 	embed.Footer = &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("%s vs %s", commands.DisplayName(ctx.Member), target.Username)}
 	embed.Color = 0x992d22
 	embed.Description = "Duel will occur in 30s. If you're sure of victory, take this time to call the other person British!"
-	err := ctx.RespondEmbed(embed)
+	err := ctx.RespondEmbed(embed, false)
 	if err == nil {
 		time.AfterFunc(30*time.Second, func() { duelCleanup(curDuel, embed, ctx) })
 	}

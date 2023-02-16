@@ -100,14 +100,10 @@ func crashMe(ch chan os.Signal) {
 	*test = 0
 }
 
-var notForThisOne map[string]struct{} = make(map[string]struct{}, 10)
-
 func ready(self *discordgo.Session, event *discordgo.Ready) {
 	time.Sleep(5 * time.Millisecond)
-	// notForThisOne = make(map[string]struct{}, len(event.Guilds))
 	for i := 0; i < len(event.Guilds); i++ {
 		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
-		notForThisOne[event.Guilds[i].ID] = struct{}{}
 		if err != nil {
 			panic(err)
 		}
@@ -139,7 +135,6 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 }
 
 // TODO: Autocomplete?
-// TODO: Check EVERY command to ensure that it uses Respond, RespondPrivate, and EmptyResponse at the right time
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type != discordgo.InteractionApplicationCommand {
 		if event.Type == discordgo.InteractionPing {

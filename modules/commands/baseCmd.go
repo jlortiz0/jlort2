@@ -43,8 +43,8 @@ func echo(ctx Context) error {
 // To specify a user other than me, you need the Manage Messages permission.
 // Due to Discord limitations, this only scans the 100 most recent messages.
 func purge(ctx Context) error {
+	ctx.RespondDelayed(true)
 	if ctx.GuildID == "" {
-		ctx.DelayedRespond()
 		msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 		if err != nil {
 			return fmt.Errorf("failed to get message list: %w", err)
@@ -63,11 +63,7 @@ func purge(ctx Context) error {
 		}
 		return ctx.RespondPrivate(fmt.Sprintf("Purged %d messages", len(todel)))
 	}
-	perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, ctx.ChannelID)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageMessages == 0 {
+	if ctx.AppPermissions&discordgo.PermissionManageMessages == 0 {
 		return ctx.RespondPrivate("I need the Manage Messages permission to use this command.")
 	}
 	target := ctx.Me.ID
@@ -89,7 +85,6 @@ func purge(ctx Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
 	}
-	ctx.DelayedRespond()
 	cutoff := time.Now().AddDate(0, 0, -13)
 	todel := make([]string, 0, len(msgs)-1)
 	for _, msg := range msgs {
@@ -114,8 +109,8 @@ func purge(ctx Context) error {
 // You need Manage Messages to use this command.
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
 func ppurge(ctx Context) error {
+	ctx.RespondDelayed(true)
 	prefix := ctx.ApplicationCommandData().Options[0].StringValue()
-	ctx.DelayedRespond()
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
@@ -152,7 +147,7 @@ var updating bool
 // TODO: Readd "silent" second argument
 func gsm(ctx Context) error {
 	if ctx.GuildID != GSM_GUILD {
-		err := ctx.Bot.ApplicationCommandDelete(APP_ID, ctx.GuildID, "gsm")
+		err := ctx.Bot.ApplicationCommandDelete(ctx.AppID, ctx.GuildID, ctx.ApplicationCommandData().Name)
 		if err != nil {
 			return err
 		}
@@ -174,13 +169,13 @@ func gsm(ctx Context) error {
 	}
 	if arg == "update" {
 		updating = true
-		ctx.DelayedRespond()
+		ctx.RespondDelayed(true)
 		cmd := exec.Command(bashLoc, "gsm.sh", arg)
 		cmd.Start()
 		cmd.Wait()
 		os.Chtimes("lastUpdate", time.Now(), time.Now())
 		updating = false
-		return ctx.EditResponse("Update complete!")
+		return ctx.RespondEdit("Update complete!")
 	}
 	for _, x := range arg {
 		if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
@@ -193,7 +188,7 @@ func gsm(ctx Context) error {
 	}
 	if len(out) == 0 {
 		log.Warn("Empty output from /gsm " + arg)
-		return ctx.EmptyResponse()
+		return ctx.RespondEmpty()
 	}
 	return ctx.Respond(string(out))
 }

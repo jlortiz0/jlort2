@@ -81,7 +81,7 @@ func pull(ctx commands.Context) error {
 		data.Wait = time.Now().Add(24 * time.Hour)
 	}
 	gachaLock.Unlock()
-	return ctx.RespondEmbed(embed)
+	return ctx.RespondEmbed(embed, true)
 }
 
 // ~!relics list [page] [user] or ~!relics sell <short name> [count] or ~!relics info <short name>
@@ -128,7 +128,7 @@ func relics(ctx commands.Context) error {
 		embed.Description = output.String()
 		embed.Footer = new(discordgo.MessageEmbedFooter)
 		embed.Footer.Text = fmt.Sprintf("You have %d tokens", data.Tokens)
-		return ctx.RespondEmbed(embed)
+		return ctx.RespondEmbed(embed, false)
 	} else if op == "sell" {
 		name := args[0].StringValue()
 		id, ok := gachaShortNames[name]
@@ -165,7 +165,7 @@ func relics(ctx commands.Context) error {
 			return ctx.RespondPrivate("You don't have this relic.")
 		}
 		gachaLock.RUnlock()
-		return ctx.RespondEmbed(makeItemEmbed(id))
+		return ctx.RespondEmbed(makeItemEmbed(id), true)
 	}
 	return fmt.Errorf("illegal subcommand: %s", op)
 }
@@ -293,7 +293,7 @@ func trade(ctx commands.Context) error {
 		if op != "info" {
 			embed.Description = fmt.Sprintf("Trade created. <@%s>, accept with /trade accept %04d\nCancel with /trade reject %04d", trade.To, tcode, tcode)
 		}
-		return ctx.RespondEmbed(embed)
+		return ctx.RespondEmbed(embed, false)
 	case "accept":
 		fallthrough
 	case "reject":

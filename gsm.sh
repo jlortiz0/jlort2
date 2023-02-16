@@ -81,7 +81,7 @@ screen -list | grep Terraria > /dev/null && echo "There is already a server runn
 screen -list | grep McServer > /dev/null && echo "There is already a server running!" && exit
 cd /home/McServer/$1
 if ./bg.sh "$2" > /dev/null 2>&1; then
-    echo "Server should be up shortly..."
+    echo "$1" "should be up shortly..."
 else
     echo "There was an error starting the server."
 fi

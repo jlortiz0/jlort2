@@ -211,7 +211,7 @@ func mp3(ctx commands.Context) error {
 	}
 	ls.Unlock()
 	embed := buildMusEmbed(data, np, authorName)
-	return ctx.RespondEmbed(embed)
+	return ctx.RespondEmbed(embed, false)
 }
 
 // ~!play <youtube url or search>
@@ -226,7 +226,7 @@ func play(ctx commands.Context) error {
 	if vc == nil {
 		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
-	ctx.DelayedRespond()
+	ctx.RespondDelayed(false)
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
 		source = source[:strings.IndexByte(source, '?')]
@@ -237,29 +237,29 @@ func play(ctx commands.Context) error {
 	if err != nil {
 		err2, ok := err.(*exec.ExitError)
 		if ok {
-			return ctx.EditResponse(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
+			return ctx.RespondEdit(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
 		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &entries)
 	if err != nil {
-		ctx.EditResponse("Could not get info from this URL.")
+		ctx.RespondEdit("Could not get info from this URL.")
 		return err
 	}
 	if len(entries.Entries) == 0 {
 		err = json.Unmarshal(out, &info)
 		if err != nil {
-			ctx.EditResponse("Could not get info from this URL.")
+			ctx.RespondEdit("Could not get info from this URL.")
 			return err
 		}
 	} else {
 		info = entries.Entries[0]
 	}
 	if info.Extractor == "Generic" {
-		return ctx.EditResponse("Use /mp3 for direct links to files.")
+		return ctx.RespondEdit("Use /mp3 for direct links to files.")
 	}
 	if info.URL == "" {
-		return ctx.EditResponse("Could not get info from this URL.")
+		return ctx.RespondEdit("Could not get info from this URL.")
 	}
 	authorName := commands.DisplayName(ctx.Member)
 	np := false
@@ -271,12 +271,12 @@ func play(ctx commands.Context) error {
 	data.Vol = 65
 	ls := streams[ctx.GuildID]
 	if ls == nil {
-		return ctx.EditResponse("Discord network error while processing request. Please try again.")
+		return ctx.RespondEdit("Discord network error while processing request. Please try again.")
 	}
 	// TODO: Is there a better way to do this?
 	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.EditResponse("You do not have permission to modify the current stream.")
+			return ctx.RespondEdit("You do not have permission to modify the current stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
@@ -284,7 +284,7 @@ func play(ctx commands.Context) error {
 			obj := elem.Value
 			if obj.Flags&strflag_noskip != 0 {
 				ls.Unlock()
-				return ctx.EditResponse("This stream cannot be skipped.")
+				return ctx.RespondEdit("This stream cannot be skipped.")
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
@@ -496,5 +496,5 @@ func outro(ctx commands.Context) error {
 	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: "outro" + string(os.PathSeparator) + name + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
-	return ctx.EmptyResponse()
+	return ctx.RespondEmpty()
 }

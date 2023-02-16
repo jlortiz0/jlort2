@@ -118,39 +118,17 @@ func vachan(ctx commands.Context) error {
 	if arg.Type != discordgo.ChannelTypeGuildText {
 		delete(voiceAnnounce, ctx.GuildID)
 		dirty = true
-		return ctx.Respond("Voice announcements disabled.")
+		return ctx.RespondPrivate("Voice announcements disabled.")
 	}
 	voiceAnnounce[ctx.GuildID] = arg.ID
 	dirty = true
-	return ctx.Respond(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
+	return ctx.RespondPrivate(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 }
 
+// Do I even need this anymore?
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
-	if _, ok := notForThisOne[event.ID]; ok {
-		self.RequestGuildMembers(event.ID, "", 250, "", false)
-		return
-	}
-	time.Sleep(10 * time.Millisecond)
-	// event.Guild, _ = self.State.Guild(event.ID)
-	notForThisOne[event.ID] = struct{}{}
-	var chanID string
-	for _, v := range event.Channels {
-		if v.Type == discordgo.ChannelTypeGuildText {
-			perms, err := self.State.UserChannelPermissions(self.State.User.ID, v.ID)
-			if err == nil && perms&discordgo.PermissionSendMessages != 0 {
-				chanID = v.ID
-				break
-			}
-		}
-	}
-	if chanID != "" {
-		_, err := self.ChannelMessageSend(chanID, "Hello!\nTo manage automatic voice announcements, do /vachan\nTo set the DJ role, do /dj")
-		if err != nil {
-			log.Error(err)
-			return
-		}
-	}
+	self.RequestGuildMembers(event.ID, "", 250, "", false)
 }
 
 func saveVoice() error {

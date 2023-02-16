@@ -274,7 +274,7 @@ func np(ctx commands.Context) error {
 	embed.Author = &discordgo.MessageEmbedAuthor{Name: footer, IconURL: author.User.AvatarURL("")}
 	embed.Fields = []*discordgo.MessageEmbedField{{Name: "Elapsed", Value: timeFld}}
 	embed.Color = 0x992d22
-	err = ctx.RespondEmbed(embed)
+	err = ctx.RespondEmbed(embed, true)
 	return err
 }
 
@@ -305,5 +305,5 @@ func queue(ctx commands.Context) error {
 	embed.Title = "Queue"
 	embed.Description = strings.Join(output, "\n")
 	embed.Color = 0x992d22
-	return ctx.RespondEmbed(embed)
+	return ctx.RespondEmbed(embed, true)
 }

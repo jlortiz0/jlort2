@@ -73,7 +73,7 @@ func chatlog(ctx commands.Context) error {
 	}
 	output.WriteByte('\n')
 	output.WriteByte('\n')
-	ctx.DelayedRespond()
+	ctx.RespondDelayed(false)
 	lastMsg := "0"
 	if ctx.ApplicationCommandData().TargetID != "" {
 		temp, _ := strconv.ParseUint(ctx.ApplicationCommandData().TargetID, 10, 64)
@@ -145,7 +145,7 @@ func chatlog(ctx commands.Context) error {
 // Zips all attachments and embeds in the channel.
 // This command is hidden because the zip file is invariably so big it can't be uploaded.
 func archive(ctx commands.Context) error {
-	ctx.DelayedRespond()
+	ctx.RespondDelayed(true)
 	type FileInfo struct {
 		Filename  string
 		URL       string
@@ -179,7 +179,6 @@ func archive(ctx commands.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx.DelayedRespond()
 	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
@@ -221,7 +220,7 @@ func archive(ctx commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to close zip: %w", err)
 	}
-	return ctx.EditResponse("Zip complete! Ask for " + fName)
+	return ctx.RespondEdit("Zip complete! Ask for " + fName)
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
