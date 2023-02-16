@@ -133,7 +133,7 @@ func relics(ctx commands.Context) error {
 		name := args[0].StringValue()
 		id, ok := gachaShortNames[name]
 		if !ok {
-			return ctx.RespondPrivate(name)
+			return ctx.RespondPrivate("No such relic " + name)
 		}
 		count := int64(1)
 		if len(args) > 1 {
@@ -151,7 +151,7 @@ func relics(ctx commands.Context) error {
 		data.Items[id] -= uint16(count)
 		dirty = true
 		gachaLock.Unlock()
-		return ctx.Respond(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
+		return ctx.RespondPrivate(fmt.Sprintf("Sold %d of %s and recieved %d tokens.", count, gachaItems[id][0], count))
 	} else if op == "show" {
 		name := args[0].StringValue()
 		id, ok := gachaShortNames[name]
@@ -259,7 +259,7 @@ func trade(ctx commands.Context) error {
 		}
 		trades[tcode] = trade
 		tradeLock.Unlock()
-		return ctx.Respond(fmt.Sprintf("Trade created. <@%s>, accept the trade with ~!trade accept %04d\nEither of you can cancel the trade with ~!trade reject %04d", trade.To, tcode, tcode))
+		fallthrough
 	case "info":
 		tcode := int(args[0].IntValue())
 		tradeLock.RLock()
@@ -290,6 +290,9 @@ func trade(ctx commands.Context) error {
 			embed.Fields[1].Value = fmt.Sprintf("%s x%d", gachaItems[trade.Getting][0], trade.GetCount)
 		}
 		embed.Fields[1].Inline = true
+		if op != "info" {
+			embed.Description = fmt.Sprintf("Trade created. <@%s>, accept with /trade accept %04d\nCancel with /trade reject %04d", trade.To, tcode, tcode)
+		}
 		return ctx.RespondEmbed(embed)
 	case "accept":
 		fallthrough
@@ -311,10 +314,10 @@ func trade(ctx commands.Context) error {
 		trades[tcode] = nil
 		tradeLock.Unlock()
 		if time.Now().After(trade.Expire) {
-			return ctx.Respond("Trade expired")
+			return ctx.RespondPrivate("Trade expired")
 		}
 		if op == "reject" {
-			return ctx.Respond("Trade rejected/cancelled.")
+			return ctx.RespondPrivate("Trade rejected/cancelled.")
 		}
 		gachaLock.RLock()
 		dataFrom := gachaData[trade.From]
@@ -355,7 +358,7 @@ func trade(ctx commands.Context) error {
 			dataFrom.Tokens += trade.GetCount
 		}
 		gachaLock.Unlock()
-		return ctx.Respond("Trade successful.")
+		return ctx.RespondPrivate("Trade successful.")
 	default:
 		return fmt.Errorf("illegal subcommand: %s", op)
 	}

@@ -182,12 +182,12 @@ func handleCommandError(err error, ctx commands.Context, stack string) {
 	}
 	if ctx.User.ID == commands.OWNER_ID {
 		if len(err.Error()) < 1990 {
-			ctx.Respond(fmt.Sprintf("Error: %s", err.Error()))
+			ctx.RespondPrivate(fmt.Sprintf("Error: %s", err.Error()))
 		} else {
-			ctx.Respond("A lengthy error occured.")
+			ctx.RespondPrivate("A lengthy error occured.")
 		}
 	} else {
-		err2 := ctx.Respond("Sorry, something went wrong. An error report was sent to jlortiz.")
+		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to the operator.")
 		if err2 == nil {
 			channel, err2 := ctx.Bot.UserChannelCreate(commands.OWNER_ID)
 			if err2 == nil {

@@ -156,7 +156,7 @@ func archive(ctx commands.Context) error {
 	for {
 		toProc, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, lastMsg, "", "")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get channel messages: %w", err)
 		}
 		if len(toProc) == 0 {
 			break
@@ -221,14 +221,13 @@ func archive(ctx commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to close zip: %w", err)
 	}
-	return ctx.EditResponse("Zip complete! Ask jlortiz for " + fName)
+	return ctx.EditResponse("Zip complete! Ask for " + fName)
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 func Init(self *discordgo.Session) {
-	commands.PrepareCommand("logall", "Log this channel to a file").Register(chatlog, nil)
-	commands.PrepareCommand("Log From Here", "Log messages starting from here").AsMsg().Register(chatlog, nil)
-	// TODO: Disable on servers that I'm not in
+	commands.PrepareCommand("logall", "Log this channel to a file").Perms(discordgo.PermissionReadMessageHistory).Register(chatlog, nil)
+	commands.PrepareCommand("Log From Here", "Log messages starting from here").AsMsg().Perms(discordgo.PermissionReadMessageHistory).Register(chatlog, nil)
 	tmp := commands.PrepareCommand("zip", "Zip attachments").Guild().Perms(discordgo.PermissionManageMessages)
 	commands.RegisterGsmGuildCommand(self, tmp, archive, nil)
 }

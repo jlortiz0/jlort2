@@ -271,12 +271,12 @@ func play(ctx commands.Context) error {
 	data.Vol = 65
 	ls := streams[ctx.GuildID]
 	if ls == nil {
-		return ctx.RespondPrivate("Discord network error while processing request. Please try again.")
+		return ctx.EditResponse("Discord network error while processing request. Please try again.")
 	}
 	// TODO: Is there a better way to do this?
 	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.RespondPrivate("You do not have permission to modify the current stream.")
+			return ctx.EditResponse("You do not have permission to modify the current stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
@@ -284,7 +284,7 @@ func play(ctx commands.Context) error {
 			obj := elem.Value
 			if obj.Flags&strflag_noskip != 0 {
 				ls.Unlock()
-				return ctx.RespondPrivate("This stream cannot be skipped.")
+				return ctx.EditResponse("This stream cannot be skipped.")
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
@@ -475,7 +475,7 @@ func outro(ctx commands.Context) error {
 			}
 			builder.WriteString(x[:ind])
 		}
-		return ctx.Respond(builder.String())
+		return ctx.RespondPrivate(builder.String())
 	}
 	ls := streams[ctx.GuildID]
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]

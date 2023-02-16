@@ -1,9 +1,5 @@
 /*
-<<<<<<< HEAD
 Copyright (C) 2021-2023 jlortiz
-=======
-Copyright (C) 2021-2022 jlortiz
->>>>>>> ea604e7 (Added README and license)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -310,13 +306,4 @@ func queue(ctx commands.Context) error {
 	embed.Description = strings.Join(output, "\n")
 	embed.Color = 0x992d22
 	return ctx.RespondEmbed(embed)
-}
-
-func locket(ctx commands.Context) error {
-	ls := streams[ctx.GuildID]
-	if ls == nil || ls.Len() == 0 {
-		return ctx.RespondPrivate("Nothing is playing.")
-	}
-	ls.Head().Value.Flags |= strflag_noskip
-	return ctx.RespondPrivate("Why are you scared? Isn't this what you wanted?")
 }

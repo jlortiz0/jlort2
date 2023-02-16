@@ -96,7 +96,7 @@ func addquote(ctx commands.Context) error {
 	quoteLock.Lock()
 	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], ctx.ApplicationCommandData().Options[0].StringValue())
 	quoteLock.Unlock()
-	return ctx.Respond("Quote added.")
+	return ctx.RespondPrivate("Quote added.")
 }
 
 // ~!delquote <index>
@@ -119,12 +119,12 @@ func delquote(ctx commands.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
-		if perms&discordgo.PermissionManageServer == 0 {
-			return ctx.RespondPrivate("You need the Manage Server permission to clear all quotes.")
+		if perms&discordgo.PermissionManageMessages == 0 {
+			return ctx.RespondPrivate("You need the Manage Messages permission to clear all quotes.")
 		}
 		delete(quixote, ctx.GuildID)
 		dirty = true
-		return ctx.Respond("All quotes removed.")
+		return ctx.RespondPrivate("All quotes removed.")
 	}
 	if sel == 0 || sel > len(qList) {
 		return ctx.RespondPrivate("Index out of bounds, expected 1-" + strconv.Itoa(len(qList)))
@@ -139,7 +139,7 @@ func delquote(ctx commands.Context) error {
 		quixote[ctx.GuildID] = qList[:len(qList)-1]
 	}
 	dirty = true
-	return ctx.Respond("Quote removed.")
+	return ctx.RespondPrivate("Quote removed.")
 }
 
 func guildDelete(_ *discordgo.Session, event *discordgo.GuildDelete) {

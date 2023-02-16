@@ -54,7 +54,7 @@ func song(ctx commands.Context) error {
 			i++
 		}
 		aliasLock.RUnlock()
-		return ctx.Respond(strings.Join(names, "\n"))
+		return ctx.RespondPrivate(strings.Join(names, "\n"))
 	}
 	url := mappings[name]
 	aliasLock.RUnlock()

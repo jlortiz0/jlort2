@@ -149,6 +149,7 @@ var updating bool
 // @Hidden
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
+// TODO: Readd "silent" second argument
 func gsm(ctx Context) error {
 	if ctx.GuildID != GSM_GUILD {
 		err := ctx.Bot.ApplicationCommandDelete(APP_ID, ctx.GuildID, "gsm")
@@ -158,7 +159,7 @@ func gsm(ctx Context) error {
 		return ctx.RespondPrivate("Oops, looks like a test command got out.\nThis command should now disappear...")
 	}
 	if updating {
-		return ctx.Respond("The servers are currently updating.")
+		return ctx.RespondPrivate("The servers are currently updating.")
 	}
 	arg := ctx.ApplicationCommandData().Options[0].StringValue()
 	if arg == "update" || arg == "poweroff" {

@@ -43,7 +43,7 @@ var botId string
 func kekage(ctx commands.Context) error {
 	target := ctx.User
 	if len(ctx.ApplicationCommandData().Options) > 0 && ctx.GuildID != "" {
-		target = ctx.ApplicationCommandData().Options[0].UserValue(nil)
+		target = ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
 	}
 	if target.Bot {
 		return ctx.RespondPrivate("Bots can't be kek.")
@@ -76,7 +76,7 @@ func kekage(ctx commands.Context) error {
 			msg = "%s is at %s kek.\nThey are blessed with the power of good vibes."
 		}
 	}
-	return ctx.Respond(fmt.Sprintf(msg, name, convertKek(kekI)))
+	return ctx.RespondPrivate(fmt.Sprintf(msg, name, convertKek(kekI)))
 }
 
 // ~!kekReport
@@ -113,7 +113,7 @@ func kekReport(ctx commands.Context) error {
 	if output.Len() == 0 {
 		output.WriteString("All keks are zero.")
 	}
-	return ctx.Respond(output.String())
+	return ctx.RespondPrivate(output.String())
 }
 
 // ~!kekOn
@@ -133,12 +133,9 @@ func kekOn(ctx commands.Context) error {
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
-	// kekLock.RLock()
 	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.Author.Bot {
-		// kekLock.RUnlock()
 		return
 	}
-	// kekLock.RUnlock()
 	perms, err := self.State.UserChannelPermissions(self.State.User.ID, event.ChannelID)
 	if err != nil || perms&discordgo.PermissionAddReactions == 0 {
 		return
