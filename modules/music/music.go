@@ -188,11 +188,11 @@ func dj(ctx commands.Context) error {
 	if role.Name == "@everyone" {
 		delete(djRoles, ctx.GuildID)
 		djLock.Unlock()
-		return ctx.Respond("DJ role disabled.")
+		return ctx.RespondPrivate("DJ role disabled.")
 	}
 	djRoles[ctx.GuildID] = role.ID
 	djLock.Unlock()
-	return ctx.Respond("DJ role set to " + role.Name)
+	return ctx.RespondPrivate("DJ role set to " + role.Name)
 }
 
 // onDc is called when a user, including the bot, disconnects from a voice channel.
@@ -468,9 +468,8 @@ func Init(self *discordgo.Session) {
 	commands.RegisterSaver(saveData)
 	commands.PrepareCommand("connect", "Connect to voice").Guild().Register(connect, nil)
 	commands.PrepareCommand("dc", "Disconnect from voice").Guild().Register(dc, nil)
-	commands.PrepareCommand("dj", "Check or set DJ role").Guild().Perms(discordgo.PermissionManageServer).Register(dj, []*discordgo.ApplicationCommandOption{
-		// TODO: Verify that @everyone works properly
-		commands.NewCommandOption("role", "DJ role to set, @everyone to disable").AsRole().Finalize(),
+	commands.PrepareCommand("dj", "Set DJ role").Guild().Perms(discordgo.PermissionManageServer).Register(dj, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("role", "DJ role to set, @everyone to disable").AsRole().Required().Finalize(),
 	})
 	optionLink := commands.NewCommandOption("url", "Link to audio file").AsString().Required().Finalize()
 	commands.PrepareCommand("mp3", "Play file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
