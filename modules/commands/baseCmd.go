@@ -397,6 +397,11 @@ func Init(_ *discordgo.Session) {
 				updating = false
 			}()
 		}
+	} else {
+		f, _ := os.OpenFile("lastUpdate", os.O_WRONLY|os.O_CREATE, 0)
+		if f != nil {
+			f.Close()
+		}
 	}
 	saverVersion++
 	go saverLoop()

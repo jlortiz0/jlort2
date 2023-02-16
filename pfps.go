@@ -39,7 +39,6 @@ func updatePfp(self *discordgo.Session) {
 	rd := bufio.NewReader(f)
 	stat, err := os.Stat("lastUpdate")
 	if err != nil {
-		log.Error(err)
 		return
 	}
 	ts := time.Now()
