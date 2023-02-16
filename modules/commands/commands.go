@@ -40,15 +40,13 @@ type Context struct {
 	Bot        *discordgo.Session
 	Me         *discordgo.User
 	State      *discordgo.State
-	hasDelayed int
+	hasDelayed bool
 }
 
 // Send a message to the channel where the command was invoked.
 func (ctx Context) Respond(msg string) error {
-	if ctx.hasDelayed == 1 {
+	if ctx.hasDelayed {
 		return ctx.RespondEdit(msg)
-	} else if ctx.hasDelayed != 0 {
-		ctx.Bot.InteractionResponseDelete(ctx.Interaction)
 	}
 	resp := new(discordgo.InteractionResponse)
 	resp.Type = discordgo.InteractionResponseChannelMessageWithSource
@@ -62,9 +60,7 @@ func (ctx Context) Respond(msg string) error {
 }
 
 func (ctx Context) RespondPrivate(msg string) error {
-	if ctx.hasDelayed == 1 {
-		ctx.Bot.InteractionResponseDelete(ctx.Interaction)
-	} else if ctx.hasDelayed != 0 {
+	if ctx.hasDelayed {
 		return ctx.RespondEdit(msg)
 	}
 	resp := new(discordgo.InteractionResponse)
@@ -80,15 +76,8 @@ func (ctx Context) RespondPrivate(msg string) error {
 }
 
 func (ctx Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
-	if ctx.hasDelayed != 0 {
-		temp := ctx.hasDelayed ^ 1
-		if private {
-			temp ^= (1 << 6)
-		}
-		if temp == 0 {
-			return ctx.RespondEditEmbed(embed)
-		}
-		ctx.Bot.InteractionResponseDelete(ctx.Interaction)
+	if ctx.hasDelayed {
+		return ctx.RespondEditEmbed(embed)
 	}
 	resp := new(discordgo.InteractionResponse)
 	resp.Type = discordgo.InteractionResponseChannelMessageWithSource
@@ -105,15 +94,8 @@ func (ctx Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) err
 }
 
 func (ctx *Context) RespondDelayed(private bool) error {
-	if ctx.hasDelayed != 0 {
-		temp := ctx.hasDelayed ^ 1
-		if private {
-			temp ^= (1 << 6)
-		}
-		if temp == 0 {
-			return nil
-		}
-		ctx.Bot.InteractionResponseDelete(ctx.Interaction)
+	if ctx.hasDelayed {
+		return nil
 	}
 	resp := new(discordgo.InteractionResponse)
 	resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
@@ -125,7 +107,7 @@ func (ctx *Context) RespondDelayed(private bool) error {
 	if err != nil {
 		err = fmt.Errorf("failed to send response: %w", err)
 	} else {
-		ctx.hasDelayed = int(resp.Data.Flags | 1)
+		ctx.hasDelayed = true
 	}
 	return err
 }
@@ -151,7 +133,7 @@ func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 }
 
 func (ctx Context) RespondEmpty() error {
-	if ctx.hasDelayed == 0 {
+	if !ctx.hasDelayed {
 		resp := new(discordgo.InteractionResponse)
 		resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
 		resp.Data = new(discordgo.InteractionResponseData)

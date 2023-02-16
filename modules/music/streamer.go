@@ -226,7 +226,7 @@ func play(ctx commands.Context) error {
 	if vc == nil {
 		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
-	ctx.RespondDelayed(false)
+	ctx.RespondDelayed(true)
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
 		source = source[:strings.IndexByte(source, '?')]
@@ -306,6 +306,10 @@ func play(ctx commands.Context) error {
 	}
 	ls.Unlock()
 	embed := buildMusEmbed(data, np, authorName)
+	// If the RespondDelayed above is changed back to true, uncomment this
+	// _, err = ctx.Bot.FollowupMessageCreate(ctx.Interaction, false, &discordgo.WebhookParams{Embeds: []*discordgo.MessageEmbed{embed}})
+	// ctx.Bot.InteractionResponseDelete(ctx.Interaction)
+	// return err
 	return ctx.RespondEditEmbed(embed)
 }
 
