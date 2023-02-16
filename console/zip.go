@@ -79,7 +79,7 @@ func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
 		lastMsg = toProc[0].ID
 		for i := len(toProc) - 1; i >= 0; i-- {
 			v := toProc[i]
-			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
+			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply && v.Type != discordgo.MessageTypeChatInputCommand && v.Type != discordgo.MessageTypeContextMenuCommand {
 				continue
 			}
 			if v.Content == "" && len(v.Attachments) == 0 && len(v.Embeds) == 0 {

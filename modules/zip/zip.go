@@ -109,7 +109,7 @@ func chatlog(ctx commands.Context, args []string) error {
 		lastMsg = toProc[0].ID
 		for i := len(toProc) - 1; i >= 0; i-- {
 			v := toProc[i]
-			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply {
+			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply && v.Type != discordgo.MessageTypeChatInputCommand && v.Type != discordgo.MessageTypeContextMenuCommand {
 				continue
 			}
 			if v.ID == ctx.Message.ID {
