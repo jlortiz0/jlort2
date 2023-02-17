@@ -1,5 +1,5 @@
 persistent/*
-persistent.db
+persistent.*
 lastUpdate
 key.txt
 console/key.txt

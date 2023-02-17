@@ -22,6 +22,7 @@ func setupHelper(b *testing.B) *sql.DB {
 	}
 	db, err := sql.Open("sqlite3", "persistent2.db")
 	checkFatal(err)
+	db.Exec("pragma journal_mode = WAL; pragma synchronous = off; pragma mmap_size = 4194304;")
 	return db
 }
 

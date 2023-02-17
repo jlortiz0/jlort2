@@ -370,6 +370,7 @@ func Init(_ *discordgo.Session) {
 		log.Error(err)
 		return
 	}
+	db.Exec("pragma journal_mode = WAL; pragma synchronous = normal; pragma mmap_size = 4194304;")
 	RegisterCommand(help, "help")
 	RegisterCommand(echo, "echo")
 	RegisterCommand(purge, "purge")

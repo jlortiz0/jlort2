@@ -285,7 +285,12 @@ func Init(self *discordgo.Session) {
 	}
 	snowflake := uint64(time.Now().AddDate(0, 0, -4).UnixMilli()) - 1420070400000
 	snowflake <<= 22
-	db.Exec(`
+	tx, err := db.Begin()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	tx.Exec(`
 	UPDATE kekUsers SET score = score + m.total FROM (
 		SELECT uid, SUM(score) total FROM kekMsgs
 		WHERE mid < ?001
@@ -293,12 +298,13 @@ func Init(self *discordgo.Session) {
 	) m WHERE m.uid = kekUsers.uid;
 	DELETE FROM kekMsgs WHERE mid < ?001;
 	`, snowflake, snowflake)
+	tx.Commit()
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0;")
+	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0;")
 	queryKekEnabled.Close()
 	setKekMsg1.Close()
 	setKekMsg2.Close()
