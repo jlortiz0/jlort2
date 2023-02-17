@@ -16,22 +16,6 @@ func BenchmarkKekGuilds(b *testing.B) {
 	})
 }
 
-func BenchmarkKekInsert2(b *testing.B) {
-	db := setupHelper(b)
-	defer db.Close()
-	db.Exec("INSERT OR REPLACE INTO kekUsers (uid) VALUES (?);", 300)
-	db.Exec("DELETE FROM kekMsgs WHERE uid = ?;", 300)
-	stmt, err := db.Prepare("INSERT INTO kekMsgs2 (uid, mid, score) VALUES (?001, ?002, ?003) ON CONFLICT DO UPDATE SET score=excluded.score;")
-	checkFatal(err)
-	defer stmt.Close()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			_, err := stmt.Exec(300, 1, 2)
-			checkFatal(err)
-		}
-	})
-}
-
 func BenchmarkKekInsert(b *testing.B) {
 	db := setupHelper(b)
 	defer db.Close()
@@ -40,6 +24,24 @@ func BenchmarkKekInsert(b *testing.B) {
 	stmt, err := db.Prepare("INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003) ON CONFLICT DO UPDATE SET score=excluded.score;")
 	checkFatal(err)
 	defer stmt.Close()
+	stmt.Exec(300, 1, 2)
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			_, err := stmt.Exec(300, 1, 2)
+			checkFatal(err)
+		}
+	})
+}
+
+func BenchmarkKekInsert2(b *testing.B) {
+	db := setupHelper(b)
+	defer db.Close()
+	db.Exec("INSERT OR REPLACE INTO kekUsers (uid) VALUES (?);", 300)
+	db.Exec("DELETE FROM kekMsgs2 WHERE uid = ?;", 300)
+	stmt, err := db.Prepare("INSERT INTO kekMsgs2 (uid, mid, score) VALUES (?001, ?002, ?003) ON CONFLICT DO UPDATE SET score=excluded.score;")
+	checkFatal(err)
+	defer stmt.Close()
+	stmt.Exec(300, 1, 2)
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			_, err := stmt.Exec(300, 1, 2)

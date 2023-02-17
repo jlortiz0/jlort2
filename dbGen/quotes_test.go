@@ -25,7 +25,7 @@ func setupHelper(b *testing.B) *sql.DB {
 	return db
 }
 
-func BenchmarkQuotes(b *testing.B) {
+func BenchmarkQuotesRead(b *testing.B) {
 	db := setupHelper(b)
 	defer db.Close()
 	stmt, err := db.Prepare("SELECT COUNT(*) FROM quotes WHERE gid=?001;")
@@ -57,8 +57,12 @@ func BenchmarkQuotes(b *testing.B) {
 			}
 		})
 	})
-	stmt.Close()
-	stmt, err = db.Prepare("INSERT INTO quotes (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes WHERE gid=?001;")
+}
+
+func BenchmarkQuotesWrite(b *testing.B) {
+	db := setupHelper(b)
+	defer db.Close()
+	stmt, err := db.Prepare("INSERT INTO quotes (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes WHERE gid=?001;")
 	checkFatal(err)
 	defer stmt.Close()
 	b.Run("BenchmarkQuotesInsert", func(b *testing.B) {
@@ -72,6 +76,7 @@ func BenchmarkQuotes(b *testing.B) {
 		})
 	})
 	stmt.Close()
+	db.Exec("DELETE FROM quotes WHERE gid=?001 AND ind > ?002;", 1234, 10)
 	stmt, err = db.Prepare("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002 ORDER BY ind ASC;")
 	checkFatal(err)
 	defer stmt.Close()
@@ -93,14 +98,14 @@ func BenchmarkQuotes(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				tx.Commit()
+				tx.Rollback()
 			}
 		})
 	})
 	db.Exec("DELETE FROM quotes WHERE gid = ?001;", 1234)
 }
 
-func BenchmarkQuotes2(b *testing.B) {
+func BenchmarkQuotesRead2(b *testing.B) {
 	db := setupHelper(b)
 	defer db.Close()
 	stmt, err := db.Prepare("SELECT COUNT(*) FROM quotes2 WHERE gid=?001;")
@@ -132,8 +137,12 @@ func BenchmarkQuotes2(b *testing.B) {
 			}
 		})
 	})
-	stmt.Close()
-	stmt, err = db.Prepare("INSERT INTO quotes2 (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes2 WHERE gid=?001;")
+}
+
+func BenchmarkQuotesWrite2(b *testing.B) {
+	db := setupHelper(b)
+	defer db.Close()
+	stmt, err := db.Prepare("INSERT INTO quotes2 (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes2 WHERE gid=?001;")
 	checkFatal(err)
 	defer stmt.Close()
 	b.Run("BenchmarkQuotesInsert", func(b *testing.B) {
@@ -147,6 +156,7 @@ func BenchmarkQuotes2(b *testing.B) {
 		})
 	})
 	stmt.Close()
+	db.Exec("DELETE FROM quotes2 WHERE gid=?001 AND ind > ?002;", 1234, 10)
 	stmt, err = db.Prepare("INSERT OR REPLACE INTO quotes2 SELECT ?001, ind - 1, quote FROM quotes2 WHERE gid=?001 AND ind > ?002 ORDER BY ind ASC;")
 	checkFatal(err)
 	defer stmt.Close()
@@ -168,7 +178,7 @@ func BenchmarkQuotes2(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				tx.Commit()
+				tx.Rollback()
 			}
 		})
 	})

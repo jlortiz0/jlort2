@@ -109,7 +109,7 @@ func main() {
 
 	db.Exec("CREATE TABLE kekGuilds (gid UNSIGNED BIGINT PRIMARY KEY);")
 	db.Exec("CREATE TABLE kekUsers (uid UNSIGNED BIGINT PRIMARY KEY, score INTEGER DEFAULT 0 NOT NULL);")
-	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid)) WITHOUT ROWID;")
+	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid));")
 	data, err = os.ReadFile("kek")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
