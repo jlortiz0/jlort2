@@ -178,6 +178,7 @@ func dc(ctx commands.Context, _ []string) error {
 
 // ~!dj [@role]
 // @GuildOnly
+// @ManageServer
 // See or change the DJ role
 // People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.

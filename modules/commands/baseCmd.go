@@ -145,6 +145,7 @@ func purge(ctx Context, args []string) error {
 
 // ~!ppurge [prefix]
 // @GuildOnly
+// @ManageMessages
 // Delete messages by prefix
 // If not specified, the prefix is assumed to be ~!
 // You need Manage Messages to use this command.

@@ -22,7 +22,7 @@ func checkFatal(e error) {
 //     asciiz alias
 // asciiz doc
 type CmdDoc struct {
-	Flags   byte // 1 GuildOnly, 2 Hidden, 4 NSFW
+	Flags   byte // 1 GuildOnly, 2 Hidden, 4 NSFW, 8 ManageMessages, 16 ManageServer
 	Header  string
 	Aliases []string
 	Doc     string
@@ -61,6 +61,10 @@ Outer:
 				doc.Flags |= 2
 			} else if txt == "NSFW" {
 				doc.Flags |= 4
+			} else if txt == "ManageMessages" {
+				doc.Flags |= 8
+			} else if txt == "ManageServer" {
+				doc.Flags |= 16
 			} else if strings.HasPrefix(txt, "Alias") {
 				doc.Aliases = append(doc.Aliases, txt[6:])
 			}
