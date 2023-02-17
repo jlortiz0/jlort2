@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -21,7 +20,7 @@ func checkFatal(err error) {
 func main() {
 	cwd, err := os.Getwd()
 	checkFatal(err)
-	if strings.HasSuffix(cwd, "misc") {
+	if strings.HasSuffix(cwd, "dbGen") {
 		checkFatal(os.Chdir(".."))
 	}
 	os.Chdir("persistent")
@@ -86,48 +85,6 @@ func main() {
 		fmt.Println("inserted dj")
 	}
 
-	db.Exec("CREATE TABLE songAlias (gid UNSIGNED BIGINT, key VARCHAR(32), value VARCHAR(128) NOT NULL, PRIMARY KEY(gid, key)) WITHOUT ROWID;")
-	data, err = os.ReadFile("song")
-	if err != nil && !os.IsNotExist(err) {
-		panic(err)
-	} else if err == nil {
-		var vaChannels map[string]map[string]string
-		checkFatal(json.Unmarshal(data, &vaChannels))
-		fmt.Println("read song")
-		stmt, _ := db.Prepare("INSERT INTO songAlias VALUES (?, ?, ?);")
-		for gid, sm := range vaChannels {
-			gint, _ := strconv.ParseInt(gid, 10, 64)
-			for k, v := range sm {
-				if v == "" || k == "" {
-					continue
-				}
-				stmt.Exec(gint, k, v)
-			}
-		}
-		stmt.Close()
-		fmt.Println("inserted song")
-	}
-
-	db.Exec("CREATE TABLE brit (uid UNSIGNED BIGINT PRIMARY KEY, score TINYINT NOT NULL DEFAULT 50);")
-	data, err = os.ReadFile("brit")
-	if err != nil && !os.IsNotExist(err) {
-		panic(err)
-	} else if err == nil {
-		var vaChannels map[string]int
-		checkFatal(json.Unmarshal(data, &vaChannels))
-		fmt.Println("read brit")
-		stmt, _ := db.Prepare("INSERT INTO brit VALUES (?, ?);")
-		for k, v := range vaChannels {
-			if v == 50 || k == "" {
-				continue
-			}
-			k2, _ := strconv.ParseInt(k, 10, 64)
-			stmt.Exec(k2, v)
-		}
-		stmt.Close()
-		fmt.Println("inserted brit")
-	}
-
 	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER CHECK, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind)) WITHOUT ROWID;")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {
@@ -148,44 +105,6 @@ func main() {
 		}
 		stmt.Close()
 		fmt.Println("inserted quotes")
-	}
-
-	db.Exec("CREATE TABLE gachaPlayer (uid UNSIGNED BIGINT PRIMARY KEY, tokens UNSIGNED INTEGER DEFAULT 0 NOT NULL, nextPull TIMESTAMP);")
-	db.Exec("CREATE TABLE gachaItems (uid UNSIGNED BIGINT REFERENCES gachaPlayer, itemId UNSIGNED INTEGER, count UNSIGNED INTEGER NOT NULL, PRIMARY KEY(uid, itemId)) WITHOUT ROWID;")
-	data, err = os.ReadFile("gacha")
-	if err != nil && !os.IsNotExist(err) {
-		panic(err)
-	} else if err == nil {
-		var vaChannels map[string]struct {
-			Items  map[string]int
-			Tokens int
-			Wait   time.Time
-		}
-		checkFatal(json.Unmarshal(data, &vaChannels))
-		fmt.Println("read gacha")
-		stmt, _ := db.Prepare("INSERT INTO gachaPlayer VALUES (?, ?, ?);")
-		stmt2, _ := db.Prepare("INSERT INTO gachaItems VALUES (?, ?, ?);")
-		for k, v := range vaChannels {
-			if k == "" {
-				continue
-			}
-			k2, _ := strconv.ParseInt(k, 10, 64)
-			if v.Wait.IsZero() {
-				stmt.Exec(k2, v.Tokens, nil)
-			} else {
-				stmt.Exec(k2, v.Tokens, v.Wait)
-			}
-			for i, s := range v.Items {
-				if s <= 0 {
-					continue
-				}
-				i2, _ := strconv.ParseInt(i, 10, 32)
-				stmt2.Exec(k2, i2, s)
-			}
-		}
-		stmt.Close()
-		stmt2.Close()
-		fmt.Println("inserted gacha")
 	}
 
 	db.Exec("CREATE TABLE kekGuilds (gid UNSIGNED BIGINT PRIMARY KEY);")

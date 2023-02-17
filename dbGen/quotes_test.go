@@ -17,7 +17,7 @@ func setupHelper(b *testing.B) *sql.DB {
 	b.Helper()
 	cwd, err := os.Getwd()
 	checkFatal(err)
-	if strings.HasSuffix(cwd, "misc") {
+	if strings.HasSuffix(cwd, "dbGen") {
 		checkFatal(os.Chdir(".."))
 	}
 	db, err := sql.Open("sqlite3", "persistent2.db")
