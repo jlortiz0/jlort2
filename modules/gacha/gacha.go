@@ -65,12 +65,22 @@ func pull(ctx commands.Context, args []string) error {
 	} else {
 		nextPull = time.Now().Add(24 * time.Hour)
 	}
-	ctx.Database.Exec(`
-	INSERT OR REPLACE INTO gachaPlayer (uid, tokens, nextPull) VALUES (?001, ?002, ?003);
-	INSERT INTO gachaItems (uid, itemId, count) VALUES (?001, ?004, 1)
-	ON CONFLICT DO SET count = count + 1;
-	`, uid, tokens, nextPull, choice)
-	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec("INSERT OR REPLACE INTO gachaPlayer (uid, tokens, nextPull) VALUES (?001, ?002, ?003);", uid, tokens, nextPull)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	_, err = tx.Exec("INSERT INTO gachaItems (uid, itemId, count) VALUES (?001, ?004, 1) ON CONFLICT DO UPDATE SET count = count + 1;", uid, choice)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
 	return err
 }
 
