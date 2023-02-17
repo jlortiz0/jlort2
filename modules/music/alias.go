@@ -132,17 +132,18 @@ func delsong(ctx commands.Context, args []string) error {
 			return ctx.Send("You need the Manage Server permission to clear all aliases.")
 		}
 		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-		commands.GetDatabase().Exec("DELETE FROM songAlias WHERE gid = ?001;", gid)
+		ctx.Database.Exec("DELETE FROM songAlias WHERE gid = ?001;", gid)
 		return ctx.Send("All aliases deleted.")
 	}
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM songAlias WHERE gid = ?001 AND key = ?002;", gid, args[0])
+	ctx.Database.Exec("DELETE FROM songAlias WHERE gid = ?001 AND key = ?002;", gid, args[0])
 	return ctx.Send("Alias deleted.")
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
 	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001; DELETE FROM songAlias WHERE gid = ?001;", gid)
+	commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
+	commands.GetDatabase().Exec("DELETE FROM songAlias WHERE gid = ?001;", gid)
 	v := streams[event.ID]
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value

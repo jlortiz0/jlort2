@@ -40,15 +40,19 @@ func quote(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {
 		return ctx.Send("This command only works in servers.")
 	}
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	result := queryGetLen.QueryRow(gid)
+	result := tx.Stmt(queryGetLen).QueryRow(gid)
 	var total int
 	result.Scan(&total)
 	if total == 0 {
 		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
 	}
 	var sel int
-	var err error
 	if len(args) > 0 {
 		sel, err = strconv.Atoi(args[0])
 		if err != nil {
@@ -60,7 +64,7 @@ func quote(ctx commands.Context, args []string) error {
 	} else {
 		sel = rand.Intn(total) + 1
 	}
-	result = queryGetInd.QueryRow(gid, sel)
+	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
 	var q string
 	result.Scan(&q)
 	return ctx.Send(fmt.Sprintf("%d. %s", sel, q))
@@ -74,11 +78,21 @@ func quotes(ctx commands.Context, _ []string) error {
 		return ctx.Send("This command only works in servers.")
 	}
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	results, err := ctx.Database.Query("SELECT ind, quote FROM quotes WHERE gid=?001;", gid)
+	results, err := ctx.Database.Query("SELECT ind, quote FROM quotes WHERE gid=?001 ORDER BY ind;", gid)
 	if err != nil {
 		return err
 	}
-	if !results.Next() {
+	builder := new(strings.Builder)
+	var i int
+	var v string
+	for results.Next() {
+		results.Scan(&i, &v)
+		builder.WriteString(strconv.Itoa(i))
+		builder.WriteString(". ")
+		builder.WriteString(v)
+		builder.WriteByte('\n')
+	}
+	if builder.Len() == 0 {
 		return ctx.Send("There are no quotes. Use ~!addquote to add some.")
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
@@ -87,19 +101,6 @@ func quotes(ctx commands.Context, _ []string) error {
 	}
 	output := new(discordgo.MessageEmbed)
 	output.Title = "Quotes from " + guild.Name
-	builder := new(strings.Builder)
-	var i int
-	var v string
-	for {
-		results.Scan(&i, &v)
-		builder.WriteString(strconv.Itoa(i))
-		builder.WriteString(". ")
-		builder.WriteString(v)
-		builder.WriteByte('\n')
-		if !results.Next() {
-			break
-		}
-	}
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
 	_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, output)
@@ -172,7 +173,7 @@ func delquote(ctx commands.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002;", gid, sel)
+	_, err = tx.Exec("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002 ORDER BY ind ASC;", gid, sel)
 	if err != nil {
 		tx.Rollback()
 		return err

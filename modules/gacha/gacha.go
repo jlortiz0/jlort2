@@ -101,7 +101,7 @@ func relics(ctx commands.Context, args []string) error {
 		defer tx.Commit()
 		row := tx.QueryRow("SELECT COUNT(*) FROM gachaItems WHERE uid=?001;", uid)
 		row.Scan(&total)
-		results, err := tx.Query("SELECT itemId, count FROM gachaItems WHERE uid=?001 ORDER BY itemId LIMIT 100 OFFSET ?002 * 20;", uid, page-1)
+		results, err := tx.Query("SELECT itemId, count FROM gachaItems WHERE uid=?001 AND count > 0 ORDER BY itemId LIMIT 100 OFFSET ?002 * 20;", uid, page-1)
 		if err != nil {
 			return err
 		}
@@ -117,9 +117,7 @@ func relics(ctx commands.Context, args []string) error {
 		for i < 20 {
 			i++
 			results.Scan(&itemId, &count)
-			if count != 0 {
-				output.WriteString(fmt.Sprintf("%s (%s) x%d\n", gachaItems[itemId][0], gachaItems[itemId][3], count))
-			}
+			output.WriteString(fmt.Sprintf("%s (%s) x%d\n", gachaItems[itemId][0], gachaItems[itemId][3], count))
 			if !results.Next() {
 				break
 			}
@@ -147,19 +145,21 @@ func relics(ctx commands.Context, args []string) error {
 		if len(args) > 2 {
 			var err error
 			count, err = strconv.ParseUint(args[2], 10, 16)
-			if err != nil {
+			if err != nil || count == 0 {
 				return ctx.Send("Unable to parse count")
 			}
 		}
 		uid, _ := strconv.ParseUint(ctx.Author.ID, 10, 64)
-		results := queryGetItem.QueryRow(uid, id)
-		var total uint
-		if results.Scan(&total) != nil || uint(count) > total {
-			return ctx.Send("You are trying to sell more than you have.")
-		}
 		tx, err := ctx.Database.Begin()
 		if err != nil {
 			return err
+		}
+		results := tx.Stmt(queryGetItem).QueryRow(uid, id)
+		var total uint
+		results.Scan(&total)
+		if uint(count) > total {
+			tx.Rollback()
+			return ctx.Send("You are trying to sell more than you have.")
 		}
 		defer tx.Commit()
 		tx.Exec("UPDATE gachaItems SET count = count - ?003 WHERE uid=?001 AND itemID=?002;", uid, id, count)
