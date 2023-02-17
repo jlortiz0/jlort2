@@ -86,7 +86,7 @@ func main() {
 		fmt.Println("inserted dj")
 	}
 
-	db.Exec("CREATE TABLE songAlias (gid UNSIGNED BIGINT, key VARCHAR(32), value VARCHAR(128) NOT NULL, PRIMARY KEY(gid, key));")
+	db.Exec("CREATE TABLE songAlias (gid UNSIGNED BIGINT, key VARCHAR(32), value VARCHAR(128) NOT NULL, PRIMARY KEY(gid, key)) WITHOUT ROWID;")
 	data, err = os.ReadFile("song")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -128,7 +128,7 @@ func main() {
 		fmt.Println("inserted brit")
 	}
 
-	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind));")
+	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER CHECK, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind)) WITHOUT ROWID;")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -151,7 +151,7 @@ func main() {
 	}
 
 	db.Exec("CREATE TABLE gachaPlayer (uid UNSIGNED BIGINT PRIMARY KEY, tokens UNSIGNED INTEGER DEFAULT 0 NOT NULL, nextPull TIMESTAMP);")
-	db.Exec("CREATE TABLE gachaItems (uid UNSIGNED BIGINT REFERENCES gachaPlayer, itemId UNSIGNED INTEGER, count UNSIGNED INTEGER NOT NULL, PRIMARY KEY(uid, itemId));")
+	db.Exec("CREATE TABLE gachaItems (uid UNSIGNED BIGINT REFERENCES gachaPlayer, itemId UNSIGNED INTEGER, count UNSIGNED INTEGER NOT NULL, PRIMARY KEY(uid, itemId)) WITHOUT ROWID;")
 	data, err = os.ReadFile("gacha")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -190,7 +190,7 @@ func main() {
 
 	db.Exec("CREATE TABLE kekGuilds (gid UNSIGNED BIGINT PRIMARY KEY);")
 	db.Exec("CREATE TABLE kekUsers (uid UNSIGNED BIGINT PRIMARY KEY, score INTEGER DEFAULT 0 NOT NULL);")
-	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid));")
+	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid)) WITHOUT ROWID;")
 	data, err = os.ReadFile("kek")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
