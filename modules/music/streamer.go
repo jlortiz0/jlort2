@@ -478,8 +478,8 @@ func popcorn(ctx commands.Context, _ []string) error {
 
 // ~!outro <name>
 // @GuildOnly
-// Plays an unskippable outro, then disconnects.
-// Only works if nothing else is playing.
+// Leave the call with style
+// Only works if nothing else is playing
 // For a list of outros, do ~!outro list
 func outro(ctx commands.Context, args []string) error {
 	if ctx.GuildID == "" {

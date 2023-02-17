@@ -108,7 +108,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 
 // ~!vachan [#channel]
 // @GuildOnly
-// Allows you to see or change the channel where voice joins will be announced.
+// Change voice join announcements
 // Only people with the Manage Server permission can change the voice announcement channel.
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.

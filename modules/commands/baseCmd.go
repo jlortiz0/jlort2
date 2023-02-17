@@ -400,18 +400,6 @@ func roll(ctx Context, args []string) error {
 	return ctx.Send("Rolled " + strconv.Itoa(total))
 }
 
-var ballresp = [...]string{"Yes", "No", "Maybe so", "Hell yes", "Hell no", "Get back to me when jlort jlort 3 comes out", "Not until you get negative kek", "Of course", "Go to jail, go directly... oh, wrong game.", "When I learn to talk, I'll tell you", "Turn around.", "You? HAHAHAHAHA no", "aaa eee ooo", "500 Internal Server Error", "404 Possibility Not Found", "302 Possibility Found"}
-
-// ~!8ball <thing>
-// Ask the magic 8 ball a serious question, and get a stupid answer.
-// No, really. This one hates your guts. And my guts.
-func eightball(ctx Context, args []string) error {
-	if len(args) == 0 {
-		return ctx.Send("Come on, ask me something.")
-	}
-	return ctx.Send(ballresp[rand.Intn(len(ballresp))])
-}
-
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the command map. This means that calling commands. Init will unregister any existing commands.
 func Init(_ *discordgo.Session) {
@@ -435,7 +423,6 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(avatar, "_avatar")
 	RegisterCommand(flip, "flip")
 	RegisterCommand(roll, "roll")
-	RegisterCommand(eightball, "8ball")
 	if runtime.GOOS != "windows" && gsmServerID != "" {
 		RegisterCommand(gsm, "gsm")
 	}
