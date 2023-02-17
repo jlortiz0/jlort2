@@ -80,6 +80,7 @@ var lastPlayed map[string]time.Time
 var djRoles map[string]string
 var streamLock *sync.RWMutex = new(sync.RWMutex)
 var djLock *sync.RWMutex = new(sync.RWMutex)
+var dirty bool
 
 const dcTimeout time.Duration = time.Minute * -10
 const eggTimeout time.Duration = time.Minute * -8
@@ -177,6 +178,7 @@ func dc(ctx commands.Context, _ []string) error {
 
 // ~!dj [@role]
 // @GuildOnly
+// @ManageServer
 // See or change the DJ role
 // People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.
@@ -483,17 +485,25 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 	}
 }
 
+func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
+	djLock.Lock()
+	delete(djRoles, event.ID)
+	djLock.Unlock()
+	dirty = true
+	v := streams[event.ID]
+	if v != nil && v.Len() != 0 {
+		obj := v.Head().Value
+		obj.Stop <- struct{}{}
+	}
+	delete(streams, event.ID)
+}
+
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // In addition to commands, this function creates two GuildID -> data maps, loads the song aliases from disk, and starts the stream popper thread.
 func Init(self *discordgo.Session) {
 	streams = make(map[string]*lockQueue)
 	lastPlayed = make(map[string]time.Time)
-	err := commands.LoadPersistent("song", &aliases)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	err = commands.LoadPersistent("dj", &djRoles)
+	err := commands.LoadPersistent("dj", &djRoles)
 	if err != nil {
 		log.Error(err)
 		return
@@ -519,11 +529,6 @@ func Init(self *discordgo.Session) {
 	commands.RegisterCommand(np, "np")
 	commands.RegisterCommand(np, "playing")
 	commands.RegisterCommand(queue, "queue")
-	commands.RegisterCommand(song, "song")
-	commands.RegisterCommand(addsong, "addsong")
-	commands.RegisterCommand(delsong, "delsong")
-	commands.RegisterCommand(delsong, "removesong")
-	commands.RegisterCommand(delsong, "rmsong")
 	commands.RegisterCommand(vol, "vol")
 	commands.RegisterCommand(seek, "seek")
 	commands.RegisterCommand(popcorn, "popcorn")
@@ -539,14 +544,8 @@ func saveData() error {
 	if !dirty {
 		return nil
 	}
-	aliasLock.RLock()
-	err := commands.SavePersistent("song", &aliases)
-	aliasLock.RUnlock()
-	if err != nil {
-		return err
-	}
 	djLock.RLock()
-	err = commands.SavePersistent("dj", &djRoles)
+	err := commands.SavePersistent("dj", &djRoles)
 	if err == nil {
 		dirty = false
 	}

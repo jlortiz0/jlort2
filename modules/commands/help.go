@@ -55,14 +55,20 @@ func help(ctx Context, args []string) error {
 	if len(args) == 0 {
 		builder := new(strings.Builder)
 		names := make([]string, 0, len(helpMap))
+		perms, _ := ctx.State.MessagePermissions(ctx.Message)
 		for k, v := range helpMap {
 			if v.Flags&1 != 0 && ctx.GuildID == "" {
 				continue
 			} else if v.Flags&6 != 0 {
 				continue
-			} else if v.Name == k {
-				names = append(names, k)
+			} else if v.Name != k {
+				continue
+			} else if v.Flags&8 != 0 && perms&discordgo.PermissionManageMessages == 0 {
+				continue
+			} else if v.Flags&16 != 0 && perms&discordgo.PermissionManageServer == 0 {
+				continue
 			}
+			names = append(names, k)
 		}
 		sort.Strings(names)
 		builder.WriteString("```  -- jlort jlort 2 commands --\n\n")
