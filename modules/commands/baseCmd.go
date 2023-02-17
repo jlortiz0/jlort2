@@ -465,6 +465,7 @@ func Init(_ *discordgo.Session) {
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 func Cleanup(_ *discordgo.Session) {
+	db.Exec("PRAGMA optimize;")
 	err := db.Close()
 	if err != nil {
 		log.Error(err)
