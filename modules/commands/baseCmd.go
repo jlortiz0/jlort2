@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package commands
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/mattn/go-sqlite3"
 	"jlortiz.org/jlort2/modules/log"
 )
 
@@ -411,6 +413,12 @@ func Init(_ *discordgo.Session) {
 		log.Error(err)
 		return
 	}
+	db, err = sql.Open("sqlite3", "persistent.db")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	db.Exec("pragma journal_mode = WAL; pragma synchronous = normal; pragma mmap_size = 4194304;")
 	RegisterCommand(help, "help")
 	RegisterCommand(echo, "echo")
 	RegisterCommand(purge, "purge")
@@ -453,11 +461,12 @@ func Init(_ *discordgo.Session) {
 			f.Close()
 		}
 	}
-	saverVersion++
-	go saverLoop()
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 func Cleanup(_ *discordgo.Session) {
-	savers = nil
+	err := db.Close()
+	if err != nil {
+		log.Error(err)
+	}
 }

@@ -1,4 +1,5 @@
 persistent/*
+persistent.*
 lastUpdate
 key.txt
 console/key.txt
@@ -13,3 +14,4 @@ misc/ageList.go.bak
 *.zip
 *.exe
 logs/*
+.vscode/**

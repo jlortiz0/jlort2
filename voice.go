@@ -18,7 +18,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,10 +32,8 @@ import (
 
 var voiceCooldown map[string]time.Time = make(map[string]time.Time)
 var voicePrevious map[string]string = make(map[string]string)
-var voiceAnnounce map[string]string
-var dirty bool
+var voiceStatement *sql.Stmt
 var voiceStateLock *sync.Mutex = new(sync.Mutex)
-var voiceSettingLock *sync.RWMutex = new(sync.RWMutex)
 
 const plusd = 3 * time.Second
 
@@ -68,11 +68,15 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		log.Error(fmt.Errorf("failed to get voice guild: %w", err))
 		return
 	}
-	voiceSettingLock.RLock()
-	output, ok := voiceAnnounce[event.GuildID]
-	voiceSettingLock.RUnlock()
+	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
+	row := voiceStatement.QueryRow(gid)
+	var output string
+	err = row.Scan(&output)
+	if err != nil {
+		return
+	}
 	_, err = self.State.GuildChannel(event.GuildID, output)
-	if !ok || err != nil {
+	if err != nil {
 		return
 	}
 	displayname := commands.DisplayName(mem)
@@ -124,11 +128,9 @@ func vachan(ctx commands.Context, args []string) error {
 		if perms&discordgo.PermissionManageServer == 0 {
 			return ctx.Send("You need the Manage Server permission to change this setting.")
 		}
-		voiceSettingLock.Lock()
-		defer voiceSettingLock.Unlock()
 		if strings.ToLower(args[0]) == "none" {
-			delete(voiceAnnounce, ctx.GuildID)
-			dirty = true
+			gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+			ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", gid)
 			return ctx.Send("Voice announcements disabled.")
 		}
 		if !strings.HasPrefix(args[0], "<#") || args[0][len(args[0])-1] != '>' {
@@ -138,17 +140,22 @@ func vachan(ctx commands.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		voiceAnnounce[ctx.GuildID] = ch.ID
-		dirty = true
+		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+		cid, _ := strconv.ParseUint(ch.ID, 10, 64)
+		ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, cid)
 		err = ctx.Send("Voice joins will be announced in " + ch.Name)
 		return err
 	}
-	chID, ok := voiceAnnounce[ctx.GuildID]
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	row := voiceStatement.QueryRow(gid)
+	var chID string
+	err := row.Scan(&chID)
+	if err == nil {
+		return ctx.Send("Voice announcements are disabled on this server")
+	}
 	ch, err := ctx.State.Channel(chID)
-	if !ok || err != nil {
-		if ok && err != nil {
-			log.Error(err)
-		}
+	if err != nil {
+		log.Error(err)
 		return ctx.Send("Voice announcements are disabled on this server")
 	}
 	return ctx.Send("Voice joins are announced in " + ch.Name)
@@ -180,17 +187,4 @@ func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 			return
 		}
 	}
-}
-
-func saveVoice() error {
-	if !dirty {
-		return nil
-	}
-	voiceSettingLock.RLock()
-	err := commands.SavePersistent("vachan", &voiceAnnounce)
-	if err == nil {
-		dirty = false
-	}
-	voiceSettingLock.RUnlock()
-	return err
 }

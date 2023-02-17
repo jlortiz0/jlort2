@@ -38,15 +38,15 @@ func initModules(self *discordgo.Session) {
 	log.Info("Loaded zip")
 	music.Init(self)
 	log.Info("Loaded music")
+	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?;")
 	commands.RegisterCommand(vachan, "vachan")
-	commands.RegisterSaver(saveVoice)
 }
 
 func cleanup(self *discordgo.Session) {
-	commands.Cleanup(self)
-	quotes.Cleanup(self)
-	kek.Cleanup(self)
-	zip.Cleanup(self)
+	voiceStatement.Close()
 	music.Cleanup(self)
-	saveVoice()
+	zip.Cleanup(self)
+	kek.Cleanup(self)
+	quotes.Cleanup(self)
+	commands.Cleanup(self)
 }
