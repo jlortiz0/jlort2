@@ -16,7 +16,7 @@ Then the codebase stagnated for a while. But maybe I'll come up with something s
 
 This program relies on some files existing before it can run. You must create a file called `key.txt` containing the bot key. This file should not have a trailing newline.
 
-Additionally, most modules require an existing persistent storage file before they will work. The names and structures required in the files can be determined by looking at the globals and initialization functions for each module.
+Additionally, the bot requires a database file to function properly. A creation script for this file can be found in `dbGen/dbGen.go`. If you have existing persistent data for an older version of the bot, the script will migrate it.
 
 The program requires a help file for the help command to work. A help file for the current state of the program is included. You can generate a new help file by running `misc/helpGen.go` from the root of the project.
 
@@ -40,4 +40,3 @@ These commands existed and were removed before the version I uploaded to GitHub.
  - `~!boot <user>` - Kick someone out of a call in case they fell asleep. Turns out that we're not nice people.
  - `~!sausage` - Causes a segmentation fault, for debugging.
  - `~!ud` - Displays definitions from Urban Dictionary. Made specifically to troll a friend whose full name had an unflattering one.
- 
