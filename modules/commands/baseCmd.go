@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -353,8 +354,66 @@ func avatar(ctx Context, _ []string) error {
 	return ctx.Send("Updated avatar.")
 }
 
+// ~!flip [times]
+// Flips a coin
+// If times is provided, flips multiple coins.
+func flip(ctx Context, args []string) error {
+	var err error
+	count := 1
+	if len(args) > 0 {
+		count, err = strconv.Atoi(args[0])
+		if err != nil {
+			return ctx.Send(args[0] + " is not a number.")
+		}
+	}
+	if count == 1 {
+		if rand.Int()&1 == 0 {
+			return ctx.Send("Heads")
+		}
+		return ctx.Send("Tails")
+	}
+	heads := 0
+	for i := 0; i < count; i++ {
+		if rand.Int()&1 == 0 {
+			heads++
+		}
+	}
+	return ctx.Send(strconv.Itoa(heads) + " heads")
+}
+
+// ~!roll [count]
+// Rolls a six-sided die
+// If count is provided, rolls multiple.
+func roll(ctx Context, args []string) error {
+	var err error
+	count := 1
+	if len(args) > 0 {
+		count, err = strconv.Atoi(args[0])
+		if err != nil {
+			return ctx.Send(args[0] + " is not a number.")
+		}
+	}
+	total := count
+	for i := 0; i < count; i++ {
+		total += rand.Intn(6)
+	}
+	return ctx.Send("Rolled " + strconv.Itoa(total))
+}
+
+var ballresp = [...]string{"Yes", "No", "Maybe so", "Hell yes", "Hell no", "Get back to me when jlort jlort 3 comes out", "Not until you get negative kek", "Of course", "Go to jail, go directly... oh, wrong game.", "When I learn to talk, I'll tell you", "Turn around.", "You? HAHAHAHAHA no", "aaa eee ooo", "500 Internal Server Error", "404 Possibility Not Found", "302 Possibility Found"}
+
+// ~!8ball <thing>
+// Ask the magic 8 ball a serious question, and get a stupid answer.
+// No, really. This one hates your guts. And my guts.
+func eightball(ctx Context, args []string) error {
+	if len(args) == 0 {
+		return ctx.Send("Come on, ask me something.")
+	}
+	return ctx.Send(ballresp[rand.Intn(len(ballresp))])
+}
+
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
+// Here, it also initializes the command map. This means that calling commands. Init will unregister any existing commands.
 func Init(_ *discordgo.Session) {
 	cmdMap = make(map[string]Command, 72)
 	helpMap = make(map[string]*helpData, 72)
@@ -374,6 +433,9 @@ func Init(_ *discordgo.Session) {
 	RegisterCommand(tpa, "tpa")
 	RegisterCommand(tpa, "tpahere")
 	RegisterCommand(avatar, "_avatar")
+	RegisterCommand(flip, "flip")
+	RegisterCommand(roll, "roll")
+	RegisterCommand(eightball, "8ball")
 	if runtime.GOOS != "windows" && gsmServerID != "" {
 		RegisterCommand(gsm, "gsm")
 	}
