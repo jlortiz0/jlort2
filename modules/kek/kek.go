@@ -276,7 +276,7 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 	}
 	queryKek, err = db.Prepare(`SELECT CASE
-		WHEN EXISTS (SELECT * FROM kekMsgs m WHERE m.uid=?001)
+		WHEN EXISTS (SELECT m.uid FROM kekMsgs m WHERE m.uid=?001)
 		THEN (SELECT u.score + SUM(m.score) FROM kekMsgs m WHERE m.uid = ?001)
 		ELSE u.score END
 		FROM kekUsers u
