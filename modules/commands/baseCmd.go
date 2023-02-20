@@ -198,6 +198,28 @@ func gsm(ctx Context) error {
 	return ctx.Respond(string(out))
 }
 
+func gsmAutocomplete(ctx Context) []*discordgo.ApplicationCommandOptionChoice {
+	pre := ctx.ApplicationCommandData().Options[0].StringValue()
+	fList, err := os.ReadDir("/home/McServer/")
+	if err != nil {
+		return nil
+	}
+	output := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList)+3)
+	for _, x := range fList {
+		if x.IsDir() && strings.HasPrefix(x.Name(), pre) {
+			output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: x.Name(), Value: x.Name()})
+		}
+	}
+	if strings.HasPrefix("stop", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "stop", Value: "stop"})
+	} else if strings.HasPrefix("ping", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ping", Value: "ping"})
+	} else if strings.HasPrefix("ip", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ip", Value: "ip"})
+	}
+	return output
+}
+
 // ~!tpa <user>
 // @Alias tpahere
 // @Hidden
@@ -236,7 +258,8 @@ func version(ctx Context) error {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
-	cmdMap = make(map[string]Command, 72)
+	cmdMap = make(map[string]Command, 64)
+	autocomMap = make(map[string]Autocompleter, 16)
 	PrepareCommand("echo", "Say stuff").Register(echo, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("stuff", "say something cool").AsString().Required().Finalize(),
 	})
@@ -252,9 +275,9 @@ func Init(self *discordgo.Session) {
 	})
 	PrepareCommand("version", "Get version info").Register(version, nil)
 	if runtime.GOOS != "windows" && GSM_GUILD != "" {
-		tmp := PrepareCommand("gsm", "Game Server Manager").Guild()
+		tmp := PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete)
 		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
-			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Finalize(),
+			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Auto().Finalize(),
 			NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
 		})
 	}

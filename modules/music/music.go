@@ -497,8 +497,8 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
-	commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Finalize(),
+	commands.PrepareCommand("outro", "Play an outro").Guild().Auto(outroAutocomplete).Register(outro, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Auto().Finalize(),
 	})
 	commands.PrepareCommand("song", "Play a song from the alias list").Guild().Register(song, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("alias", "Song alias to play, use \"list\" for a list").AsString().Required().Finalize(),

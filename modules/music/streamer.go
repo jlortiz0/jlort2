@@ -502,3 +502,23 @@ func outro(ctx commands.Context) error {
 	ls.Unlock()
 	return ctx.RespondEmpty()
 }
+
+func outroAutocomplete(ctx commands.Context) []*discordgo.ApplicationCommandOptionChoice {
+	pre := ctx.ApplicationCommandData().Options[0].StringValue()
+	fList, err := os.ReadDir("outro")
+	if err != nil {
+		return nil
+	}
+	output := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
+	for _, x := range fList {
+		n := x.Name()
+		if !strings.HasSuffix(n, ".ogg") {
+			continue
+		}
+		n = n[:len(n)-4]
+		if strings.HasPrefix(n, pre) {
+			output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
+		}
+	}
+	return output
+}

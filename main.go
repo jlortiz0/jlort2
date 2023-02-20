@@ -34,6 +34,8 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
+const ENABLE_OLD_CMD_NAG = true
+
 var sc chan os.Signal
 
 func main() {
@@ -131,18 +133,39 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	self.AddHandler(interactionCreate)
 	self.AddHandler(voiceStateUpdate)
 	self.AddHandler(newGuild)
+	if ENABLE_OLD_CMD_NAG {
+		self.AddHandler(cmdMigrationNag)
+		self.UpdateStatusComplex(discordgo.UpdateStatusData{Status: "Slash commands!"})
+	}
 	log.Info("Ready!")
 }
 
-// TODO: Autocomplete?
-// Could be useful for the following commands: gsm, relic, trade, song, outro
-// Also, components could be useful for duel (call other person brit), tpa (non-functional to accept or reject),
+func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
+	if event.Author.Bot || len(event.Content) < 3 {
+		return
+	}
+	if event.Content[1] == '!' && (event.Content[0] == '~' || event.Content[0] == '!') {
+		self.ChannelMessageSendReply(event.ChannelID, "jlort jlort has switched to slash commands", &discordgo.MessageReference{
+			MessageID: event.ID, ChannelID: event.ChannelID, GuildID: event.GuildID,
+		})
+	}
+}
+
+// TODO: components could be useful for duel (call other person brit), tpa (non-functional to accept or reject),
 // kekreport, relic list, quotes, song list, outro list (pagination), trade (accept or reject), skip (quick cast additional votes),
 // play (quick remove from queue), pause (quick unpause), and maybe if I ever readd ytsearch
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type != discordgo.InteractionApplicationCommand {
 		if event.Type == discordgo.InteractionPing {
 			self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})
+		} else if event.Type == discordgo.InteractionApplicationCommandAutocomplete {
+			data := event.ApplicationCommandData()
+			cmd := commands.GetCommandAutocomplete(data.Name)
+			out := cmd(commands.MakeContext(self, event.Interaction))
+			self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionApplicationCommandAutocompleteResult,
+				Data: &discordgo.InteractionResponseData{Choices: out},
+			})
 		}
 		return
 	}

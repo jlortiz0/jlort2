@@ -160,12 +160,15 @@ func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context 
 
 // Command defines the function interface for a valid command.
 type Command func(Context) error
+type Autocompleter func(Context) []*discordgo.ApplicationCommandOptionChoice
 
 var batchCmdList []*discordgo.ApplicationCommand
 var cmdMap map[string]Command
+var autocomMap map[string]Autocompleter
 
 type commandStruct struct {
 	*discordgo.ApplicationCommand
+	autocomplete Autocompleter
 }
 
 func PrepareCommand(name, description string) commandStruct {
@@ -174,7 +177,7 @@ func PrepareCommand(name, description string) commandStruct {
 	cmd.Name = name
 	cmd.ApplicationID = APP_ID
 	cmd.Type = discordgo.ChatApplicationCommand
-	return commandStruct{cmd}
+	return commandStruct{cmd, nil}
 }
 
 func (c commandStruct) AsMsg() commandStruct {
@@ -206,10 +209,18 @@ func (c commandStruct) Perms(p int64) commandStruct {
 	return c
 }
 
+func (c commandStruct) Auto(c2 Autocompleter) commandStruct {
+	c.autocomplete = c2
+	return c
+}
+
 func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
 	c.Options = options
 	batchCmdList = append(batchCmdList, c.ApplicationCommand)
 	cmdMap[c.Name] = cmd
+	if c.autocomplete != nil {
+		autocomMap[c.Name] = c.autocomplete
+	}
 }
 
 func RegisterGsmGuildCommand(self *discordgo.Session, c commandStruct, cmd Command, options []*discordgo.ApplicationCommandOption) {
@@ -267,27 +278,9 @@ func GetCommand(name string) Command {
 	return cmdMap[name]
 }
 
-// FindMember returns the first member with the given name or nickname from a guild
-// If the name begins with @, the @ is stripped before searching.
-// If no member is found, but there was no error getting the members, nil, nil is returned.
-// If there was an error getting the members, nil, error is returned.
-func FindMembers(self *discordgo.Session, name string, guildID string) (*discordgo.Member, error) {
-	guild, err := self.State.Guild(guildID)
-	if err != nil {
-		return nil, err
-	}
-	if name[0] == '<' && name[1] == '@' && name[len(name)-1] == '>' {
-		if name[2] == '!' {
-			return self.GuildMember(guildID, name[3:len(name)-1])
-		}
-		return self.GuildMember(guildID, name[2:len(name)-1])
-	}
-	for i := 0; i < len(guild.Members); i++ {
-		if guild.Members[i].Nick == name || guild.Members[i].User.Username == name {
-			return guild.Members[i], nil
-		}
-	}
-	return nil, nil
+// GetCommand returns the command associated with the given name
+func GetCommandAutocomplete(name string) Autocompleter {
+	return autocomMap[name]
 }
 
 // DisplayName returns the nickname of a member, or the username if there is none.
@@ -380,6 +373,11 @@ func (c *commandOption) SetMinMax(min, max int) *commandOption {
 
 func (c *commandOption) Required() *commandOption {
 	c.ApplicationCommandOption.Required = true
+	return c
+}
+
+func (c *commandOption) Auto() *commandOption {
+	c.Autocomplete = true
 	return c
 }
 
