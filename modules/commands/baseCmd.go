@@ -19,9 +19,11 @@ package commands
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,6 +106,7 @@ func purge(ctx Context) error {
 
 // ~!ppurge [prefix]
 // @GuildOnly
+// @ManageMessages
 // Delete messages by prefix
 // If not specified, the prefix is assumed to be ~!
 // You need Manage Messages to use this command.
@@ -255,6 +258,46 @@ func version(ctx Context) error {
 	return ctx.RespondPrivate("jlort jlort " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
 }
 
+// ~!flip [times]
+// Flips a coin
+// If times is provided, flips multiple coins.
+func flip(ctx Context) error {
+	count := 1
+	args := ctx.ApplicationCommandData().Options
+	if len(args) > 0 {
+		count = int(args[0].IntValue())
+	}
+	if count == 1 {
+		if rand.Int()&1 == 0 {
+			return ctx.Respond("Heads")
+		}
+		return ctx.Respond("Tails")
+	}
+	heads := 0
+	for i := 0; i < count; i++ {
+		if rand.Int()&1 == 0 {
+			heads++
+		}
+	}
+	return ctx.Respond(strconv.Itoa(heads) + " heads")
+}
+
+// ~!roll [count]
+// Rolls a six-sided die
+// If count is provided, rolls multiple.
+func roll(ctx Context) error {
+	count := 1
+	args := ctx.ApplicationCommandData().Options
+	if len(args) > 0 {
+		count = int(args[0].IntValue())
+	}
+	total := count
+	for i := 0; i < count; i++ {
+		total += rand.Intn(6)
+	}
+	return ctx.Respond("Rolled " + strconv.Itoa(total))
+}
+
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
@@ -274,6 +317,12 @@ func Init(self *discordgo.Session) {
 		NewCommandOption("user", "User to teleport to").AsUser().Required().Finalize(),
 	})
 	PrepareCommand("version", "Get version info").Register(version, nil)
+	PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("coins", "How many coins to flip").AsInt().SetMinMax(1, 255).Finalize(),
+	})
+	PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
+	})
 	if runtime.GOOS != "windows" && GSM_GUILD != "" {
 		tmp := PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete)
 		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
@@ -300,6 +349,11 @@ func Init(self *discordgo.Session) {
 				os.Chtimes("lastUpdate", time.Now(), time.Now())
 				updating = false
 			}()
+		}
+	} else {
+		f, _ := os.OpenFile("lastUpdate", os.O_WRONLY|os.O_CREATE, 0)
+		if f != nil {
+			f.Close()
 		}
 	}
 	saverVersion++

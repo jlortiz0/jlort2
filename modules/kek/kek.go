@@ -118,6 +118,7 @@ func kekReport(ctx commands.Context) error {
 
 // ~!kekOn
 // @GuildOnly
+// @ManageServer
 // Toggles kekage on a server
 // You must have Manage Server to do this.
 func kekOn(ctx commands.Context) error {

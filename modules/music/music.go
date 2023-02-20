@@ -79,6 +79,7 @@ var lastPlayed map[string]time.Time
 var djRoles map[string]string
 var streamLock *sync.RWMutex = new(sync.RWMutex)
 var djLock *sync.RWMutex = new(sync.RWMutex)
+var dirty bool
 
 const dcTimeout time.Duration = time.Minute * -10
 const eggTimeout time.Duration = time.Minute * -8
@@ -174,7 +175,8 @@ func dc(ctx commands.Context) error {
 
 // ~!dj <@role>
 // @GuildOnly
-// Change the DJ role
+// @ManageServer
+// See or change the DJ role
 // People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.
 // To disable the DJ role, set to @everyone
@@ -447,17 +449,25 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 	}
 }
 
+func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
+	djLock.Lock()
+	delete(djRoles, event.ID)
+	djLock.Unlock()
+	dirty = true
+	v := streams[event.ID]
+	if v != nil && v.Len() != 0 {
+		obj := v.Head().Value
+		obj.Stop <- struct{}{}
+	}
+	delete(streams, event.ID)
+}
+
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // In addition to commands, this function creates two GuildID -> data maps, loads the song aliases from disk, and starts the stream popper thread.
 func Init(self *discordgo.Session) {
 	streams = make(map[string]*lockQueue)
 	lastPlayed = make(map[string]time.Time)
-	err := commands.LoadPersistent("song", &aliases)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	err = commands.LoadPersistent("dj", &djRoles)
+	err := commands.LoadPersistent("dj", &djRoles)
 	if err != nil {
 		log.Error(err)
 		return
@@ -500,16 +510,6 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("outro", "Play an outro").Guild().Auto(outroAutocomplete).Register(outro, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Auto().Finalize(),
 	})
-	commands.PrepareCommand("song", "Play a song from the alias list").Guild().Register(song, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("alias", "Song alias to play, use \"list\" for a list").AsString().Required().Finalize(),
-	})
-	commands.PrepareCommand("addsong", "Add a song to the alias list").Guild().Register(addsong, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("alias", "Song alias to register").AsString().Required().Finalize(),
-		optionVideo,
-	})
-	commands.PrepareCommand("delsong", "Remove a song alias").Guild().Register(delsong, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("alias", "Song alias to remove or \"all\"").AsString().Required().Finalize(),
-	})
 	popLock++
 	go musicPopper(self, popLock)
 }
@@ -518,14 +518,8 @@ func saveData() error {
 	if !dirty {
 		return nil
 	}
-	aliasLock.RLock()
-	err := commands.SavePersistent("song", &aliases)
-	aliasLock.RUnlock()
-	if err != nil {
-		return err
-	}
 	djLock.RLock()
-	err = commands.SavePersistent("dj", &djRoles)
+	err := commands.SavePersistent("dj", &djRoles)
 	if err == nil {
 		dirty = false
 	}

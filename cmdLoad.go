@@ -19,9 +19,7 @@ package main
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"jlortiz.org/jlort2/modules/brit"
 	"jlortiz.org/jlort2/modules/commands"
-	"jlortiz.org/jlort2/modules/gacha"
 	"jlortiz.org/jlort2/modules/kek"
 	"jlortiz.org/jlort2/modules/log"
 	"jlortiz.org/jlort2/modules/music"
@@ -38,12 +36,8 @@ func initModules(self *discordgo.Session) {
 	log.Info("Loaded kek")
 	zip.Init(self)
 	log.Info("Loaded zip")
-	brit.Init(self)
-	log.Info("Loaded brit")
 	music.Init(self)
 	log.Info("Loaded music")
-	gacha.Init(self)
-	log.Info("Loaded gacha")
 	commands.RegisterSaver(saveVoice)
 	optionChannel := new(discordgo.ApplicationCommandOption)
 	// optionChannel.ChannelTypes = []discordgo.ChannelType{discordgo.ChannelTypeGuildText}
@@ -62,7 +56,5 @@ func cleanup(self *discordgo.Session) {
 	kek.Cleanup(self)
 	zip.Cleanup(self)
 	music.Cleanup(self)
-	brit.Cleanup(self)
-	gacha.Cleanup(self)
 	saveVoice()
 }
