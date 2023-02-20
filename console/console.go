@@ -316,6 +316,16 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 		var lastDay int
 		for i := len(msgs) - 1; i >= 0; i-- {
 			v := msgs[i]
+			if v.Type == discordgo.MessageTypeThreadStarterMessage {
+				v2, err := client.State.Message(v.MessageReference.ChannelID, v.MessageReference.MessageID)
+				if err != nil {
+					v2, _ = client.ChannelMessage(v.MessageReference.ChannelID, v.MessageReference.MessageID)
+					if v2 == nil {
+						continue
+					}
+				}
+				v = v2
+			}
 			if nicks[v.Author.ID] == "" {
 				nicks[v.Author.ID] = v.Author.Username
 				if guild != nil {
@@ -335,6 +345,10 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 			switch v.Type {
 			case discordgo.MessageTypeDefault:
 				fallthrough
+			case discordgo.MessageTypeChatInputCommand:
+				fallthrough
+			case discordgo.MessageTypeContextMenuCommand:
+				fallthrough
 			case discordgo.MessageTypeReply:
 				fmt.Fprint(output, " <", nicks[v.Author.ID], "> ")
 				output.WriteString(v.Content)
@@ -351,6 +365,11 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				fallthrough
 			case discordgo.MessageTypeUserPremiumGuildSubscriptionTierThree:
 				fmt.Fprintf(output, "%s boosted the guild", nicks[v.Author.ID])
+			case discordgo.MessageTypeThreadCreated:
+				if v.MessageReference == nil {
+					v.MessageReference = &discordgo.MessageReference{ChannelID: "unknown"}
+				}
+				fmt.Fprintf(output, "%s created thread %s (%s)", nicks[v.Author.ID], v.Content, v.MessageReference.ChannelID)
 			}
 			if !plaintext {
 				if len(v.Embeds) != 0 {
@@ -365,6 +384,11 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				}
 				if v.Pinned {
 					output.WriteString(" (Pinned)")
+				}
+				if v.Thread != nil && v.Thread.ID != channel.ID {
+					fmt.Fprintf(output, " (Thread %s)", v.Thread.ID)
+				} else if v.MessageReference != nil && v.MessageReference.MessageID == "" {
+					fmt.Fprintf(output, " (Thread %s)", v.MessageReference.ChannelID)
 				}
 			}
 			output.WriteByte('\n')
@@ -412,7 +436,7 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				}
 				input.ReadBytes('\n')
 			case "help":
-				fmt.Println("/help - This message\n/exit - Quit this mode\n/pageup and /pagedown - Scroll\n/tar [first id] - Log some or all messages\n/chatlog - Tar alias\n/nick - Set nickname\n/typing - Send typing notif\n/file - Upload file")
+				fmt.Println("/help - This message\n/exit - Quit this mode\n/pageup and /pagedown - Scroll\n/tar [first id] - Log some or all messages\n/chatlog - Tar alias\n/nick - Set nickname\n/typing - Send typing notif\n/file - Upload file\n/delete <id> - Delete a message\n/thread <id> - Enter a thread")
 				input.ReadBytes('\n')
 			case "tar":
 				fallthrough
@@ -487,7 +511,23 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 					input.ReadBytes('\n')
 				}
 			case "reply":
-				client.ChannelMessageSendReply(channel.ID, strings.Join(cmd[2:], " "), &discordgo.MessageReference{MessageID: cmd[1], ChannelID: channel.ID, GuildID: channel.GuildID})
+				if len(cmd) == 1 {
+					fmt.Println("Usage: /reply <id> <msg...>")
+				} else {
+					client.ChannelMessageSendReply(channel.ID, strings.Join(cmd[2:], " "), &discordgo.MessageReference{MessageID: cmd[1], ChannelID: channel.ID, GuildID: channel.GuildID})
+				}
+			case "thread":
+				if len(cmd) == 1 {
+					fmt.Println("Usage: /thread <thread id>")
+				} else {
+					ch2, err := client.Channel(cmd[1])
+					if err != nil {
+						fmt.Println(err)
+						input.ReadBytes('\n')
+					} else {
+						chatter(ch2, guild)
+					}
+				}
 			default:
 				fmt.Print("\a")
 			}
