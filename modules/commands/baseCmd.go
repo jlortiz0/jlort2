@@ -238,7 +238,7 @@ func tpa(ctx Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("**%s** has requested that you teleport to <#%s>.\nTo teleport, type **~!tpaccept**.\nTo deny this request, type **~!tpdeny**.", DisplayName(ctx.Member), ctx.ChannelID))
+	_, err = ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("**%s** has requested that you teleport to <#%s>.\nTo teleport, type **/tpaccept**.\nTo deny this request, type **/tpdeny**.", DisplayName(ctx.Member), ctx.ChannelID))
 	return err
 }
 
