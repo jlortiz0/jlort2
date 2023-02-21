@@ -148,19 +148,12 @@ var updating bool
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
 func gsm(ctx Context) error {
-	if ctx.GuildID != GSM_GUILD {
-		err := ctx.Bot.ApplicationCommandDelete(ctx.AppID, ctx.GuildID, ctx.ApplicationCommandData().Name)
-		if err != nil {
-			return err
-		}
-		return ctx.RespondPrivate("Oops, looks like a test command got out.\nThis command should now disappear...")
-	}
 	if updating {
 		return ctx.RespondPrivate("The servers are currently updating.")
 	}
 	arg := ctx.ApplicationCommandData().Options[0].StringValue()
 	if arg == "update" || arg == "poweroff" {
-		if OWNER_ID != ctx.User.ID {
+		if ctx.State.Application.Owner.ID != ctx.User.ID {
 			return ctx.RespondPrivate("You do not have access to that command, and never will.")
 		}
 	}
@@ -323,12 +316,14 @@ func Init(self *discordgo.Session) {
 	PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
 	})
-	if runtime.GOOS != "windows" && GSM_GUILD != "" {
-		tmp := PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete)
-		RegisterGsmGuildCommand(self, tmp, gsm, []*discordgo.ApplicationCommandOption{
-			NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Auto().Finalize(),
-			NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
-		})
+	if runtime.GOOS != "windows" {
+		st, _ := os.Stat("gsm.sh")
+		if st != nil && st.Mode()&0100 != 0 {
+			PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete).Gsm().Register(gsm, []*discordgo.ApplicationCommandOption{
+				NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Auto().Finalize(),
+				NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
+			})
+		}
 	}
 	info, err := os.Stat("lastUpdate")
 	if err == nil {

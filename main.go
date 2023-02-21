@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,6 +52,18 @@ start:
 	if err != nil {
 		panic(err)
 	}
+	// GSM_GUILD or tTEST_GUILD, KEY
+	key, guildId, _ := strings.Cut(string(strBytes), "\n")
+	if len(guildId) > 0 {
+		s := guildId
+		if s[0] == 't' {
+			s = s[1:]
+		}
+		_, err = strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			panic("key.txt: line 2: could not parse test/gsm guild id")
+		}
+	}
 
 	// f, err = os.Create("/run/user/1000/cpu.prof")
 	// if err != nil {
@@ -62,7 +76,7 @@ start:
 	// }
 	// defer pprof.StopCPUProfile()
 
-	client, err := discordgo.New("Bot " + string(strBytes))
+	client, err := discordgo.New("Bot " + key)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +85,7 @@ start:
 		panic(err)
 	}
 
-	client.AddHandlerOnce(ready)
+	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId) })
 	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages
 	client.State.MaxMessageCount = 100
 	client.State.TrackVoice = true
@@ -102,7 +116,7 @@ func crashMe(ch chan os.Signal) {
 	*test = 0
 }
 
-func ready(self *discordgo.Session, event *discordgo.Ready) {
+func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
 	time.Sleep(5 * time.Millisecond)
 	for i := 0; i < len(event.Guilds); i++ {
 		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
@@ -111,7 +125,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 		}
 	}
 	updatePfp(self)
-	initModules(self)
+	initModules(self, guildId)
 	f, err := os.Open("avatar.png")
 	if err == nil {
 		defer f.Close()
@@ -202,7 +216,7 @@ func handleCommandError(err error, ctx commands.Context, stack string) {
 	if stack != "" {
 		log.Errors(stack)
 	}
-	if ctx.User.ID == commands.OWNER_ID {
+	if ctx.User.ID == ctx.State.Application.Owner.ID {
 		if len(err.Error()) < 1990 {
 			ctx.RespondPrivate(fmt.Sprintf("Error: %s", err.Error()))
 		} else {
@@ -211,7 +225,7 @@ func handleCommandError(err error, ctx commands.Context, stack string) {
 	} else {
 		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to the operator.")
 		if err2 == nil {
-			channel, err2 := ctx.Bot.UserChannelCreate(commands.OWNER_ID)
+			channel, err2 := ctx.Bot.UserChannelCreate(ctx.State.Application.Owner.ID)
 			if err2 == nil {
 				if len(err.Error()) < 1965 {
 					ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("Error in command %s: %s", ctx.ApplicationCommandData().Name, err.Error()))

@@ -27,7 +27,7 @@ import (
 	"jlortiz.org/jlort2/modules/zip"
 )
 
-func initModules(self *discordgo.Session) {
+func initModules(self *discordgo.Session, guildId string) {
 	commands.Init(self)
 	log.Info("Loaded commands")
 	quotes.Init(self)
@@ -47,7 +47,11 @@ func initModules(self *discordgo.Session) {
 	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Required().Finalize(),
 	})
-	commands.UploadCommands(self)
+	testMode := len(guildId) > 0 && guildId[0] == 't'
+	if testMode {
+		guildId = guildId[1:]
+	}
+	commands.UploadCommands(self, self.State.Application.ID, guildId, testMode)
 }
 
 func cleanup(self *discordgo.Session) {

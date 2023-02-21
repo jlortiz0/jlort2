@@ -26,12 +26,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-const APP_ID = ""
-const OWNER_ID = ""
-const TEST_GUILD_ID = ""
-const GSM_GUILD = ""
-const TEST_MODE = true
-
 // Context is a helper struct for defining a command invokation context.
 // All this can be gotten from the three fields in MakeContext, but this makes it shorter to do so.
 type Context struct {
@@ -162,22 +156,22 @@ func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context 
 type Command func(Context) error
 type Autocompleter func(Context) []*discordgo.ApplicationCommandOptionChoice
 
-var batchCmdList []*discordgo.ApplicationCommand
+var batchCmdList []commandStruct
 var cmdMap map[string]Command
 var autocomMap map[string]Autocompleter
 
 type commandStruct struct {
 	*discordgo.ApplicationCommand
 	autocomplete Autocompleter
+	gsm          bool
 }
 
 func PrepareCommand(name, description string) commandStruct {
 	cmd := new(discordgo.ApplicationCommand)
 	cmd.Description = description
 	cmd.Name = name
-	cmd.ApplicationID = APP_ID
 	cmd.Type = discordgo.ChatApplicationCommand
-	return commandStruct{cmd, nil}
+	return commandStruct{cmd, nil, false}
 }
 
 func (c commandStruct) AsMsg() commandStruct {
@@ -214,37 +208,45 @@ func (c commandStruct) Auto(c2 Autocompleter) commandStruct {
 	return c
 }
 
+func (c commandStruct) Gsm() commandStruct {
+	c.gsm = true
+	return c
+}
+
 func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
 	c.Options = options
-	batchCmdList = append(batchCmdList, c.ApplicationCommand)
+	batchCmdList = append(batchCmdList, c)
 	cmdMap[c.Name] = cmd
 	if c.autocomplete != nil {
 		autocomMap[c.Name] = c.autocomplete
 	}
 }
 
-func RegisterGsmGuildCommand(self *discordgo.Session, c commandStruct, cmd Command, options []*discordgo.ApplicationCommandOption) {
-	if TEST_MODE {
-		c.Register(cmd, options)
-		return
-	}
-	c.Options = options
-	_, err := self.ApplicationCommandCreate(APP_ID, GSM_GUILD, c.ApplicationCommand)
-	if err != nil {
-		panic(err)
-	}
-	cmdMap[c.Name] = cmd
-}
-
-func UploadCommands(self *discordgo.Session) {
+func UploadCommands(self *discordgo.Session, appId string, guildId string, testMode bool) {
 	var err error
-	if TEST_MODE {
-		_, err = self.ApplicationCommandBulkOverwrite(APP_ID, TEST_GUILD_ID, batchCmdList)
+	if testMode {
+		ls := make([]*discordgo.ApplicationCommand, len(batchCmdList))
+		for i, x := range batchCmdList {
+			ls[i] = x.ApplicationCommand
+		}
+		_, err = self.ApplicationCommandBulkOverwrite(appId, guildId, ls)
 	} else {
-		_, err = self.ApplicationCommandBulkOverwrite(APP_ID, "", batchCmdList)
+		ls := make([]*discordgo.ApplicationCommand, 0, len(batchCmdList))
+		ls2 := make([]*discordgo.ApplicationCommand, 0, 4)
+		for _, x := range batchCmdList {
+			if x.gsm {
+				ls2 = append(ls2, x.ApplicationCommand)
+			} else {
+				ls = append(ls, x.ApplicationCommand)
+			}
+		}
+		_, err = self.ApplicationCommandBulkOverwrite(appId, "", ls)
+		if err != nil && guildId != "" {
+			_, err = self.ApplicationCommandBulkOverwrite(appId, guildId, ls2)
+		}
 	}
 	if err != nil {
-		if TEST_MODE {
+		if testMode {
 			err2 := err.(*discordgo.RESTError)
 			var errBody struct {
 				Code   int
@@ -266,8 +268,8 @@ func UploadCommands(self *discordgo.Session) {
 	batchCmdList = nil
 }
 
-func clearGuildCommands(self *discordgo.Session, guildID string) {
-	_, err := self.ApplicationCommandBulkOverwrite(APP_ID, guildID, nil)
+func clearGuildCommands(self *discordgo.Session, appId string, guildID string) {
+	_, err := self.ApplicationCommandBulkOverwrite(appId, guildID, nil)
 	if err != nil {
 		panic(err)
 	}
