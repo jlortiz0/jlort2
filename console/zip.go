@@ -40,7 +40,7 @@ const timeFormat = "[15:04]"
 // Reply to the first message you want to be logged
 // Alternative, run as ~!logall to log all messages in the channel
 func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
-	fName := fmt.Sprintf("jlort-jlort-%d.txt", time.Now().Unix())
+	fName := fmt.Sprintf("chatlog-%d.txt", time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open output file %s: %s", fName, err.Error())
@@ -178,7 +178,7 @@ func archive(channel *discordgo.Channel, _ *discordgo.Guild, count int) {
 		}
 	}
 	fmt.Printf("Found %d messages, zipping...\n", len(files))
-	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
+	fName := fmt.Sprintf("%s/archive-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open tempfile %s: %s", fName, err.Error())

@@ -35,7 +35,6 @@ var kekData struct {
 }
 var dirty bool
 var kekLock *sync.RWMutex = new(sync.RWMutex)
-var botId string
 
 // ~!kekage [user]
 // Checks someone's kekage
@@ -167,7 +166,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	if event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
 		return
 	}
-	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.UserID == botId {
+	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.UserID == self.State.User.ID {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
@@ -249,7 +248,7 @@ func Init(self *discordgo.Session) {
 		}
 		keks["locked"] += total
 	}
-	commands.PrepareCommand("kek", "Kek or cringe with jlort jlort").Register(kekage, []*discordgo.ApplicationCommandOption{
+	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
 	})
 	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Register(kekReport, nil)
@@ -262,11 +261,6 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
 	self.AddHandler(onGuildRemoveKek)
-	u, err := self.User("@me")
-	if err != nil {
-		log.Error(err)
-	}
-	botId = u.ID
 }
 
 func saveKek() error {

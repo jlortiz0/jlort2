@@ -248,7 +248,7 @@ var verNum string
 // ~!version
 // Get bot info
 func version(ctx Context) error {
-	return ctx.RespondPrivate("jlort jlort " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
+	return ctx.RespondPrivate(ctx.State.Application.Name + " " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
 }
 
 // ~!flip [times]

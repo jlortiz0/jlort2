@@ -159,7 +159,7 @@ func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
 		return
 	}
 	if event.Content[1] == '!' && (event.Content[0] == '~' || event.Content[0] == '!') {
-		self.ChannelMessageSendReply(event.ChannelID, "jlort jlort has switched to slash commands", &discordgo.MessageReference{
+		self.ChannelMessageSendReply(event.ChannelID, self.State.Application.Name+" has switched to slash commands", &discordgo.MessageReference{
 			MessageID: event.ID, ChannelID: event.ChannelID, GuildID: event.GuildID,
 		})
 	}
@@ -223,7 +223,7 @@ func handleCommandError(err error, ctx commands.Context, stack string) {
 			ctx.RespondPrivate("A lengthy error occured.")
 		}
 	} else {
-		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to the operator.")
+		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to " + ctx.State.Application.Owner.Username)
 		if err2 == nil {
 			channel, err2 := ctx.Bot.UserChannelCreate(ctx.State.Application.Owner.ID)
 			if err2 == nil {

@@ -88,8 +88,8 @@ const popRefreshRate = 3 * time.Second
 // ~!connect
 // @GuildOnly
 // Connects to voice
-// If you are in a voice channel and jlort jlort is in a different voice channel, you will be asked to move.
-// This function is automatically called if you queue something and jlort is not connected.
+// If you are in a voice channel and I am in a different voice channel, you will be asked to move.
+// This function is automatically called if you queue something and I am not connected.
 func connect(ctx commands.Context) error {
 	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
 	if err != nil || authorVoice.ChannelID == "" {
@@ -143,9 +143,9 @@ func connect(ctx commands.Context) error {
 // @Alias disconnect
 // @GuildOnly
 // Disconnects from voice
-// If streams are currently playing, paused, or queued, jlort jlort will not disconnect unless you have permissions to clear the queue.
-// jlort jlort will automatically disconnect after 5 minutes of inactivity or if there is nobody to listen to it.
-// Note that jlort jlort may consider bots valid listeners if they are not server deafened. For best results, you should server deafen other bots.
+// If streams are currently playing, paused, or queued, I will not disconnect unless you have permissions to clear the queue.
+// I will automatically disconnect after 5 minutes of inactivity or if there is nobody else in the call.
+// Note that I may consider bots as "other people" if they are not server deafened. For best results, you should server deafen other bots.
 func dc(ctx commands.Context) error {
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {

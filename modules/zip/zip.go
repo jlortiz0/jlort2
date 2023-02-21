@@ -134,7 +134,7 @@ func chatlog(ctx commands.Context) error {
 		}
 	}
 	resp := new(discordgo.WebhookEdit)
-	resp.Files = []*discordgo.File{{Name: "jlort-jlort-" + channel.Name + ".txt", Reader: output}}
+	resp.Files = []*discordgo.File{{Name: "chatlog-" + channel.Name + ".txt", Reader: output}}
 	_, err = ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	return err
 }
@@ -179,7 +179,7 @@ func archive(ctx commands.Context) error {
 	if err != nil {
 		return err
 	}
-	fName := fmt.Sprintf("%s/jlort-jlort-%d.zip", os.TempDir(), time.Now().Unix())
+	fName := fmt.Sprintf("%s/archive-%d.zip", os.TempDir(), time.Now().Unix())
 	f, err := os.OpenFile(fName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open tempfile %s: %w", fName, err)
