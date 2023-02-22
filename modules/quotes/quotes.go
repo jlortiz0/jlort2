@@ -111,8 +111,8 @@ func quotes(ctx commands.Context) error {
 	output.Title = "Quotes from " + guild.Name
 	output.Description = buildQuotesString(qList, ind)
 	output.Color = 0x7289da
-	ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}},
-		discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount})
+	ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+		discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
 	err = ctx.RespondEmbed(output, false)
 	return err
 }

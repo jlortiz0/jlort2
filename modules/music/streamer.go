@@ -210,6 +210,11 @@ func mp3(ctx commands.Context) error {
 		ls.PushBack(data)
 	}
 	ls.Unlock()
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.DangerButton}
+	if !np {
+		btn.CustomID += "\a"
+	}
+	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
 	return ctx.RespondEmbed(embed, false)
 }
@@ -309,7 +314,7 @@ func play(ctx commands.Context) error {
 		ls.PushBack(data)
 	}
 	ls.Unlock()
-	btn := discordgo.Button{Label: "Remove", CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}}
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.DangerButton}
 	if !np {
 		btn.CustomID += "\a"
 	}
