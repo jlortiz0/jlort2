@@ -111,7 +111,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // Only people with the Manage Server permission can change the voice announcement channel.
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
-func vachan(ctx commands.Context) error {
+func vachan(ctx *commands.Context) error {
 	voiceSettingLock.Lock()
 	defer voiceSettingLock.Unlock()
 	arg := ctx.ApplicationCommandData().Options[0].ChannelValue(ctx.Bot)

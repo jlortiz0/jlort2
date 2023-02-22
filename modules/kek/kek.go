@@ -39,7 +39,7 @@ var kekLock *sync.RWMutex = new(sync.RWMutex)
 // ~!kekage [user]
 // Checks someone's kekage
 // If not specified, gives the kekage of the command runner.
-func kekage(ctx commands.Context) error {
+func kekage(ctx *commands.Context) error {
 	target := ctx.User
 	if len(ctx.ApplicationCommandData().Options) > 0 && ctx.GuildID != "" {
 		target = ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
@@ -81,7 +81,7 @@ func kekage(ctx commands.Context) error {
 // ~!kekReport
 // @GuildOnly
 // Gets the kekage of everyone
-func kekReport(ctx commands.Context) error {
+func kekReport(ctx *commands.Context) error {
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
@@ -120,7 +120,7 @@ func kekReport(ctx commands.Context) error {
 // @ManageServer
 // Toggles kekage on a server
 // You must have Manage Server to do this.
-func kekOn(ctx commands.Context) error {
+func kekOn(ctx *commands.Context) error {
 	dirty = true
 	kekLock.Lock()
 	defer kekLock.Unlock()

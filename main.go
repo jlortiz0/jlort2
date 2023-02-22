@@ -176,8 +176,7 @@ func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
 }
 
 // TODO: components could be useful for
-// kekreport, outro list (pagination),
-// play (quick remove from queue), pause (quick unpause)
+// kekreport, outro list (pagination)
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type == discordgo.InteractionPing {
 		self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})
@@ -228,7 +227,7 @@ func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCrea
 	}
 }
 
-func handleCommandError(err error, ctx commands.Context, stack string) {
+func handleCommandError(err error, ctx *commands.Context, stack string) {
 	if ctx.Type == discordgo.InteractionMessageComponent {
 		log.Errors("Error in message component")
 		log.Error(err)

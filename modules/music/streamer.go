@@ -154,7 +154,7 @@ Streamer:
 // This supports numerous formats, including mp3, ogg, m4a, s3m, it, spc, vgm, and more.
 // Instead of linking a file, you can upload a file with ~!mp3 as the description. Do not delete the message until the stream has finished.
 // If invoked as ~!mp3skip, it will skip the current stream and play the linked file immediately if you have permission to do so.
-func mp3(ctx commands.Context) error {
+func mp3(ctx *commands.Context) error {
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
@@ -178,6 +178,7 @@ func mp3(ctx commands.Context) error {
 	data.Channel = ctx.ChannelID
 	data.Source = source
 	data.Vol = 65
+	data.InterID = ctx.ID
 	ls := streams[ctx.GuildID]
 	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
@@ -212,7 +213,7 @@ func mp3(ctx commands.Context) error {
 	ls.Unlock()
 	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.DangerButton}
 	if !np {
-		btn.CustomID += "\a"
+		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
 	}
 	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
@@ -225,13 +226,13 @@ func mp3(ctx commands.Context) error {
 // Adds a Youtube video to the queue
 // If a direct link is not provided, the first search result will be taken instead.
 // This command also supports direct links to sites other than Youtube. Check https://ytdl-org.github.io/youtube-dl/supportedsites.html for a list.
-func play(ctx commands.Context) error {
+func play(ctx *commands.Context) error {
 	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
 		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
-	ctx.RespondDelayed(true)
+	ctx.RespondDelayed(false)
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
 		source, _, _ = strings.Cut(source, "?list=")
@@ -316,46 +317,51 @@ func play(ctx commands.Context) error {
 	ls.Unlock()
 	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.DangerButton}
 	if !np {
-		btn.CustomID += "\a"
+		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
 	}
 	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
-	// If the RespondDelayed above is changed back to true, uncomment this
-	// _, err = ctx.Bot.FollowupMessageCreate(ctx.Interaction, false, &discordgo.WebhookParams{Embeds: []*discordgo.MessageEmbed{embed}})
-	// ctx.Bot.InteractionResponseDelete(ctx.Interaction)
-	// return err
 	return ctx.RespondEditEmbed(embed)
 }
 
-func playComponent(ctx commands.Context) error {
-	interId, _, np := strings.Cut(ctx.MessageComponentData().CustomID, "\a")
+func playComponent(ctx *commands.Context) error {
+	interId, indS, np := strings.Cut(ctx.MessageComponentData().CustomID, "\a")
+	ctx.FollowupPrepare()
 	ls := streams[ctx.GuildID]
+	if ls == nil {
+		return ctx.RespondEmpty()
+	}
 	ls.Lock()
-	if np {
+	if !np {
 		obj := ls.Head()
 		if obj != nil && obj.Value != nil && obj.Value.InterID == interId {
 			ls.Unlock()
 			return skip(ctx)
 		}
 		ls.Unlock()
-		return nil
+		return ctx.RespondEmpty()
 	}
+	ind, _ := strconv.Atoi(indS)
 	elem := ls.Head()
 	i := 0
-	for elem != nil && elem.Value != nil && elem.Value.InterID != interId {
+	for i < ind && elem != nil && elem.Value != nil && elem.Value.InterID != interId {
 		elem = elem.Next()
 		i++
 	}
-	if elem == nil || elem.Value == nil {
-		return nil
+	ls.Unlock()
+	if elem == nil || elem.Value == nil || elem.Value.InterID != interId {
+		return ctx.RespondEmpty()
 	}
-	mData := new(discordgo.ApplicationCommandInteractionData)
-	mData.Options = []*discordgo.ApplicationCommandInteractionDataOption{
+	if i == 0 {
+		return skip(ctx)
+	}
+	o := []*discordgo.ApplicationCommandInteractionDataOption{
 		{
 			Type: discordgo.ApplicationCommandOptionInteger, Value: i,
 		},
 	}
-	ctx.Data = mData
+	ctx.Data = discordgo.ApplicationCommandInteractionData{Options: o}
+	ctx.Type = discordgo.InteractionApplicationCommand
 	return remove(ctx)
 }
 
@@ -365,7 +371,7 @@ func playComponent(ctx commands.Context) error {
 // Check or set stream volume
 // Range is 0-200%
 // To set the volume, you must have permission to modify the current stream.
-func vol(ctx commands.Context) error {
+func vol(ctx *commands.Context) error {
 	if streams[ctx.GuildID] == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
 	}
@@ -397,7 +403,7 @@ func vol(ctx commands.Context) error {
 // Seeks to a position in the stream
 // Position can be in m:ss format or just a number of seconds.
 // To seek, you must have permission to modify the current stream. To simply view the current position, use ~!np
-func seek(ctx commands.Context) error {
+func seek(ctx *commands.Context) error {
 	if streams[ctx.GuildID] == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
 	}
@@ -437,7 +443,7 @@ func seek(ctx commands.Context) error {
 // ~!time
 // @Alias popcorn
 // Displays the time
-func popcorn(ctx commands.Context) error {
+func popcorn(ctx *commands.Context) error {
 	now := time.Now()
 	err := ctx.Respond(now.Format("It is 3:04 PM on January _2, 2006."))
 	if err != nil || ctx.GuildID == "" {
@@ -504,7 +510,7 @@ func popcorn(ctx commands.Context) error {
 // Leave the call with style
 // Only works if nothing else is playing
 // For a list of outros, do ~!outro list
-func outro(ctx commands.Context) error {
+func outro(ctx *commands.Context) error {
 	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	if name == "list" {
 		f, err := os.Open("outro")
@@ -549,7 +555,7 @@ func outro(ctx commands.Context) error {
 	return ctx.RespondEmpty()
 }
 
-func outroAutocomplete(ctx commands.Context) []*discordgo.ApplicationCommandOptionChoice {
+func outroAutocomplete(ctx *commands.Context) []*discordgo.ApplicationCommandOptionChoice {
 	pre := ctx.ApplicationCommandData().Options[0].StringValue()
 	fList, err := os.ReadDir("outro")
 	if err != nil {

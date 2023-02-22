@@ -34,7 +34,7 @@ import (
 // Removes from the queue
 // You must have permission over the stream to do so. Get stream indices with ~!queue.
 // To clear the queue, do ~!remove all. You must have permission over all streams to do so.
-func remove(ctx commands.Context) error {
+func remove(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil || ls.Len() < 2 {
 		return ctx.RespondPrivate("Nothing in the queue.")
@@ -98,7 +98,7 @@ func remove(ctx commands.Context) error {
 // @GuildOnly
 // Toggles loop
 // You must have permission over the current stream to do so.
-func loop(ctx commands.Context) error {
+func loop(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -127,7 +127,7 @@ func loop(ctx commands.Context) error {
 // Toggles pause
 // Yes, it's the same command for pausing and unpausing.
 // You must have permission over the current stream to do so.
-func pause(ctx commands.Context) error {
+func pause(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -143,10 +143,15 @@ func pause(ctx commands.Context) error {
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 		return ctx.RespondPrivate("You do not have permission to modify the current stream.")
 	}
+	ctx.SetComponents(discordgo.Button{
+		Emoji: discordgo.ComponentEmoji{Name: "\u23EF"},
+	})
 	strm.Flags ^= strflag_paused
 	if strm.Flags&strflag_paused != 0 {
+		strm.PauseTs = time.Since(strm.StartedAt)
 		return ctx.Respond("Song paused.")
 	}
+	strm.StartedAt = time.Now().Add(-strm.PauseTs)
 	return ctx.Respond("Song unpaused.")
 }
 
@@ -156,7 +161,7 @@ func pause(ctx commands.Context) error {
 // If you don't have permission over the stream, casts a skip vote.
 // To skip a stream, at least half the non-deafened and non-muted users in the channel must vote to skip.
 // Bots may still be counted in the channel count if they are not server deafened. For best results, server deafen bots.
-func skip(ctx commands.Context) error {
+func skip(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -218,7 +223,7 @@ func skip(ctx commands.Context) error {
 // @Alias playing
 // @GuildOnly
 // Info about what's playing
-func np(ctx commands.Context) error {
+func np(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Not connected to voice.")
@@ -235,7 +240,12 @@ func np(ctx commands.Context) error {
 	elem := ls.Head().Value
 	ls.RUnlock()
 	embed := new(discordgo.MessageEmbed)
-	elapsed := time.Since(elem.StartedAt).Round(time.Second)
+	elapsed := elem.PauseTs
+	paused := elem.Flags&strflag_paused != 0
+	if !paused {
+		elapsed = time.Since(elem.StartedAt)
+	}
+	elapsed = elapsed.Round(time.Second)
 	var timeFld string
 	if elem.Info != nil {
 		embed.Title = elem.Info.Title
@@ -254,7 +264,6 @@ func np(ctx commands.Context) error {
 		timeFld = fmt.Sprintf("%01d:%02d", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
 	}
 	var footer string
-	paused := elem.Flags&strflag_paused != 0
 	loop := elem.Flags&strflag_loop != 0
 	if loop && paused {
 		footer = "Currently looping, if it weren't paused."
@@ -281,7 +290,7 @@ func np(ctx commands.Context) error {
 // ~!queue
 // @GuildOnly
 // Info about the queue
-func queue(ctx commands.Context) error {
+func queue(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	if ls == nil || ls.Len() < 2 {
 		return ctx.RespondPrivate("Nothing in the queue.")

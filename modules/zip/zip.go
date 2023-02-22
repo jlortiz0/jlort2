@@ -47,7 +47,7 @@ const timeFormat = "[15:04]"
 // 2: Don't log bot messages
 // 4: Don't log attachments
 // 8: Don't log embeds
-func chatlog(ctx commands.Context) error {
+func chatlog(ctx *commands.Context) error {
 	var err error
 	output := bytes.NewBufferString("Discord Text Archive created on ")
 	output.WriteString(time.Now().Format(tsFormat))
@@ -144,7 +144,7 @@ func chatlog(ctx commands.Context) error {
 // @Hidden
 // Zips all attachments and embeds in the channel.
 // This command is hidden because the zip file is invariably so big it can't be uploaded.
-func archive(ctx commands.Context) error {
+func archive(ctx *commands.Context) error {
 	ctx.RespondDelayed(true)
 	type FileInfo struct {
 		Filename  string

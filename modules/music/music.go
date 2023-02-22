@@ -73,6 +73,7 @@ type StreamObj struct {
 	Subprocess *exec.Cmd                       // The ffmpeg subprocess that the streamer streams from
 	Stop       chan struct{}                   // When this channel is written to, the streamer will stop
 	Redirect   chan *discordgo.VoiceConnection // Uses this new VoiceConnection instead of the original one passsed in
+	PauseTs    time.Duration                   // How long the stream was playing when we paused it
 }
 
 var streams map[string]*lockQueue
@@ -91,7 +92,7 @@ const popRefreshRate = 3 * time.Second
 // Connects to voice
 // If you are in a voice channel and I am in a different voice channel, you will be asked to move.
 // This function is automatically called if you queue something and I am not connected.
-func connect(ctx commands.Context) error {
+func connect(ctx *commands.Context) error {
 	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
 	if err != nil || authorVoice.ChannelID == "" {
 		return ctx.RespondPrivate("You must be in a voice channel to use this command.")
@@ -147,7 +148,7 @@ func connect(ctx commands.Context) error {
 // If streams are currently playing, paused, or queued, I will not disconnect unless you have permissions to clear the queue.
 // I will automatically disconnect after 5 minutes of inactivity or if there is nobody else in the call.
 // Note that I may consider bots as "other people" if they are not server deafened. For best results, you should server deafen other bots.
-func dc(ctx commands.Context) error {
+func dc(ctx *commands.Context) error {
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
 		streamLock.RLock()
@@ -181,7 +182,7 @@ func dc(ctx commands.Context) error {
 // People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.
 // To disable the DJ role, set to @everyone
-func dj(ctx commands.Context) error {
+func dj(ctx *commands.Context) error {
 	role := ctx.ApplicationCommandData().Options[0].RoleValue(ctx.Bot, ctx.GuildID)
 	if role.Managed {
 		return ctx.RespondPrivate("Role must be user-created.")
@@ -483,9 +484,9 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("role", "DJ role to set, @everyone to disable").AsRole().Required().Finalize(),
 	})
 	optionLink := commands.NewCommandOption("url", "Link to audio file").AsString().Required().Finalize()
-	commands.PrepareCommand("mp3", "Play file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
-	commands.PrepareCommand("mp3skip", "Skip to file from a link").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
-	commands.PrepareCommand("mp3file", "Play an uploaded file").Guild().Register(mp3, []*discordgo.ApplicationCommandOption{
+	commands.PrepareCommand("mp3", "Play file from a link").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3skip", "Skip to file from a link").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3file", "Play an uploaded file").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{
 		{Name: "file", Description: "File to play", Type: discordgo.ApplicationCommandOptionAttachment, Required: true},
 	})
 	commands.PrepareCommand("loop", "Set stream loop").Guild().Register(loop, []*discordgo.ApplicationCommandOption{
@@ -495,7 +496,7 @@ func Init(self *discordgo.Session) {
 	optionVideo := commands.NewCommandOption("url", "Link to YouTube video, or anything supported by yt-dlp").AsString().Required().Finalize()
 	commands.PrepareCommand("play", "Play YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
 	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
-	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Register(pause, nil)
+	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Component(pause).Register(pause, nil)
 	commands.PrepareCommand("remove", "Remove stream from queue").Guild().Register(remove, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("index", "Index to remove, negative for all").AsInt().SetMinMax(-1, 127).Required().Finalize(),
 	})

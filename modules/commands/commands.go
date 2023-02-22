@@ -38,71 +38,88 @@ type Context struct {
 	hasDelayed bool
 	components []discordgo.MessageComponent
 	origName   string
+	followup   string
+}
+
+func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool) error {
+	if ctx.followup == "0" {
+		data := new(discordgo.WebhookParams)
+		data.Content = msg
+		data.Components = ctx.components
+		if private {
+			data.Flags = discordgo.MessageFlagsEphemeral
+		}
+		if embed != nil {
+			data.Embeds = []*discordgo.MessageEmbed{embed}
+		}
+		s, err := ctx.Bot.FollowupMessageCreate(ctx.Interaction, true, data)
+		if err != nil {
+			err = fmt.Errorf("failed to send response: %w", err)
+		} else {
+			ctx.followup = s.ID
+		}
+		return err
+	} else if ctx.followup != "" {
+		resp := new(discordgo.WebhookEdit)
+		resp.Content = &msg
+		resp.Components = &ctx.components
+		if embed != nil {
+			resp.Embeds = &[]*discordgo.MessageEmbed{embed}
+		}
+		_, err := ctx.Bot.FollowupMessageEdit(ctx.Interaction, ctx.followup, resp)
+		if err != nil {
+			err = fmt.Errorf("failed to send response: %w", err)
+		}
+		return err
+	}
+	resp := new(discordgo.InteractionResponse)
+	if ctx.origName == "" {
+		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	} else {
+		resp.Type = discordgo.InteractionResponseUpdateMessage
+	}
+	resp.Data = new(discordgo.InteractionResponseData)
+	resp.Data.Content = msg
+	resp.Data.Components = ctx.components
+	if private {
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
+	}
+	if embed != nil {
+		resp.Data.Embeds = []*discordgo.MessageEmbed{embed}
+	}
+	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
+	if err != nil {
+		err = fmt.Errorf("failed to send response: %w", err)
+	}
+	return err
 }
 
 // Send a message to the channel where the command was invoked.
-func (ctx Context) Respond(msg string) error {
-	if ctx.hasDelayed {
+func (ctx *Context) Respond(msg string) error {
+	if ctx.followup == "0" {
+		ctx.RespondDelayed(false)
+	} else if ctx.hasDelayed {
 		return ctx.RespondEdit(msg)
 	}
-	resp := new(discordgo.InteractionResponse)
-	if ctx.origName == "" {
-		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
-	} else {
-		resp.Type = discordgo.InteractionResponseUpdateMessage
-	}
-	resp.Data = new(discordgo.InteractionResponseData)
-	resp.Data.Content = msg
-	resp.Data.Components = ctx.components
-	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
-	if err != nil {
-		err = fmt.Errorf("failed to send response: %w", err)
-	}
-	return err
+	return ctx.resp(msg, nil, false)
 }
 
-func (ctx Context) RespondPrivate(msg string) error {
-	if ctx.hasDelayed {
+func (ctx *Context) RespondPrivate(msg string) error {
+	if ctx.followup == "0" {
+		ctx.RespondDelayed(true)
+	} else if ctx.hasDelayed {
 		return ctx.RespondEdit(msg)
 	}
-	resp := new(discordgo.InteractionResponse)
-	if ctx.origName == "" {
-		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
-	} else {
-		resp.Type = discordgo.InteractionResponseUpdateMessage
-	}
-	resp.Data = new(discordgo.InteractionResponseData)
-	resp.Data.Content = msg
-	resp.Data.Flags = 1 << 6
-	resp.Data.Components = ctx.components
-	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
-	if err != nil {
-		err = fmt.Errorf("failed to send response: %w", err)
-	}
-	return err
+	return ctx.resp(msg, nil, true)
 }
 
-func (ctx Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
-	if ctx.hasDelayed {
+func (ctx *Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
+	if ctx.followup == "0" {
+		ctx.RespondDelayed(private)
+	} else if ctx.hasDelayed {
 		return ctx.RespondEditEmbed(embed)
 	}
-	resp := new(discordgo.InteractionResponse)
-	if ctx.origName == "" {
-		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
-	} else {
-		resp.Type = discordgo.InteractionResponseUpdateMessage
-	}
-	resp.Data = new(discordgo.InteractionResponseData)
-	resp.Data.Embeds = []*discordgo.MessageEmbed{embed}
-	resp.Data.Components = ctx.components
-	if private {
-		resp.Data.Flags = 1 << 6
-	}
-	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
-	if err != nil {
-		err = fmt.Errorf("failed to send response: %w", err)
-	}
-	return err
+	return ctx.resp("", embed, private)
 }
 
 func (ctx *Context) RespondDelayed(private bool) error {
@@ -116,7 +133,7 @@ func (ctx *Context) RespondDelayed(private bool) error {
 	}
 	resp.Data = new(discordgo.InteractionResponseData)
 	if private {
-		resp.Data.Flags = 1 << 6
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
 	}
 	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
 	if err != nil {
@@ -127,7 +144,7 @@ func (ctx *Context) RespondDelayed(private bool) error {
 	return err
 }
 
-func (ctx Context) RespondEdit(msg string) error {
+func (ctx *Context) RespondEdit(msg string) error {
 	if ctx.origName != "" {
 		return ctx.Respond(msg)
 	}
@@ -141,7 +158,7 @@ func (ctx Context) RespondEdit(msg string) error {
 	return err
 }
 
-func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
+func (ctx *Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 	if ctx.origName != "" {
 		return ctx.RespondEmbed(embed, false)
 	}
@@ -155,12 +172,15 @@ func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 	return err
 }
 
-func (ctx Context) RespondEmpty() error {
-	if !ctx.hasDelayed && ctx.origName == "" {
+func (ctx *Context) RespondEmpty() error {
+	if ctx.origName == "" {
+		return ctx.Bot.InteractionRespond(ctx.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
+	}
+	if !ctx.hasDelayed {
 		resp := new(discordgo.InteractionResponse)
 		resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
 		resp.Data = new(discordgo.InteractionResponseData)
-		resp.Data.Flags = 1 << 6
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
 		err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
 		if err != nil {
 			return fmt.Errorf("failed to send response: %w", err)
@@ -191,9 +211,14 @@ func (ctx *Context) SetComponents(args ...discordgo.MessageComponent) {
 	ctx.components = []discordgo.MessageComponent{com}
 }
 
+func (ctx *Context) FollowupPrepare() {
+	ctx.followup = "0"
+}
+
 // MakeContext returns a Context populated with data from the message event.
-func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context {
-	ctx := Context{Interaction: event}
+func MakeContext(self *discordgo.Session, event *discordgo.Interaction) *Context {
+	ctx := new(Context)
+	ctx.Interaction = event
 	if ctx.Member != nil {
 		ctx.User = event.Member.User
 	}
@@ -209,8 +234,8 @@ func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context 
 }
 
 // Command defines the function interface for a valid command.
-type Command func(Context) error
-type Autocompleter func(Context) []*discordgo.ApplicationCommandOptionChoice
+type Command func(*Context) error
+type Autocompleter func(*Context) []*discordgo.ApplicationCommandOptionChoice
 type cmdMapEntry struct {
 	c Command
 	a Autocompleter

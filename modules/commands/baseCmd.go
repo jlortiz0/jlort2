@@ -33,7 +33,7 @@ import (
 
 // ~!echo <message>
 // Says stuff back
-func echo(ctx Context) error {
+func echo(ctx *Context) error {
 	return ctx.RespondPrivate(ctx.ApplicationCommandData().Options[0].StringValue())
 }
 
@@ -44,7 +44,7 @@ func echo(ctx Context) error {
 // For this command to work in servers, I need the Manage Messages permission.
 // To specify a user other than me, you need the Manage Messages permission.
 // Due to Discord limitations, this only scans the 100 most recent messages.
-func purge(ctx Context) error {
+func purge(ctx *Context) error {
 	ctx.RespondDelayed(true)
 	if ctx.GuildID == "" {
 		msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
@@ -111,7 +111,7 @@ func purge(ctx Context) error {
 // If not specified, the prefix is assumed to be ~!
 // You need Manage Messages to use this command.
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
-func ppurge(ctx Context) error {
+func ppurge(ctx *Context) error {
 	ctx.RespondDelayed(true)
 	prefix := ctx.ApplicationCommandData().Options[0].StringValue()
 	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
@@ -137,7 +137,7 @@ func ppurge(ctx Context) error {
 
 // ~!ping
 // Get latency
-func ping(ctx Context) error {
+func ping(ctx *Context) error {
 	return ctx.RespondPrivate(fmt.Sprintf("Latency: %d ms", ctx.Bot.HeartbeatLatency().Milliseconds()))
 }
 
@@ -147,7 +147,7 @@ var updating bool
 // @Hidden
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
-func gsm(ctx Context) error {
+func gsm(ctx *Context) error {
 	if updating {
 		return ctx.RespondPrivate("The servers are currently updating.")
 	}
@@ -194,7 +194,7 @@ func gsm(ctx Context) error {
 	return ctx.Respond(string(out))
 }
 
-func gsmAutocomplete(ctx Context) []*discordgo.ApplicationCommandOptionChoice {
+func gsmAutocomplete(ctx *Context) []*discordgo.ApplicationCommandOptionChoice {
 	pre := ctx.ApplicationCommandData().Options[0].StringValue()
 	fList, err := os.ReadDir("/home/McServer/")
 	if err != nil {
@@ -222,7 +222,7 @@ func gsmAutocomplete(ctx Context) []*discordgo.ApplicationCommandOptionChoice {
 // @GuildOnly
 // Send a teleport request to someone.
 // Doesn't really do anything, it's just for fun.
-func tpa(ctx Context) error {
+func tpa(ctx *Context) error {
 	target := ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
 	if target.Bot {
 		return ctx.RespondPrivate(fmt.Sprintf("**%s** has teleportation disabled.", target.Username))
@@ -247,14 +247,14 @@ var verNum string
 
 // ~!version
 // Get bot info
-func version(ctx Context) error {
+func version(ctx *Context) error {
 	return ctx.RespondPrivate(ctx.State.Application.Name + " " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
 }
 
 // ~!flip [times]
 // Flips a coin
 // If times is provided, flips multiple coins.
-func flip(ctx Context) error {
+func flip(ctx *Context) error {
 	count := 1
 	args := ctx.ApplicationCommandData().Options
 	if len(args) > 0 {
@@ -278,7 +278,7 @@ func flip(ctx Context) error {
 // ~!roll [count]
 // Rolls a six-sided die
 // If count is provided, rolls multiple.
-func roll(ctx Context) error {
+func roll(ctx *Context) error {
 	count := 1
 	args := ctx.ApplicationCommandData().Options
 	if len(args) > 0 {

@@ -38,7 +38,7 @@ var quoteLock *sync.RWMutex = new(sync.RWMutex)
 // Gets a random quote
 // If you specifiy an index, it will try to get that quote.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
-func quote(ctx commands.Context) error {
+func quote(ctx *commands.Context) error {
 	quoteLock.RLock()
 	qList := quixote[ctx.GuildID]
 	quoteLock.RUnlock()
@@ -60,7 +60,7 @@ func quote(ctx commands.Context) error {
 	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
 }
 
-func quoteReroll(ctx commands.Context) error {
+func quoteReroll(ctx *commands.Context) error {
 	quoteLock.RLock()
 	qList := quixote[ctx.GuildID]
 	quoteLock.RUnlock()
@@ -81,7 +81,7 @@ const quotes_paginate_amount = 10
 // ~!quotes
 // @GuildOnly
 // Gets all quotes
-func quotes(ctx commands.Context) error {
+func quotes(ctx *commands.Context) error {
 	var ind int
 	if ctx.Type == discordgo.InteractionMessageComponent {
 		cid := ctx.MessageComponentData().CustomID
@@ -139,7 +139,7 @@ func buildQuotesString(qList []string, start int) string {
 // ~!addquote <quote>
 // @GuildOnly
 // Adds a quote
-func addquote(ctx commands.Context) error {
+func addquote(ctx *commands.Context) error {
 	dirty = true
 	quoteLock.Lock()
 	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], ctx.ApplicationCommandData().Options[0].StringValue())
@@ -154,7 +154,7 @@ func addquote(ctx commands.Context) error {
 // Removes a quote
 // If you have Manage Server, you can do ~!delquote all to remove all quotes.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
-func delquote(ctx commands.Context) error {
+func delquote(ctx *commands.Context) error {
 	quoteLock.Lock()
 	defer quoteLock.Unlock()
 	qList := quixote[ctx.GuildID]
