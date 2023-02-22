@@ -64,6 +64,7 @@ type StreamObj struct {
 	Source  string   // The URL to stream from
 	Vol     int      // The volume, 0-200. This will be copied from the previous stream if possible
 	Flags   uint16   // See above constants
+	InterID string   // Interaction ID
 	Info    *YDLInfo // The YDLInfo associated with this stream. If nil, this is a direct file stream
 	// Fields below this line may not be populated or valid until the streamer starts
 	Remake     chan struct{}                   // When this channel is written to, the ffmpeg process will be recreated with new parameters
@@ -492,8 +493,8 @@ func Init(self *discordgo.Session) {
 	})
 	commands.PrepareCommand("skip", "Skip current song").Guild().Register(skip, nil)
 	optionVideo := commands.NewCommandOption("url", "Link to YouTube video, or anything supported by yt-dlp").AsString().Required().Finalize()
-	commands.PrepareCommand("play", "Play YouTube video").Guild().Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
-	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("play", "Play YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
 	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Register(pause, nil)
 	commands.PrepareCommand("remove", "Remove stream from queue").Guild().Register(remove, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("index", "Index to remove, negative for all").AsInt().SetMinMax(-1, 127).Required().Finalize(),

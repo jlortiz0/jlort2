@@ -294,8 +294,7 @@ func roll(ctx Context) error {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
-	cmdMap = make(map[string]Command, 64)
-	autocomMap = make(map[string]Autocompleter, 16)
+	cmdMap = make(map[string]cmdMapEntry, 64)
 	PrepareCommand("echo", "Say stuff").Register(echo, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("stuff", "say something cool").AsString().Required().Finalize(),
 	})

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -35,6 +36,8 @@ type Context struct {
 	Me         *discordgo.User
 	State      *discordgo.State
 	hasDelayed bool
+	components []discordgo.MessageComponent
+	origName   string
 }
 
 // Send a message to the channel where the command was invoked.
@@ -43,9 +46,14 @@ func (ctx Context) Respond(msg string) error {
 		return ctx.RespondEdit(msg)
 	}
 	resp := new(discordgo.InteractionResponse)
-	resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	if ctx.origName == "" {
+		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	} else {
+		resp.Type = discordgo.InteractionResponseUpdateMessage
+	}
 	resp.Data = new(discordgo.InteractionResponseData)
 	resp.Data.Content = msg
+	resp.Data.Components = ctx.components
 	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to send response: %w", err)
@@ -58,10 +66,15 @@ func (ctx Context) RespondPrivate(msg string) error {
 		return ctx.RespondEdit(msg)
 	}
 	resp := new(discordgo.InteractionResponse)
-	resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	if ctx.origName == "" {
+		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	} else {
+		resp.Type = discordgo.InteractionResponseUpdateMessage
+	}
 	resp.Data = new(discordgo.InteractionResponseData)
 	resp.Data.Content = msg
 	resp.Data.Flags = 1 << 6
+	resp.Data.Components = ctx.components
 	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to send response: %w", err)
@@ -74,9 +87,14 @@ func (ctx Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) err
 		return ctx.RespondEditEmbed(embed)
 	}
 	resp := new(discordgo.InteractionResponse)
-	resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	if ctx.origName == "" {
+		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	} else {
+		resp.Type = discordgo.InteractionResponseUpdateMessage
+	}
 	resp.Data = new(discordgo.InteractionResponseData)
 	resp.Data.Embeds = []*discordgo.MessageEmbed{embed}
+	resp.Data.Components = ctx.components
 	if private {
 		resp.Data.Flags = 1 << 6
 	}
@@ -93,6 +111,9 @@ func (ctx *Context) RespondDelayed(private bool) error {
 	}
 	resp := new(discordgo.InteractionResponse)
 	resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
+	if ctx.origName != "" {
+		resp.Type = discordgo.InteractionResponseDeferredMessageUpdate
+	}
 	resp.Data = new(discordgo.InteractionResponseData)
 	if private {
 		resp.Data.Flags = 1 << 6
@@ -107,8 +128,12 @@ func (ctx *Context) RespondDelayed(private bool) error {
 }
 
 func (ctx Context) RespondEdit(msg string) error {
+	if ctx.origName != "" {
+		return ctx.Respond(msg)
+	}
 	resp := new(discordgo.WebhookEdit)
 	resp.Content = &msg
+	resp.Components = &ctx.components
 	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to edit response: %w", err)
@@ -117,8 +142,12 @@ func (ctx Context) RespondEdit(msg string) error {
 }
 
 func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
+	if ctx.origName != "" {
+		return ctx.RespondEmbed(embed, false)
+	}
 	resp := new(discordgo.WebhookEdit)
 	resp.Embeds = &[]*discordgo.MessageEmbed{embed}
+	resp.Components = &ctx.components
 	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
 	if err != nil {
 		err = fmt.Errorf("failed to edit response: %w", err)
@@ -127,7 +156,7 @@ func (ctx Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 }
 
 func (ctx Context) RespondEmpty() error {
-	if !ctx.hasDelayed {
+	if !ctx.hasDelayed && ctx.origName == "" {
 		resp := new(discordgo.InteractionResponse)
 		resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
 		resp.Data = new(discordgo.InteractionResponseData)
@@ -140,6 +169,28 @@ func (ctx Context) RespondEmpty() error {
 	return ctx.Bot.InteractionResponseDelete(ctx.Interaction)
 }
 
+func (ctx *Context) SetComponents(args ...discordgo.MessageComponent) {
+	if len(args) == 0 {
+		return
+	}
+	name := ctx.origName + "\a"
+	if name == "\a" {
+		name = ctx.ApplicationCommandData().Name + "\a"
+	}
+	for i, x := range args {
+		if x.Type() == discordgo.ButtonComponent {
+			x2 := x.(discordgo.Button)
+			x2.CustomID = name + x2.CustomID
+			args[i] = x2
+		} else {
+			return
+		}
+	}
+	com := new(discordgo.ActionsRow)
+	com.Components = args
+	ctx.components = []discordgo.MessageComponent{com}
+}
+
 // MakeContext returns a Context populated with data from the message event.
 func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context {
 	ctx := Context{Interaction: event}
@@ -149,20 +200,30 @@ func MakeContext(self *discordgo.Session, event *discordgo.Interaction) Context 
 	ctx.Bot = self
 	ctx.State = self.State
 	ctx.Me = self.State.User
+	if event.Type == discordgo.InteractionMessageComponent {
+		data := event.MessageComponentData()
+		ctx.origName, data.CustomID, _ = strings.Cut(data.CustomID, "\a")
+		event.Data = data
+	}
 	return ctx
 }
 
 // Command defines the function interface for a valid command.
 type Command func(Context) error
 type Autocompleter func(Context) []*discordgo.ApplicationCommandOptionChoice
+type cmdMapEntry struct {
+	c Command
+	a Autocompleter
+	h Command // Component handler
+}
 
 var batchCmdList []commandStruct
-var cmdMap map[string]Command
-var autocomMap map[string]Autocompleter
+var cmdMap map[string]cmdMapEntry
 
 type commandStruct struct {
 	*discordgo.ApplicationCommand
 	autocomplete Autocompleter
+	handler      Command
 	gsm          bool
 }
 
@@ -171,7 +232,7 @@ func PrepareCommand(name, description string) commandStruct {
 	cmd.Description = description
 	cmd.Name = name
 	cmd.Type = discordgo.ChatApplicationCommand
-	return commandStruct{cmd, nil, false}
+	return commandStruct{ApplicationCommand: cmd}
 }
 
 func (c commandStruct) AsMsg() commandStruct {
@@ -208,6 +269,11 @@ func (c commandStruct) Auto(c2 Autocompleter) commandStruct {
 	return c
 }
 
+func (c commandStruct) Component(c2 Command) commandStruct {
+	c.handler = c2
+	return c
+}
+
 func (c commandStruct) Gsm() commandStruct {
 	c.gsm = true
 	return c
@@ -216,10 +282,7 @@ func (c commandStruct) Gsm() commandStruct {
 func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
 	c.Options = options
 	batchCmdList = append(batchCmdList, c)
-	cmdMap[c.Name] = cmd
-	if c.autocomplete != nil {
-		autocomMap[c.Name] = c.autocomplete
-	}
+	cmdMap[c.Name] = cmdMapEntry{cmd, c.autocomplete, c.handler}
 }
 
 func UploadCommands(self *discordgo.Session, appId string, guildId string, testMode bool) {
@@ -277,12 +340,17 @@ func clearGuildCommands(self *discordgo.Session, appId string, guildID string) {
 
 // GetCommand returns the command associated with the given name
 func GetCommand(name string) Command {
-	return cmdMap[name]
+	return cmdMap[name].c
 }
 
 // GetCommand returns the command associated with the given name
 func GetCommandAutocomplete(name string) Autocompleter {
-	return autocomMap[name]
+	return cmdMap[name].a
+}
+
+func GetCommandComponentHandler(data discordgo.MessageComponentInteractionData) Command {
+	name, _, _ := strings.Cut(data.CustomID, "\a")
+	return cmdMap[name].h
 }
 
 // DisplayName returns the nickname of a member, or the username if there is none.

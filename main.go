@@ -54,6 +54,11 @@ start:
 	}
 	// GSM_GUILD or tTEST_GUILD, KEY
 	key, guildId, _ := strings.Cut(string(strBytes), "\n")
+	guildId, _, _ = strings.Cut(guildId, "\n")
+	if key[len(key)-1] == '\r' {
+		key = key[:len(key)-1]
+		guildId = guildId[:len(guildId)-1]
+	}
 	if len(guildId) > 0 {
 		s := guildId
 		if s[0] == 't' {
@@ -117,12 +122,17 @@ func crashMe(ch chan os.Signal) {
 }
 
 func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
+	var err error
 	time.Sleep(5 * time.Millisecond)
 	for i := 0; i < len(event.Guilds); i++ {
-		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
+		err = self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
 		if err != nil {
 			panic(err)
 		}
+	}
+	self.State.Application, err = self.Application("@me")
+	if err != nil {
+		panic(err)
 	}
 	updatePfp(self)
 	initModules(self, guildId)
@@ -165,26 +175,34 @@ func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
 	}
 }
 
-// TODO: components could be useful for duel (call other person brit), tpa (non-functional to accept or reject),
-// kekreport, relic list, quotes, song list, outro list (pagination), trade (accept or reject), skip (quick cast additional votes),
-// play (quick remove from queue), pause (quick unpause), and maybe if I ever readd ytsearch
+// TODO: components could be useful for
+// kekreport, outro list (pagination),
+// play (quick remove from queue), pause (quick unpause)
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
-	if event.Type != discordgo.InteractionApplicationCommand {
-		if event.Type == discordgo.InteractionPing {
-			self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})
-		} else if event.Type == discordgo.InteractionApplicationCommandAutocomplete {
-			data := event.ApplicationCommandData()
-			cmd := commands.GetCommandAutocomplete(data.Name)
-			out := cmd(commands.MakeContext(self, event.Interaction))
-			self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionApplicationCommandAutocompleteResult,
-				Data: &discordgo.InteractionResponseData{Choices: out},
-			})
-		}
+	if event.Type == discordgo.InteractionPing {
+		self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})
 		return
 	}
-	data := event.ApplicationCommandData()
-	cmd := commands.GetCommand(data.Name)
+	if event.Type == discordgo.InteractionApplicationCommandAutocomplete {
+		data := event.ApplicationCommandData()
+		cmd := commands.GetCommandAutocomplete(data.Name)
+		out := cmd(commands.MakeContext(self, event.Interaction))
+		self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionApplicationCommandAutocompleteResult,
+			Data: &discordgo.InteractionResponseData{Choices: out},
+		})
+	}
+	if event.Type != discordgo.InteractionApplicationCommand && event.Type != discordgo.InteractionMessageComponent {
+		return
+	}
+	var cmd commands.Command
+	if event.Type == discordgo.InteractionMessageComponent {
+		data := event.MessageComponentData()
+		cmd = commands.GetCommandComponentHandler(data)
+	} else {
+		data := event.ApplicationCommandData()
+		cmd = commands.GetCommand(data.Name)
+	}
 	if cmd != nil {
 		ctx := commands.MakeContext(self, event.Interaction)
 		var err error
@@ -211,6 +229,14 @@ func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCrea
 }
 
 func handleCommandError(err error, ctx commands.Context, stack string) {
+	if ctx.Type == discordgo.InteractionMessageComponent {
+		log.Errors("Error in message component")
+		log.Error(err)
+		if stack != "" {
+			log.Errors(stack)
+		}
+		return
+	}
 	log.Errors(fmt.Sprintf("Error in command %s", ctx.ApplicationCommandData().Name))
 	log.Error(err)
 	if stack != "" {

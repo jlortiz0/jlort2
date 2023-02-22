@@ -56,18 +56,52 @@ func quote(ctx commands.Context) error {
 	} else {
 		sel = rand.Intn(len(qList))
 	}
+	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
 	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
 }
+
+func quoteReroll(ctx commands.Context) error {
+	quoteLock.RLock()
+	qList := quixote[ctx.GuildID]
+	quoteLock.RUnlock()
+	if len(qList) == 0 {
+		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
+	}
+	sel2, _ := strconv.Atoi(ctx.MessageComponentData().CustomID)
+	sel := sel2
+	for sel == sel2 {
+		sel = rand.Intn(len(qList))
+	}
+	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
+	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
+}
+
+const quotes_paginate_amount = 10
 
 // ~!quotes
 // @GuildOnly
 // Gets all quotes
 func quotes(ctx commands.Context) error {
+	var ind int
+	if ctx.Type == discordgo.InteractionMessageComponent {
+		cid := ctx.MessageComponentData().CustomID
+		ind, _ = strconv.Atoi(cid[1:])
+		if cid[0] == 'r' {
+			ind += quotes_paginate_amount
+		} else {
+			ind -= quotes_paginate_amount
+		}
+	}
 	quoteLock.RLock()
 	defer quoteLock.RUnlock()
 	qList := quixote[ctx.GuildID]
 	if len(qList) == 0 {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
+	}
+	if ind >= len(qList) {
+		ind = len(qList) - quotes_paginate_amount
+	} else if ind < 0 {
+		ind = 0
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
@@ -75,17 +109,31 @@ func quotes(ctx commands.Context) error {
 	}
 	output := new(discordgo.MessageEmbed)
 	output.Title = "Quotes from " + guild.Name
+	output.Description = buildQuotesString(qList, ind)
+	output.Color = 0x7289da
+	ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}},
+		discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount})
+	err = ctx.RespondEmbed(output, false)
+	return err
+}
+
+func buildQuotesString(qList []string, start int) string {
+	if start >= len(qList) {
+		return ""
+	}
+	qList = qList[start:]
+	if len(qList) > quotes_paginate_amount {
+		qList = qList[:quotes_paginate_amount]
+	}
 	builder := new(strings.Builder)
-	for i, v := range qList {
-		builder.WriteString(strconv.Itoa(i + 1))
+	for _, v := range qList {
+		start++
+		builder.WriteString(strconv.Itoa(start))
 		builder.WriteString(". ")
 		builder.WriteString(v)
 		builder.WriteByte('\n')
 	}
-	output.Description = builder.String()[:builder.Len()-1]
-	output.Color = 0x7289da
-	err = ctx.RespondEmbed(output, false)
-	return err
+	return builder.String()[:builder.Len()-1]
 }
 
 // ~!addquote <quote>
@@ -157,10 +205,10 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	commands.PrepareCommand("quote", "Hopefully it's actually funny").Guild().Register(quote, []*discordgo.ApplicationCommandOption{
+	commands.PrepareCommand("quote", "Hopefully it's actually funny").Guild().Component(quoteReroll).Register(quote, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().Finalize(),
 	})
-	commands.PrepareCommand("quotes", "Show all quotes").Guild().Register(quotes, nil)
+	commands.PrepareCommand("quotes", "Show all quotes").Guild().Component(quotes).Register(quotes, nil)
 	commands.PrepareCommand("addquote", "Record that dumb thing your friend just said").Guild().Register(addquote, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("quote", "The thing, the funny thing").AsString().Required().Finalize(),
 	})

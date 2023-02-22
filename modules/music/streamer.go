@@ -229,7 +229,10 @@ func play(ctx commands.Context) error {
 	ctx.RespondDelayed(true)
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
-		source = source[:strings.IndexByte(source, '?')]
+		source, _, _ = strings.Cut(source, "?list=")
+	}
+	if strings.Contains(source, "&list=") && strings.Contains(source, "youtube.com") {
+		source, _, _ = strings.Cut(source, "&list=")
 	}
 	var entries YDLPlaylist
 	var info YDLInfo
@@ -269,6 +272,7 @@ func play(ctx commands.Context) error {
 	data.Info = &info
 	data.Source = info.URL
 	data.Vol = 65
+	data.InterID = ctx.ID
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondEdit("Discord network error while processing request. Please try again.")
@@ -305,12 +309,49 @@ func play(ctx commands.Context) error {
 		ls.PushBack(data)
 	}
 	ls.Unlock()
+	btn := discordgo.Button{Label: "Remove", CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}}
+	if !np {
+		btn.CustomID += "\a"
+	}
+	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
 	// If the RespondDelayed above is changed back to true, uncomment this
 	// _, err = ctx.Bot.FollowupMessageCreate(ctx.Interaction, false, &discordgo.WebhookParams{Embeds: []*discordgo.MessageEmbed{embed}})
 	// ctx.Bot.InteractionResponseDelete(ctx.Interaction)
 	// return err
 	return ctx.RespondEditEmbed(embed)
+}
+
+func playComponent(ctx commands.Context) error {
+	interId, _, np := strings.Cut(ctx.MessageComponentData().CustomID, "\a")
+	ls := streams[ctx.GuildID]
+	ls.Lock()
+	if np {
+		obj := ls.Head()
+		if obj != nil && obj.Value != nil && obj.Value.InterID == interId {
+			ls.Unlock()
+			return skip(ctx)
+		}
+		ls.Unlock()
+		return nil
+	}
+	elem := ls.Head()
+	i := 0
+	for elem != nil && elem.Value != nil && elem.Value.InterID != interId {
+		elem = elem.Next()
+		i++
+	}
+	if elem == nil || elem.Value == nil {
+		return nil
+	}
+	mData := new(discordgo.ApplicationCommandInteractionData)
+	mData.Options = []*discordgo.ApplicationCommandInteractionDataOption{
+		{
+			Type: discordgo.ApplicationCommandOptionInteger, Value: i,
+		},
+	}
+	ctx.Data = mData
+	return remove(ctx)
 }
 
 // ~!vol [volume]
