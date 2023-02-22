@@ -145,6 +145,8 @@ Streamer:
 	}
 }
 
+const music_queue_max = 10
+
 // ~!mp3 <link to audio file>
 // @Alias mp4
 // @Alias mp3skip
@@ -205,6 +207,8 @@ func mp3(ctx commands.Context) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
+	} else if ls.Len() >= music_queue_max {
+		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
@@ -300,6 +304,8 @@ func play(ctx commands.Context) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
+	} else if ls.Len() >= music_queue_max {
+		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
@@ -503,6 +509,7 @@ func outro(ctx commands.Context) error {
 	return ctx.RespondEmpty()
 }
 
+// TODO: CACHE THIS. NOW. NOWNOWNOWNOW.
 func outroAutocomplete(ctx commands.Context) []*discordgo.ApplicationCommandOptionChoice {
 	pre := ctx.ApplicationCommandData().Options[0].StringValue()
 	fList, err := os.ReadDir("outro")
