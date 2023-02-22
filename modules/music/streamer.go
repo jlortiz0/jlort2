@@ -134,7 +134,7 @@ Streamer:
 	}
 	data.Subprocess.Process.Kill()
 	data.Subprocess.Wait()
-	data.Flags &= ^uint16(strflag_playing)
+	data.Flags &= ^strflag_playing
 	if data.Flags&strflag_special == 0 {
 		streamLock.Lock()
 		lastPlayed[vc.GuildID] = time.Now()
@@ -465,28 +465,6 @@ func popcorn(ctx commands.Context) error {
 // Only works if nothing else is playing
 // For a list of outros, do ~!outro list
 func outro(ctx commands.Context) error {
-	name := ctx.ApplicationCommandData().Options[0].StringValue()
-	if name == "list" {
-		f, err := os.Open("outro")
-		if err != nil {
-			return err
-		}
-		names, err := f.Readdirnames(0)
-		if err != nil {
-			return err
-		}
-		builder := new(strings.Builder)
-		builder.WriteString("Outros:")
-		for _, x := range names {
-			builder.WriteByte('\n')
-			ind := strings.LastIndexByte(x, '.')
-			if ind == -1 {
-				ind = len(x)
-			}
-			builder.WriteString(x[:ind])
-		}
-		return ctx.RespondPrivate(builder.String())
-	}
 	ls := streams[ctx.GuildID]
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil || ls == nil {
@@ -495,6 +473,7 @@ func outro(ctx commands.Context) error {
 	if ls.Len() > 0 {
 		return ctx.RespondPrivate("Can't play an outro while something else is playing.")
 	}
+	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	_, err := os.Stat("outro" + string(os.PathSeparator) + name + ".ogg")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -507,25 +486,4 @@ func outro(ctx commands.Context) error {
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
 	return ctx.RespondEmpty()
-}
-
-// TODO: CACHE THIS. NOW. NOWNOWNOWNOW.
-func outroAutocomplete(ctx commands.Context) []*discordgo.ApplicationCommandOptionChoice {
-	pre := ctx.ApplicationCommandData().Options[0].StringValue()
-	fList, err := os.ReadDir("outro")
-	if err != nil {
-		return nil
-	}
-	output := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
-	for _, x := range fList {
-		n := x.Name()
-		if !strings.HasSuffix(n, ".ogg") {
-			continue
-		}
-		n = n[:len(n)-4]
-		if strings.HasPrefix(n, pre) {
-			output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
-		}
-	}
-	return output
 }

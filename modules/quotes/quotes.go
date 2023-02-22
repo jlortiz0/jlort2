@@ -29,6 +29,8 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
+const quotes_max = 200
+
 var quixote map[string][]string
 var dirty bool
 var quoteLock *sync.RWMutex = new(sync.RWMutex)
@@ -94,6 +96,10 @@ func quotes(ctx commands.Context) error {
 func addquote(ctx commands.Context) error {
 	dirty = true
 	quoteLock.Lock()
+	if len(quixote[ctx.GuildID]) >= quotes_max {
+		quoteLock.Unlock()
+		return ctx.RespondPrivate("Maximum number of quotes reached.")
+	}
 	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], ctx.ApplicationCommandData().Options[0].StringValue())
 	quoteLock.Unlock()
 	return ctx.RespondPrivate("Quote added.")
@@ -158,14 +164,14 @@ func Init(self *discordgo.Session) {
 		return
 	}
 	commands.PrepareCommand("quote", "Hopefully it's actually funny").Guild().Register(quote, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().Finalize(),
+		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().SetMinMax(1, quotes_max).Finalize(),
 	})
 	commands.PrepareCommand("quotes", "Show all quotes").Guild().Register(quotes, nil)
 	commands.PrepareCommand("addquote", "Record that dumb thing your friend just said").Guild().Register(addquote, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("quote", "The thing, the funny thing").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("delquote", "Guess it wasn't funny").Guild().Register(delquote, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("index", "Index of quote to remove").AsInt().Required().Finalize(),
+		commands.NewCommandOption("index", "Index of quote to remove").AsInt().SetMinMax(1, quotes_max).Required().Finalize(),
 	})
 	self.AddHandler(guildDelete)
 	commands.RegisterSaver(saveQuotes)

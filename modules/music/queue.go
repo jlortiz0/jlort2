@@ -208,7 +208,7 @@ func skip(ctx commands.Context) error {
 	log.Debug("skip: skipping")
 	ls.Lock()
 	obj.Stop <- struct{}{}
-	obj.Flags &= ^uint16(strflag_paused)
+	obj.Flags &= ^strflag_paused
 	// streams[ctx.GuildID].Remove(elem)
 	ls.Unlock()
 	return ctx.Respond("Skipped.")

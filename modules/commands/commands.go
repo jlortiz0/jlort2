@@ -380,7 +380,14 @@ func (c *commandOption) Required() *commandOption {
 
 func (c *commandOption) Auto() *commandOption {
 	c.Autocomplete = true
+    c.Choices = nil
 	return c
+}
+
+func (c *commandOption) Choice(ls []*discordgo.ApplicationCommandOptionChoice) *commandOption {
+    c.Choices = ls
+    c.Autocomplete = false
+    return c
 }
 
 func (c *commandOption) Finalize() *discordgo.ApplicationCommandOption {
