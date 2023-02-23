@@ -189,7 +189,7 @@ func skip(ctx *commands.Context) error {
 		return ctx.RespondPrivate("You have to be in the channel with me to cast a skip vote.")
 	}
 	log.Debug("skip: checked voice states")
-	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) || true {
+	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 		log.Debug("skip: checked perms")
 		if _, ok := obj.Skippers[ctx.User.ID]; !ok {
 			obj.Skippers[ctx.User.ID] = struct{}{}

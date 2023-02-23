@@ -31,12 +31,6 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-// ~!echo <message>
-// Says stuff back
-func echo(ctx *Context) error {
-	return ctx.RespondPrivate(ctx.ApplicationCommandData().Options[0].StringValue())
-}
-
 // ~!purge [user]
 // Delete a user's messages
 // If not specified, or if we are in a DM, purges messages by me.
@@ -272,10 +266,6 @@ func roll(ctx *Context) error {
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
 	cmdMap = make(map[string]cmdMapEntry, 64)
-	// TODO: Consider removing echo
-	PrepareCommand("echo", "Say stuff").Register(echo, []*discordgo.ApplicationCommandOption{
-		NewCommandOption("stuff", "say something cool").AsString().Required().Finalize(),
-	})
 	PrepareCommand("purge", "Delete messages by user").Perms(discordgo.PermissionManageMessages).Register(purge, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("user", "User to purge, default me").AsUser().Finalize(),
 	})
@@ -285,7 +275,6 @@ func Init(self *discordgo.Session) {
 	})
 	PrepareCommand("ping", "Get bot latency").Register(ping, nil)
 	PrepareCommand("version", "Get version info").Register(version, nil)
-	// TODO: Consider reroll component (if yes change Respond to RespondPrivate)
 	PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("coins", "How many coins to flip").AsInt().SetMinMax(1, 255).Finalize(),
 	})

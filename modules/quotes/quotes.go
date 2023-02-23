@@ -211,7 +211,6 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().SetMinMax(1, quotes_max).Finalize(),
 	})
 	commands.PrepareCommand("quotes", "Show all quotes").Guild().Component(quotes).Register(quotes, nil)
-	// TODO: Message command version of addquote
 	commands.PrepareCommand("addquote", "Record that dumb thing your friend just said").Guild().Register(addquote, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("quote", "The thing, the funny thing").AsString().Required().Finalize(),
 	})

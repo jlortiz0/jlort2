@@ -97,14 +97,23 @@ func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool
 
 // Send a message to the channel where the command was invoked.
 func (ctx *Context) Respond(msg string) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEdit(msg)
+	}
 	return ctx.resp(msg, nil, false)
 }
 
 func (ctx *Context) RespondPrivate(msg string) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEdit(msg)
+	}
 	return ctx.resp(msg, nil, true)
 }
 
 func (ctx *Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEditEmbed(embed)
+	}
 	return ctx.resp("", embed, private)
 }
 

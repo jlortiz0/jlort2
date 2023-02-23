@@ -287,7 +287,6 @@ func play(ctx *commands.Context) error {
 	if ls == nil {
 		return ctx.RespondEdit("Discord network error while processing request. Please try again.")
 	}
-	// TODO: Is there a better way to do this?
 	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
 			return ctx.RespondEdit("You do not have permission to modify the current stream.")
@@ -324,6 +323,8 @@ func play(ctx *commands.Context) error {
 	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.DangerButton}
 	if !np {
 		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
+	} else {
+		btn.Emoji.Name = "\u23ED"
 	}
 	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
