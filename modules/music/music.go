@@ -335,7 +335,11 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 					embed.Title = "Looping"
 				}
 				go musicStreamer(vc, obj)
-				self.ChannelMessageSendEmbed(obj.Channel, embed)
+				component := discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\u23ED"}, Style: discordgo.DangerButton, CustomID: "skip\a"}}}
+				self.ChannelMessageSendComplex(obj.Channel, &discordgo.MessageSend{
+					Embeds:     []*discordgo.MessageEmbed{embed},
+					Components: []discordgo.MessageComponent{component},
+				})
 			}
 		}
 		streamLock.RUnlock()
