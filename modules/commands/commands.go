@@ -43,6 +43,7 @@ type Context struct {
 
 func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool) error {
 	if ctx.followup == "0" {
+		ctx.RespondDelayed(private)
 		data := new(discordgo.WebhookParams)
 		data.Content = msg
 		data.Components = ctx.components
@@ -96,29 +97,14 @@ func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool
 
 // Send a message to the channel where the command was invoked.
 func (ctx *Context) Respond(msg string) error {
-	if ctx.followup == "0" {
-		ctx.RespondDelayed(false)
-	} else if ctx.hasDelayed {
-		return ctx.RespondEdit(msg)
-	}
 	return ctx.resp(msg, nil, false)
 }
 
 func (ctx *Context) RespondPrivate(msg string) error {
-	if ctx.followup == "0" {
-		ctx.RespondDelayed(true)
-	} else if ctx.hasDelayed {
-		return ctx.RespondEdit(msg)
-	}
 	return ctx.resp(msg, nil, true)
 }
 
 func (ctx *Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
-	if ctx.followup == "0" {
-		ctx.RespondDelayed(private)
-	} else if ctx.hasDelayed {
-		return ctx.RespondEditEmbed(embed)
-	}
 	return ctx.resp("", embed, private)
 }
 
@@ -213,6 +199,10 @@ func (ctx *Context) SetComponents(args ...discordgo.MessageComponent) {
 
 func (ctx *Context) FollowupPrepare() {
 	ctx.followup = "0"
+}
+
+func (ctx *Context) FollowupDestroy() {
+	ctx.followup = ""
 }
 
 // MakeContext returns a Context populated with data from the message event.
@@ -473,14 +463,14 @@ func (c *commandOption) Required() *commandOption {
 
 func (c *commandOption) Auto() *commandOption {
 	c.Autocomplete = true
-    c.Choices = nil
+	c.Choices = nil
 	return c
 }
 
 func (c *commandOption) Choice(ls []*discordgo.ApplicationCommandOptionChoice) *commandOption {
-    c.Choices = ls
-    c.Autocomplete = false
-    return c
+	c.Choices = ls
+	c.Autocomplete = false
+	return c
 }
 
 func (c *commandOption) Finalize() *discordgo.ApplicationCommandOption {

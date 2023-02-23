@@ -162,6 +162,9 @@ func pause(ctx *commands.Context) error {
 // To skip a stream, at least half the non-deafened and non-muted users in the channel must vote to skip.
 // Bots may still be counted in the channel count if they are not server deafened. For best results, server deafen bots.
 func skip(ctx *commands.Context) error {
+	if ctx.Type == discordgo.InteractionMessageComponent {
+		ctx.FollowupPrepare()
+	}
 	ls := streams[ctx.GuildID]
 	if ls == nil {
 		return ctx.RespondPrivate("Nothing is playing.")
@@ -186,14 +189,12 @@ func skip(ctx *commands.Context) error {
 		return ctx.RespondPrivate("You have to be in the channel with me to cast a skip vote.")
 	}
 	log.Debug("skip: checked voice states")
-	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
+	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) || true {
 		log.Debug("skip: checked perms")
 		if _, ok := obj.Skippers[ctx.User.ID]; !ok {
 			obj.Skippers[ctx.User.ID] = struct{}{}
-			err = ctx.RespondPrivate("Skip vote cast.")
-			if err != nil {
-				return err
-			}
+		} else {
+			return ctx.RespondPrivate("You have already voted.")
 		}
 		log.Debug("skip: checked obj.skippers")
 		guild, err := ctx.State.Guild(ctx.GuildID)
@@ -207,7 +208,9 @@ func skip(ctx *commands.Context) error {
 			}
 		}
 		if len(obj.Skippers) < count/2 {
-			return ctx.Respond(fmt.Sprintf("Still need %d more votes to skip.", count/2-len(obj.Skippers)))
+			ctx.FollowupDestroy()
+			ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\u23ED"}, Style: discordgo.SecondaryButton})
+			return ctx.Respond(fmt.Sprintf("Still need %d more vote(s) to skip.", count/2-len(obj.Skippers)))
 		}
 	}
 	log.Debug("skip: skipping")
@@ -216,6 +219,7 @@ func skip(ctx *commands.Context) error {
 	obj.Flags &= ^strflag_paused
 	// streams[ctx.GuildID].Remove(elem)
 	ls.Unlock()
+	ctx.FollowupDestroy()
 	return ctx.Respond("Skipped.")
 }
 

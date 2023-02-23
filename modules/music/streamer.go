@@ -486,14 +486,6 @@ func popcorn(ctx *commands.Context) error {
 		sampleLs = append(sampleLs, strconv.Itoa(now.Day()))
 	}
 	sampleLs = append(sampleLs, strconv.Itoa(now.Year()))
-	switch int(now.Month())*128 + now.Day() {
-	case 129:
-		// New year
-	case 1433:
-		// Birthday
-	case 513:
-		// April fools
-	}
 	builder := new(strings.Builder)
 	builder.WriteString("concat:")
 	for k, v := range sampleLs {

@@ -495,7 +495,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("loop", "Set stream loop").Guild().Register(loop, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("enabled", "Loop this song?").AsBool().Required().Finalize(),
 	})
-	commands.PrepareCommand("skip", "Skip current song").Guild().Register(skip, nil)
+	commands.PrepareCommand("skip", "Skip current song").Guild().Component(skip).Register(skip, nil)
 	optionVideo := commands.NewCommandOption("url", "Link to YouTube video, or anything supported by yt-dlp").AsString().Required().Finalize()
 	commands.PrepareCommand("play", "Play YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
 	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
