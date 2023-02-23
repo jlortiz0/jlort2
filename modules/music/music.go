@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,24 +49,26 @@ type YDLPlaylist struct {
 	Entries []YDLInfo
 }
 
+type streamFlag uint8
+
 const (
-	strflag_special = 1 << iota // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
-	strflag_loop                // If true, stream will loop after end
-	strflag_playing             // If true, there is currently a thread running this stream
-	strflag_paused              // If true, the thread running this stream should sleep
-	strflag_noskip              // If true, this stream should not be skippable once playing
-	strflag_dconend             // If true, the bot should disconnect once this stream ends
+	strflag_special streamFlag = 1 << iota // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
+	strflag_loop                           // If true, stream will loop after end
+	strflag_playing                        // If true, there is currently a thread running this stream
+	strflag_paused                         // If true, the thread running this stream should sleep
+	strflag_noskip                         // If true, this stream should not be skippable once playing
+	strflag_dconend                        // If true, the bot should disconnect once this stream ends
 )
 
 // StreamObj stores the data needed for an active stream. A partial version of this is used for a queued stream.
 type StreamObj struct {
-	Author  string   // The ID of the user who queued the stream
-	Channel string   // The channel in which the stream was queued, used for next up announcements
-	Source  string   // The URL to stream from
-	Vol     int      // The volume, 0-200. This will be copied from the previous stream if possible
-	Flags   uint16   // See above constants
-	InterID string   // Interaction ID
-	Info    *YDLInfo // The YDLInfo associated with this stream. If nil, this is a direct file stream
+	Author  string     // The ID of the user who queued the stream
+	Channel string     // The channel in which the stream was queued, used for next up announcements
+	Source  string     // The URL to stream from
+	Vol     int        // The volume, 0-200. This will be copied from the previous stream if possible
+	Flags   streamFlag // See above constants
+	InterID string     // Interaction ID
+	Info    *YDLInfo   // The YDLInfo associated with this stream. If nil, this is a direct file stream
 	// Fields below this line may not be populated or valid until the streamer starts
 	Remake     chan struct{}                   // When this channel is written to, the ffmpeg process will be recreated with new parameters
 	Skippers   map[string]struct{}             // A set of the IDs of users who have voted to skip this stream
@@ -498,7 +501,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
 	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Component(pause).Register(pause, nil)
 	commands.PrepareCommand("remove", "Remove stream from queue").Guild().Register(remove, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("index", "Index to remove, negative for all").AsInt().SetMinMax(-1, 127).Required().Finalize(),
+		commands.NewCommandOption("index", "Index to remove, -1 for all").AsInt().SetMinMax(-1, music_queue_max*2).Required().Finalize(),
 	})
 	commands.PrepareCommand("np", "Details of current stream").Guild().Register(np, nil)
 	commands.PrepareCommand("queue", "See what's in the queue").Guild().Register(queue, nil)
@@ -509,9 +512,23 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
-	commands.PrepareCommand("outro", "Play an outro").Guild().Auto(outroAutocomplete).Register(outro, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("name", "Name of outro to play; use \"list\" for a list").AsString().Required().Auto().Finalize(),
-	})
+	fList, err := os.ReadDir("outro")
+	if err != nil {
+		log.Error(err)
+	} else {
+		outroComp := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
+		for _, x := range fList {
+			n := x.Name()
+			if !strings.HasSuffix(n, ".ogg") {
+				continue
+			}
+			n = n[:len(n)-4]
+			outroComp = append(outroComp, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
+		}
+		commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
+			commands.NewCommandOption("name", "Name of outro to play").AsString().Required().Choice(outroComp).Finalize(),
+		})
+	}
 	popLock++
 	go musicPopper(self, popLock)
 }
