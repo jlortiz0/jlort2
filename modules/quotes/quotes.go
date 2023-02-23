@@ -30,6 +30,7 @@ import (
 )
 
 const quotes_max = 200
+const quotes_paginate_amount = 10
 
 var quixote map[string][]string
 var dirty bool
@@ -70,6 +71,9 @@ func quoteReroll(ctx *commands.Context) error {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	sel2, _ := strconv.Atoi(ctx.MessageComponentData().CustomID)
+	if len(qList) == 1 && sel2 == 0 {
+		return ctx.RespondEmpty()
+	}
 	sel := sel2
 	for sel == sel2 {
 		sel = rand.Intn(len(qList))
@@ -77,8 +81,6 @@ func quoteReroll(ctx *commands.Context) error {
 	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
 	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
 }
-
-const quotes_paginate_amount = 10
 
 // ~!quotes
 // @GuildOnly
