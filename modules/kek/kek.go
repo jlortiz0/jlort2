@@ -41,8 +41,11 @@ var kekLock *sync.RWMutex = new(sync.RWMutex)
 // If not specified, gives the kekage of the command runner.
 func kekage(ctx *commands.Context) error {
 	target := ctx.User
-	if len(ctx.ApplicationCommandData().Options) > 0 && ctx.GuildID != "" {
-		target = ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
+	data := ctx.ApplicationCommandData()
+	if len(data.Options) > 0 && ctx.GuildID != "" {
+		target = data.Options[0].UserValue(ctx.Bot)
+	} else if data.TargetID != "" {
+		target = data.Resolved.Users[data.TargetID]
 	}
 	if target.Bot {
 		return ctx.RespondPrivate("Bots can't be kek.")
@@ -279,6 +282,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
 	})
+	commands.PrepareCommand("Kekage", "").AsUser().Register(kekage, nil)
 	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Component(kekReport).Register(kekReport, nil)
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
 		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{

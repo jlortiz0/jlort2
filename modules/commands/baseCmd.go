@@ -69,8 +69,11 @@ func purge(ctx *Context) error {
 		return ctx.RespondPrivate("I need the Manage Messages permission to use this command.")
 	}
 	target := ctx.Me.ID
-	if len(ctx.ApplicationCommandData().Options) != 0 {
-		args := ctx.ApplicationCommandData().Options[0].UserValue(nil)
+	d := ctx.ApplicationCommandData()
+	if d.TargetID != "" {
+		target = d.TargetID
+	} else if len(d.Options) != 0 {
+		args := d.Options[0].UserValue(nil)
 		// Uncomment this if Perms(discordgo.ManageMessages) is removed for this command
 		// if args.ID != target {
 		// 	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
@@ -216,32 +219,6 @@ func gsmAutocomplete(ctx *Context) []*discordgo.ApplicationCommandOptionChoice {
 	return output
 }
 
-// ~!tpa <user>
-// @Alias tpahere
-// @Hidden
-// @GuildOnly
-// Send a teleport request to someone.
-// Doesn't really do anything, it's just for fun.
-func tpa(ctx *Context) error {
-	target := ctx.ApplicationCommandData().Options[0].UserValue(ctx.Bot)
-	if target.Bot {
-		return ctx.RespondPrivate(fmt.Sprintf("**%s** has teleportation disabled.", target.Username))
-	}
-	if target.ID == ctx.User.ID {
-		return ctx.RespondPrivate("**Error:** Cannot teleport to yourself.")
-	}
-	channel, err := ctx.Bot.UserChannelCreate(target.ID)
-	if err != nil {
-		return err
-	}
-	err = ctx.RespondPrivate(fmt.Sprintf("Request sent to **%s**.", target.Username))
-	if err != nil {
-		return err
-	}
-	_, err = ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("**%s** has requested that you teleport to <#%s>.\nTo teleport, type **/tpaccept**.\nTo deny this request, type **/tpdeny**.", DisplayName(ctx.Member), ctx.ChannelID))
-	return err
-}
-
 var buildDate string
 var verNum string
 
@@ -295,20 +272,20 @@ func roll(ctx *Context) error {
 // Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
 func Init(self *discordgo.Session) {
 	cmdMap = make(map[string]cmdMapEntry, 64)
+	// TODO: Consider removing echo
 	PrepareCommand("echo", "Say stuff").Register(echo, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("stuff", "say something cool").AsString().Required().Finalize(),
 	})
 	PrepareCommand("purge", "Delete messages by user").Perms(discordgo.PermissionManageMessages).Register(purge, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("user", "User to purge, default me").AsUser().Finalize(),
 	})
+	PrepareCommand("Purge Messages", "").AsUser().Guild().Perms(discordgo.PermissionManageMessages).Register(purge, nil)
 	PrepareCommand("ppurge", "Delete messages by prefix").Guild().Perms(discordgo.PermissionManageMessages).Register(ppurge, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("prefix", "Messages that start with this will be deleted").AsString().Required().Finalize(),
 	})
 	PrepareCommand("ping", "Get bot latency").Register(ping, nil)
-	PrepareCommand("tpa", "Teleport to a user").Guild().Register(tpa, []*discordgo.ApplicationCommandOption{
-		NewCommandOption("user", "User to teleport to").AsUser().Required().Finalize(),
-	})
 	PrepareCommand("version", "Get version info").Register(version, nil)
+	// TODO: Consider reroll component (if yes change Respond to RespondPrivate)
 	PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("coins", "How many coins to flip").AsInt().SetMinMax(1, 255).Finalize(),
 	})

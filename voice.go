@@ -125,7 +125,7 @@ func vachan(ctx *commands.Context) error {
 	return ctx.RespondPrivate(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 }
 
-// Do I even need this anymore?
+// TODO: Do I even need this anymore?
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
 	self.RequestGuildMembers(event.ID, "", 250, "", false)
