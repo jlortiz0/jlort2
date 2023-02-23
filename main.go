@@ -175,7 +175,6 @@ func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
 	}
 }
 
-// TODO: components could be useful for kekreport
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {
 	if event.Type == discordgo.InteractionPing {
 		self.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponsePong})

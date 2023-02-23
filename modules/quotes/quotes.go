@@ -111,33 +111,27 @@ func quotes(ctx *commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
 	}
-	output := new(discordgo.MessageEmbed)
-	output.Title = "Quotes from " + guild.Name
-	output.Description = buildQuotesString(qList, ind)
-	output.Color = 0x7289da
-	ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
-		discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
-	err = ctx.RespondEmbed(output, false)
-	return err
-}
-
-func buildQuotesString(qList []string, start int) string {
-	if start >= len(qList) {
-		return ""
-	}
-	qList = qList[start:]
-	if len(qList) > quotes_paginate_amount {
-		qList = qList[:quotes_paginate_amount]
+	qList2 := qList[ind:]
+	if len(qList2) > quotes_paginate_amount {
+		qList2 = qList2[:quotes_paginate_amount]
 	}
 	builder := new(strings.Builder)
-	for _, v := range qList {
-		start++
-		builder.WriteString(strconv.Itoa(start))
+	for i, v := range qList2 {
+		builder.WriteString(strconv.Itoa(ind + i + 1))
 		builder.WriteString(". ")
 		builder.WriteString(v)
 		builder.WriteByte('\n')
 	}
-	return builder.String()[:builder.Len()-1]
+	output := new(discordgo.MessageEmbed)
+	output.Title = "Quotes from " + guild.Name
+	output.Description = builder.String()[:builder.Len()-1]
+	output.Color = 0x7289da
+	if len(qList) > quotes_paginate_amount {
+		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
+	}
+	err = ctx.RespondEmbed(output, false)
+	return err
 }
 
 // ~!addquote <quote>

@@ -78,20 +78,44 @@ func kekage(ctx *commands.Context) error {
 	return ctx.RespondPrivate(fmt.Sprintf(msg, name, convertKek(kekI)))
 }
 
+const kekreport_paginate_amount = 20
+
 // ~!kekReport
 // @GuildOnly
 // Gets the kekage of everyone
 func kekReport(ctx *commands.Context) error {
+	var ind int
+	if ctx.Type == discordgo.InteractionMessageComponent {
+		cid := ctx.MessageComponentData().CustomID
+		ind, _ = strconv.Atoi(cid[1:])
+		if cid[0] == 'r' {
+			ind += kekreport_paginate_amount
+		} else {
+			ind -= kekreport_paginate_amount
+		}
+	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
 	}
+	mList := make([]*discordgo.Member, 0, len(guild.Members)-1)
+	for _, x := range guild.Members {
+		if !x.User.Bot {
+			mList = append(mList, x)
+		}
+	}
+	if ind >= len(mList) {
+		ind = len(mList) - kekreport_paginate_amount
+	} else if ind < 0 {
+		ind = 0
+	}
+	mList2 := mList[ind:]
+	if len(mList2) > kekreport_paginate_amount {
+		mList2 = mList2[:kekreport_paginate_amount]
+	}
 	output := new(strings.Builder)
 	kekLock.RLock()
-	for _, mem := range guild.Members {
-		if mem.User.Bot {
-			continue
-		}
+	for _, mem := range mList2 {
 		name := commands.DisplayName(mem)
 		kekI := 0
 		for _, v := range kekData.Users[mem.User.ID] {
@@ -110,7 +134,11 @@ func kekReport(ctx *commands.Context) error {
 	}
 	kekLock.RUnlock()
 	if output.Len() == 0 {
-		output.WriteString("All keks are zero.")
+		return ctx.RespondPrivate("All keks are zero.")
+	}
+	if len(mList) > kekreport_paginate_amount {
+		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(mList) <= ind+kekreport_paginate_amount, Style: discordgo.SecondaryButton})
 	}
 	return ctx.RespondPrivate(output.String())
 }
@@ -251,7 +279,7 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
 	})
-	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Register(kekReport, nil)
+	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Component(kekReport).Register(kekReport, nil)
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
 		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Required().Finalize()})
