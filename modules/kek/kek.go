@@ -31,7 +31,7 @@ import (
 
 var botId string
 var queryKekEnabled *sql.Stmt
-var setKekMsg1, setKekMsg2 *sql.Stmt
+var setKekMsg *sql.Stmt
 var queryKek *sql.Stmt
 
 // ~!kekage [user]
@@ -207,8 +207,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	}
 	uid, _ := strconv.ParseUint(msg.Author.ID, 10, 64)
 	mid, _ := strconv.ParseUint(msg.ID, 10, 64)
-	setKekMsg1.Exec(uid)
-	_, err = setKekMsg2.Exec(uid, mid, total)
+	_, err = setKekMsg.Exec(uid, mid, total)
 	if err != nil {
 		log.Error(err)
 	}
@@ -267,8 +266,7 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	setKekMsg1, _ = db.Prepare("INSERT OR IGNORE INTO kekUsers (uid) VALUES (?001);")
-	setKekMsg2, err = db.Prepare(`
+	setKekMsg, err = db.Prepare(`
 	INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003)
 	ON CONFLICT DO UPDATE SET score=excluded.score;
 	`)
@@ -307,7 +305,6 @@ func Init(self *discordgo.Session) {
 func Cleanup(_ *discordgo.Session) {
 	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0;")
 	queryKekEnabled.Close()
-	setKekMsg1.Close()
-	setKekMsg2.Close()
+	setKekMsg.Close()
 	queryKek.Close()
 }
