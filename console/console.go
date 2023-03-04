@@ -75,16 +75,17 @@ func main() {
 	_, height = consolesize.GetConsoleSize()
 	input = bufio.NewReader(os.Stdin)
 	output = bufio.NewWriterSize(os.Stdout, 20480)
-	f, err := os.Open("key.txt")
-	checkFatal(err)
-	defer f.Close()
-	strBytes := make([]byte, 64)
-	c, err := f.Read(strBytes)
-	checkFatal(err)
-	f.Close()
+	strBytes, err := os.ReadFile("key.txt")
+	if err != nil {
+		panic(err)
+	}
+	key, _, _ := strings.Cut(string(strBytes), "\n")
+	if key[len(key)-1] == '\r' {
+		key = key[:len(key)-1]
+	}
 
 	fmt.Println("Starting...")
-	client, err = discordgo.New("Bot " + string(strBytes[:c]))
+	client, err = discordgo.New("Bot " + key)
 	checkFatal(err)
 	client.AddHandlerOnce(ready)
 	intent := discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
