@@ -18,7 +18,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -29,10 +31,8 @@ import (
 
 var voiceCooldown map[string]time.Time = make(map[string]time.Time)
 var voicePrevious map[string]string = make(map[string]string)
-var voiceAnnounce map[string]string
-var dirty bool
+var voiceStatement *sql.Stmt
 var voiceStateLock *sync.Mutex = new(sync.Mutex)
-var voiceSettingLock *sync.RWMutex = new(sync.RWMutex)
 
 const plusd = 3 * time.Second
 
@@ -67,11 +67,15 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		log.Error(fmt.Errorf("failed to get voice guild: %w", err))
 		return
 	}
-	voiceSettingLock.RLock()
-	output, ok := voiceAnnounce[event.GuildID]
-	voiceSettingLock.RUnlock()
+	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
+	row := voiceStatement.QueryRow(gid)
+	var output string
+	err = row.Scan(&output)
+	if err != nil {
+		return
+	}
 	_, err = self.State.Channel(output)
-	if !ok || err != nil {
+	if err != nil {
 		return
 	}
 	displayname := commands.DisplayName(mem)
@@ -112,16 +116,13 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
 func vachan(ctx *commands.Context) error {
-	voiceSettingLock.Lock()
-	defer voiceSettingLock.Unlock()
 	arg := ctx.ApplicationCommandData().Options[0].ChannelValue(ctx.Bot)
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
 	if arg.Type != discordgo.ChannelTypeGuildText {
-		delete(voiceAnnounce, ctx.GuildID)
-		dirty = true
+		ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", gid)
 		return ctx.RespondPrivate("Voice announcements disabled.")
 	}
-	voiceAnnounce[ctx.GuildID] = arg.ID
-	dirty = true
+	ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, arg.ID)
 	return ctx.RespondPrivate(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 }
 
@@ -129,17 +130,4 @@ func vachan(ctx *commands.Context) error {
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
 	self.RequestGuildMembers(event.ID, "", 250, "", false)
-}
-
-func saveVoice() error {
-	if !dirty {
-		return nil
-	}
-	voiceSettingLock.RLock()
-	err := commands.SavePersistent("vachan", &voiceAnnounce)
-	if err == nil {
-		dirty = false
-	}
-	voiceSettingLock.RUnlock()
-	return err
 }

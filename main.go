@@ -85,10 +85,6 @@ start:
 	if err != nil {
 		panic(err)
 	}
-	err = commands.LoadPersistent("vachan", &voiceAnnounce)
-	if err != nil {
-		panic(err)
-	}
 
 	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId) })
 	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages

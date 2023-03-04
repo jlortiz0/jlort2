@@ -18,11 +18,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package quotes
 
 import (
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"
@@ -32,9 +32,7 @@ import (
 const quotes_max = 200
 const quotes_paginate_amount = 10
 
-var quixote map[string][]string
-var dirty bool
-var quoteLock *sync.RWMutex = new(sync.RWMutex)
+var queryGetLen, queryGetInd *sql.Stmt
 
 // ~!quote [index]
 // @GuildOnly
@@ -42,44 +40,61 @@ var quoteLock *sync.RWMutex = new(sync.RWMutex)
 // If you specifiy an index, it will try to get that quote.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
 func quote(ctx *commands.Context) error {
-	quoteLock.RLock()
-	qList := quixote[ctx.GuildID]
-	quoteLock.RUnlock()
-	if len(qList) == 0 {
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := tx.Stmt(queryGetLen).QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	var sel int
 	args := ctx.ApplicationCommandData().Options
 	if len(args) > 0 {
 		sel = int(args[0].IntValue())
-		if sel < 1 || sel > len(qList) {
-			return ctx.RespondPrivate("Index out of bounds, expected 1-" + strconv.Itoa(len(qList)))
+		if sel < 1 || sel > total {
+			return ctx.RespondPrivate("Index out of bounds, expected 1-" + strconv.Itoa(total))
 		}
-		sel--
 	} else {
-		sel = rand.Intn(len(qList))
+		sel = rand.Intn(total) + 1
 	}
 	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
-	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
+	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
+	var q string
+	result.Scan(&q)
+	return ctx.Respond(fmt.Sprintf("%d. %s", sel, q))
 }
 
 func quoteReroll(ctx *commands.Context) error {
-	quoteLock.RLock()
-	qList := quixote[ctx.GuildID]
-	quoteLock.RUnlock()
-	if len(qList) == 0 {
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := tx.Stmt(queryGetLen).QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	sel2, _ := strconv.Atoi(ctx.MessageComponentData().CustomID)
-	if len(qList) == 1 && sel2 == 0 {
+	if total == 1 && sel2 == 0 {
 		return ctx.RespondEmpty()
 	}
 	sel := sel2
 	for sel == sel2 {
-		sel = rand.Intn(len(qList))
+		sel = rand.Intn(total)
 	}
 	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
-	return ctx.Respond(fmt.Sprintf("%d. %s", sel+1, qList[sel]))
+	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
+	var q string
+	result.Scan(&q)
+	return ctx.Respond(fmt.Sprintf("%d. %s", sel, q))
 }
 
 // ~!quotes
@@ -96,14 +111,20 @@ func quotes(ctx *commands.Context) error {
 			ind -= quotes_paginate_amount
 		}
 	}
-	quoteLock.RLock()
-	defer quoteLock.RUnlock()
-	qList := quixote[ctx.GuildID]
-	if len(qList) == 0 {
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := tx.Stmt(queryGetLen).QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
-	if ind >= len(qList) {
-		ind = len(qList) - quotes_paginate_amount
+	if ind >= total {
+		ind = total - quotes_paginate_amount
 	} else if ind < 0 {
 		ind = 0
 	}
@@ -111,13 +132,16 @@ func quotes(ctx *commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
 	}
-	qList2 := qList[ind:]
-	if len(qList2) > quotes_paginate_amount {
-		qList2 = qList2[:quotes_paginate_amount]
+	results, err := tx.Query("SELECT ind, quote FROM quotes WHERE gid=?001 ORDER BY ind LIMIT ?002 OFFSET ?003;", gid, quotes_paginate_amount, ind)
+	if err != nil {
+		return err
 	}
 	builder := new(strings.Builder)
-	for i, v := range qList2 {
-		builder.WriteString(strconv.Itoa(ind + i + 1))
+	var i int
+	var v string
+	for results.Next() {
+		results.Scan(&i, &v)
+		builder.WriteString(strconv.Itoa(i))
 		builder.WriteString(". ")
 		builder.WriteString(v)
 		builder.WriteByte('\n')
@@ -126,9 +150,9 @@ func quotes(ctx *commands.Context) error {
 	output.Title = "Quotes from " + guild.Name
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
-	if len(qList) > quotes_paginate_amount {
+	if total > quotes_paginate_amount {
 		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
-			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(qList) <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: total <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
 	}
 	err = ctx.RespondEmbed(output, false)
 	return err
@@ -138,14 +162,14 @@ func quotes(ctx *commands.Context) error {
 // @GuildOnly
 // Adds a quote
 func addquote(ctx *commands.Context) error {
-	dirty = true
-	quoteLock.Lock()
-	if len(quixote[ctx.GuildID]) >= quotes_max {
-		quoteLock.Unlock()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := queryGetLen.QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total >= quotes_max {
 		return ctx.RespondPrivate("Maximum number of quotes reached.")
 	}
-	quixote[ctx.GuildID] = append(quixote[ctx.GuildID], ctx.ApplicationCommandData().Options[0].StringValue())
-	quoteLock.Unlock()
+	ctx.Database.Exec("INSERT INTO quotes (gid, ind, quote) SELECT ?001, COUNT(*) + 1, ?002 FROM quotes WHERE gid=?001;", gid, ctx.ApplicationCommandData().Options[0].StringValue())
 	return ctx.RespondPrivate("Quote added.")
 }
 
@@ -157,10 +181,11 @@ func addquote(ctx *commands.Context) error {
 // If you have Manage Server, you can do ~!delquote all to remove all quotes.
 // Indices are the numbers beside a quote in ~!quote or the line number of a quote in ~!quotes
 func delquote(ctx *commands.Context) error {
-	quoteLock.Lock()
-	defer quoteLock.Unlock()
-	qList := quixote[ctx.GuildID]
-	if len(qList) == 0 {
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
+	result := queryGetLen.QueryRow(gid)
+	var total int
+	result.Scan(&total)
+	if total == 0 {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	sel := int(ctx.ApplicationCommandData().Options[0].IntValue())
@@ -172,41 +197,42 @@ func delquote(ctx *commands.Context) error {
 		if perms&discordgo.PermissionManageMessages == 0 {
 			return ctx.RespondPrivate("You need the Manage Messages permission to clear all quotes.")
 		}
-		delete(quixote, ctx.GuildID)
-		dirty = true
+		ctx.Database.Exec("DELETE FROM quotes WHERE gid=?001;", gid)
 		return ctx.RespondPrivate("All quotes removed.")
 	}
-	if sel == 0 || sel > len(qList) {
-		return ctx.RespondPrivate("Index out of bounds, expected 1-" + strconv.Itoa(len(qList)))
+	if sel == 0 || sel > total {
+		return ctx.RespondPrivate("Index out of bounds, expected 1-" + strconv.Itoa(total))
 	}
-	sel--
-	if len(qList) == 1 {
-		delete(quixote, ctx.GuildID)
-	} else {
-		if sel < len(qList)-1 {
-			copy(qList[sel:], qList[sel+1:])
-		}
-		quixote[ctx.GuildID] = qList[:len(qList)-1]
+	if sel == total {
+		ctx.Database.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = ?002;", gid, sel)
+		return ctx.RespondPrivate("Quote removed.")
 	}
-	dirty = true
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002 ORDER BY ind ASC;", gid, sel)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = (SELECT COUNT(*) FROM quotes WHERE gid = ?001);")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
 	return ctx.RespondPrivate("Quote removed.")
 }
 
 func guildDelete(_ *discordgo.Session, event *discordgo.GuildDelete) {
-	quoteLock.Lock()
-	delete(quixote, event.ID)
-	dirty = true
-	quoteLock.Unlock()
+	gid, _ := strconv.ParseUint(event.ID, 10, 64)
+	commands.GetDatabase().Exec("DELETE FROM quotes WHERE gid=?001;", gid)
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also loads the quotes from disk.
 func Init(self *discordgo.Session) {
-	err := commands.LoadPersistent("quotes", &quixote)
-	if err != nil {
-		log.Error(err)
-		return
-	}
 	commands.PrepareCommand("quote", "Hopefully it's actually funny").Guild().Component(quoteReroll).Register(quote, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("index", "Index of quote to show, default random").AsInt().SetMinMax(1, quotes_max).Finalize(),
 	})
@@ -218,27 +244,22 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("index", "Index of quote to remove").AsInt().SetMinMax(1, quotes_max).Required().Finalize(),
 	})
 	self.AddHandler(guildDelete)
-	commands.RegisterSaver(saveQuotes)
-}
-
-func saveQuotes() error {
-	if !dirty {
-		return nil
+	db := commands.GetDatabase()
+	var err error
+	queryGetLen, err = db.Prepare("SELECT COUNT(*) FROM quotes WHERE gid=?001;")
+	if err != nil {
+		log.Error(err)
+		return
 	}
-	quoteLock.RLock()
-	err := commands.SavePersistent("quotes", &quixote)
-	if err == nil {
-		dirty = false
+	queryGetInd, err = db.Prepare("SELECT quote FROM quotes WHERE gid=?001 AND ind=?002;")
+	if err != nil {
+		log.Error(err)
 	}
-	quoteLock.RUnlock()
-	return err
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the quotes to disk.
 func Cleanup(_ *discordgo.Session) {
-	err := saveQuotes()
-	if err != nil {
-		log.Error(err)
-	}
+	queryGetLen.Close()
+	queryGetInd.Close()
 }

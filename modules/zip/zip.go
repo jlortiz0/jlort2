@@ -92,6 +92,16 @@ func chatlog(ctx *commands.Context) error {
 		lastMsg = toProc[0].ID
 		for i := len(toProc) - 1; i >= 0; i-- {
 			v := toProc[i]
+			if v.Type == discordgo.MessageTypeThreadStarterMessage {
+				v2, err := ctx.State.Message(v.MessageReference.ChannelID, v.MessageReference.MessageID)
+				if err != nil {
+					v2, _ = ctx.Bot.ChannelMessage(v.MessageReference.ChannelID, v.MessageReference.MessageID)
+					if v2 == nil {
+						continue
+					}
+				}
+				v = v2
+			}
 			if v.Type != discordgo.MessageTypeDefault && v.Type != discordgo.MessageTypeReply && v.Type != discordgo.MessageTypeChatInputCommand && v.Type != discordgo.MessageTypeContextMenuCommand {
 				continue
 			}

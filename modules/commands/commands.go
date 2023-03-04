@@ -18,14 +18,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package commands
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+var db *sql.DB
 
 // Context is a helper struct for defining a command invokation context.
 // All this can be gotten from the three fields in MakeContext, but this makes it shorter to do so.
@@ -35,6 +37,7 @@ type Context struct {
 	Bot        *discordgo.Session
 	Me         *discordgo.User
 	State      *discordgo.State
+	Database   *sql.DB
 	hasDelayed bool
 	components []discordgo.MessageComponent
 	origName   string
@@ -229,6 +232,7 @@ func MakeContext(self *discordgo.Session, event *discordgo.Interaction) *Context
 		ctx.origName, data.CustomID, _ = strings.Cut(data.CustomID, "\a")
 		event.Data = data
 	}
+	ctx.Database = db
 	return ctx
 }
 
@@ -385,29 +389,8 @@ func DisplayName(mem *discordgo.Member) string {
 	return mem.Nick
 }
 
-// LoadPersistent loads data from a persistent file to the given pointer
-func LoadPersistent(name string, data interface{}) error {
-	b, err := os.ReadFile("persistent/" + name)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, data)
-}
-
-// SavePersistent saves data to a persistent file from the given pointer
-func SavePersistent(name string, data interface{}) error {
-	if data == nil {
-		panic("Refusing to save null pointer")
-	}
-	output, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile("persistent/"+name+".new", output, 0600)
-	if err != nil {
-		return err
-	}
-	return os.Rename("persistent/"+name+".new", "persistent/"+name)
+func GetDatabase() *sql.DB {
+	return db
 }
 
 type commandOption struct {

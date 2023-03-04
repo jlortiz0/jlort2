@@ -38,12 +38,7 @@ func initModules(self *discordgo.Session, guildId string) {
 	log.Info("Loaded zip")
 	music.Init(self)
 	log.Info("Loaded music")
-	commands.RegisterSaver(saveVoice)
-	optionChannel := new(discordgo.ApplicationCommandOption)
-	// optionChannel.ChannelTypes = []discordgo.ChannelType{discordgo.ChannelTypeGuildText}
-	optionChannel.Name = "channel"
-	optionChannel.Description = "Channel to post join annoucements in"
-	optionChannel.Type = discordgo.ApplicationCommandOptionChannel
+	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?;")
 	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Required().Finalize(),
 	})
@@ -55,10 +50,10 @@ func initModules(self *discordgo.Session, guildId string) {
 }
 
 func cleanup(self *discordgo.Session) {
-	commands.Cleanup(self)
-	quotes.Cleanup(self)
-	kek.Cleanup(self)
-	zip.Cleanup(self)
+	voiceStatement.Close()
 	music.Cleanup(self)
-	saveVoice()
+	zip.Cleanup(self)
+	kek.Cleanup(self)
+	quotes.Cleanup(self)
+	commands.Cleanup(self)
 }

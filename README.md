@@ -16,7 +16,7 @@ Then the codebase stagnated for a while. But maybe I'll come up with something s
 
 This program relies on some files existing before it can run. You must create a file called `key.txt` containing the bot key. This file should not have a trailing newline.
 
-Additionally, most modules require an existing persistent storage file before they will work. The names and structures required in the files can be determined by looking at the globals and initialization functions for each module.
+Additionally, the bot requires a database file to function properly. A creation script for this file can be found in `dbGen/dbGen.go`. If you have existing persistent data for an older version of the bot, the script will migrate it.
 
 The music module has a feature that requires a folder of sounds to surprise unsuspecting people with, called `spook`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k or 128k, and an audio rate of 48k.
 

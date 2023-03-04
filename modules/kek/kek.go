@@ -18,10 +18,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package kek
 
 import (
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -29,12 +29,9 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-var kekData struct {
-	Guilds map[string]struct{}
-	Users  map[string]map[string]int
-}
-var dirty bool
-var kekLock *sync.RWMutex = new(sync.RWMutex)
+var queryKekEnabled *sql.Stmt
+var setKekMsg1, setKekMsg2 *sql.Stmt
+var queryKek *sql.Stmt
 
 // ~!kekage [user]
 // Checks someone's kekage
@@ -51,12 +48,10 @@ func kekage(ctx *commands.Context) error {
 		return ctx.RespondPrivate("Bots can't be kek.")
 	}
 	name := target.Username
-	kekI := 0
-	kekLock.RLock()
-	for _, v := range kekData.Users[target.ID] {
-		kekI += v
-	}
-	kekLock.RUnlock()
+	var kekI int
+	uid, _ := strconv.ParseUint(target.ID, 10, 64)
+	result := queryKek.QueryRow(uid)
+	result.Scan(&kekI)
 	kekI *= 50
 	var msg string
 	if kekI == 0 {
@@ -117,25 +112,31 @@ func kekReport(ctx *commands.Context) error {
 		mList2 = mList2[:kekreport_paginate_amount]
 	}
 	output := new(strings.Builder)
-	kekLock.RLock()
+	tx, err := ctx.Database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Commit()
+	stmt := tx.Stmt(queryKek)
+	defer stmt.Close()
 	for _, mem := range mList2 {
-		name := commands.DisplayName(mem)
-		kekI := 0
-		for _, v := range kekData.Users[mem.User.ID] {
-			kekI += v
+		if mem.User.Bot {
+			continue
 		}
-		kekI *= 50
-		if kekI != 0 {
+		name := commands.DisplayName(mem)
+		var kekI int
+		uid, _ := strconv.ParseUint(mem.User.ID, 10, 64)
+		result := queryKek.QueryRow(uid)
+		if result.Scan(&kekI) == nil && kekI != 0 {
 			output.WriteString(name)
 			output.WriteString(": ")
 			if kekI < 0 {
 				output.WriteByte('-')
 			}
-			output.WriteString(convertKek(kekI))
+			output.WriteString(convertKek(kekI * 50))
 			output.WriteByte('\n')
 		}
 	}
-	kekLock.RUnlock()
 	if output.Len() == 0 {
 		return ctx.RespondPrivate("All keks are zero.")
 	}
@@ -152,19 +153,18 @@ func kekReport(ctx *commands.Context) error {
 // Toggles kekage on a server
 // You must have Manage Server to do this.
 func kekOn(ctx *commands.Context) error {
-	dirty = true
-	kekLock.Lock()
-	defer kekLock.Unlock()
+	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
 	if ctx.ApplicationCommandData().Options[0].BoolValue() {
-		kekData.Guilds[ctx.GuildID] = struct{}{}
+		ctx.Database.Exec("INSERT INTO kekGuilds VALUES (?001);", gid)
 		return ctx.RespondPrivate("Kek enabled on this server.")
 	}
-	delete(kekData.Guilds, ctx.GuildID)
+	ctx.Database.Exec("DELETE FROM kekGuilds WHERE gid=?001;", gid)
 	return ctx.RespondPrivate("Kek disabled on this server.")
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
-	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.Author.Bot {
+	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
+	if event.Author.Bot || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
 	perms, err := self.State.UserChannelPermissions(self.State.User.ID, event.ChannelID)
@@ -197,7 +197,8 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 	if event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
 		return
 	}
-	if _, ok := kekData.Guilds[event.GuildID]; !ok || event.UserID == self.State.User.ID {
+	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
+	if event.UserID == self.State.User.ID || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
@@ -215,13 +216,13 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 			total -= emoji.Count
 		}
 	}
-	dirty = true
-	kekLock.Lock()
-	if kekData.Users[msg.Author.ID] == nil {
-		kekData.Users[msg.Author.ID] = make(map[string]int)
+	uid, _ := strconv.ParseUint(msg.Author.ID, 10, 64)
+	mid, _ := strconv.ParseUint(msg.ID, 10, 64)
+	setKekMsg1.Exec(uid)
+	_, err = setKekMsg2.Exec(uid, mid, total)
+	if err != nil {
+		log.Error(err)
 	}
-	kekData.Users[msg.Author.ID][msg.ID] = total
-	kekLock.Unlock()
 }
 
 func onReactionRemoveWrapper(self *discordgo.Session, event *discordgo.MessageReactionRemove) {
@@ -233,10 +234,8 @@ func onReactionRemoveAllWrapper(self *discordgo.Session, event *discordgo.Messag
 }
 
 func onGuildRemoveKek(self *discordgo.Session, event *discordgo.GuildDelete) {
-	kekLock.Lock()
-	delete(kekData.Guilds, event.ID)
-	dirty = true
-	kekLock.Unlock()
+	gid, _ := strconv.ParseUint(event.ID, 10, 64)
+	commands.GetDatabase().Exec("DELETE FROM kekGuilds WHERE gid=?;", gid)
 }
 
 func convertKek(kek int) string {
@@ -258,27 +257,6 @@ func convertKek(kek int) string {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
 func Init(self *discordgo.Session) {
-	err := commands.LoadPersistent("kek", &kekData)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	cutoff := time.Now()
-	for _, keks := range kekData.Users {
-		total := 0
-		for k, v := range keks {
-			if k == "locked" {
-				continue
-			}
-			ts, _ := discordgo.SnowflakeTimestamp(k)
-			if ts.AddDate(0, 0, 4).Before(cutoff) {
-				total += v
-				delete(keks, k)
-				dirty = true
-			}
-		}
-		keks["locked"] += total
-	}
 	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
 	})
@@ -287,42 +265,60 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
 		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Required().Finalize()})
-	commands.RegisterSaver(saveKek)
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
 	self.AddHandler(onGuildRemoveKek)
-}
 
-func saveKek() error {
-	if !dirty {
-		return nil
+	db := commands.GetDatabase()
+	var err error
+	queryKekEnabled, err = db.Prepare("SELECT gid FROM kekGuilds WHERE gid=?001;")
+	if err != nil {
+		log.Error(err)
+		return
 	}
-	kekLock.Lock()
-	for _, keks := range kekData.Users {
-		for k, v := range keks {
-			if k == "locked" {
-				continue
-			}
-			if v == 0 {
-				delete(keks, k)
-			}
-		}
+	setKekMsg1, _ = db.Prepare("INSERT OR IGNORE INTO kekUsers (uid) VALUES (?001);")
+	setKekMsg2, err = db.Prepare(`
+	INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003)
+	ON CONFLICT DO UPDATE SET score=excluded.score;
+	`)
+	if err != nil {
+		log.Error(err)
 	}
-	err := commands.SavePersistent("kek", &kekData)
-	if err == nil {
-		dirty = false
+	queryKek, err = db.Prepare(`SELECT CASE
+		WHEN EXISTS (SELECT m.uid FROM kekMsgs m WHERE m.uid=?001)
+		THEN (SELECT u.score + SUM(m.score) FROM kekMsgs m WHERE m.uid = ?001)
+		ELSE u.score END
+		FROM kekUsers u
+		WHERE u.uid = ?001;`)
+	if err != nil {
+		log.Error(err)
 	}
-	kekLock.Unlock()
-	return err
+	snowflake := uint64(time.Now().AddDate(0, 0, -4).UnixMilli()) - 1420070400000
+	snowflake <<= 22
+	tx, err := db.Begin()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	tx.Exec(`
+	UPDATE kekUsers SET score = score + m.total FROM (
+		SELECT uid, SUM(score) total FROM kekMsgs
+		WHERE mid < ?001
+		GROUP BY uid
+	) m WHERE m.uid = kekUsers.uid;
+	DELETE FROM kekMsgs WHERE mid < ?001;
+	`, snowflake, snowflake)
+	tx.Commit()
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	err := saveKek()
-	if err != nil {
-		log.Error(err)
-	}
+	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0;")
+	queryKekEnabled.Close()
+	setKekMsg1.Close()
+	setKekMsg2.Close()
+	queryKek.Close()
 }
