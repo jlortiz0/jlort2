@@ -155,7 +155,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
 	self.AddHandler(newGuild)
 	if ENABLE_OLD_CMD_NAG {
 		self.AddHandler(cmdMigrationNag)
-		self.UpdateStatusComplex(discordgo.UpdateStatusData{Status: "Slash commands!"})
+		self.UpdateWatchStatus(0, "Slash commands!")
 	}
 	log.Info("Ready!")
 }

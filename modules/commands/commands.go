@@ -171,7 +171,7 @@ func (ctx *Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
 }
 
 func (ctx *Context) RespondEmpty() error {
-	if ctx.origName == "" {
+	if ctx.origName != "" {
 		return ctx.Bot.InteractionRespond(ctx.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
 	}
 	if !ctx.hasDelayed {
