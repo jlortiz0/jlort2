@@ -226,8 +226,10 @@ func delquote(ctx *commands.Context) error {
 }
 
 func guildDelete(_ *discordgo.Session, event *discordgo.GuildDelete) {
-	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM quotes WHERE gid=?001;", gid)
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM quotes WHERE gid=?001;", gid)
+	}
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.

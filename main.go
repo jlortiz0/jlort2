@@ -155,6 +155,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
 	self.AddHandler(interactionCreate)
 	self.AddHandler(voiceStateUpdate)
 	self.AddHandler(newGuild)
+	self.AddHandler(oldGuild)
 	if ENABLE_OLD_CMD_NAG {
 		self.AddHandler(cmdMigrationNag)
 		self.UpdateWatchStatus(0, "Slash commands!")

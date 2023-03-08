@@ -167,10 +167,6 @@ func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 	if event.Author.Bot || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
-	perms, err := self.State.UserChannelPermissions(self.State.User.ID, event.ChannelID)
-	if err != nil || perms&discordgo.PermissionAddReactions == 0 {
-		return
-	}
 	vote := false
 	for _, embed := range event.Embeds {
 		if embed.Image != nil || embed.Video != nil {
@@ -234,8 +230,10 @@ func onReactionRemoveAllWrapper(self *discordgo.Session, event *discordgo.Messag
 }
 
 func onGuildRemoveKek(self *discordgo.Session, event *discordgo.GuildDelete) {
-	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM kekGuilds WHERE gid=?;", gid)
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM kekGuilds WHERE gid=?;", gid)
+	}
 }
 
 func convertKek(kek int) string {
@@ -260,7 +258,6 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
 	})
-	commands.PrepareCommand("Kekage", "").AsUser().Register(kekage, nil)
 	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Component(kekReport).Register(kekReport, nil)
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
 		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{

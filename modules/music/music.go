@@ -320,10 +320,14 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 				}
 				vc := self.VoiceConnections[k]
 				if vc == nil {
+					v.Lock()
+					v.Clear()
+					v.Unlock()
 					continue
 				}
 				mem, err := self.State.Member(k, obj.Author)
 				if err != nil {
+					go musicStreamer(vc, obj)
 					continue
 				}
 				authorName := commands.DisplayName(mem)
@@ -457,8 +461,10 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
-	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
+	}
 	v := streams[event.ID]
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value

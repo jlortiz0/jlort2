@@ -50,15 +50,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		voiceCooldown[event.UserID] = time.Now().Add(plusd)
 		return
 	}
-	mem, err := self.State.Member(event.GuildID, event.UserID)
-	if err != nil {
-		log.Warn(fmt.Sprintf("voice member not cached: %s", err.Error()))
-		mem, err = self.GuildMember(event.GuildID, event.UserID)
-		if err != nil {
-			log.Error(fmt.Errorf("failed to get voice member: %w", err))
-			return
-		}
-	}
+	mem := event.Member
 	if mem.User.Bot {
 		return
 	}
@@ -76,6 +68,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 	}
 	_, err = self.State.Channel(output)
 	if err != nil {
+		commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?;", gid)
 		return
 	}
 	displayname := commands.DisplayName(mem)
@@ -130,4 +123,11 @@ func vachan(ctx *commands.Context) error {
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
 	self.RequestGuildMembers(event.ID, "", 250, "", false)
+}
+
+func oldGuild(self *discordgo.Session, event *discordgo.GuildDelete) {
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?;", gid)
+	}
 }
