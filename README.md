@@ -40,3 +40,6 @@ These commands existed and were removed before the version I uploaded to GitHub.
  - `~!boot <user>` - Kick someone out of a call in case they fell asleep. Turns out that we're not nice people.
  - `~!sausage` - Causes a segmentation fault, for debugging.
  - `~!ud` - Displays definitions from Urban Dictionary. Made specifically to troll a friend whose full name had an unflattering one.
+ - `~!relics` - A gacha game that was troubled by the fact that there were only 7 things to collect.
+ - `~!trade` - A trading system for the above gacha game.
+ - `~!duel` - A versus "minigame" based completely on chance. Minigame in quotes because it just flipped a coin to determine who won after 30 seconds.
