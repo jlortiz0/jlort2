@@ -83,12 +83,12 @@ func quoteReroll(ctx *commands.Context) error {
 		return ctx.RespondPrivate("There are no quotes. Use /addquote to add some.")
 	}
 	sel2, _ := strconv.Atoi(ctx.MessageComponentData().CustomID)
-	if total == 1 && sel2 == 0 {
+	if total == 1 && sel2 == 1 {
 		return ctx.RespondEmpty()
 	}
 	sel := sel2
 	for sel == sel2 {
-		sel = rand.Intn(total)
+		sel = rand.Intn(total) + 1
 	}
 	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
 	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
