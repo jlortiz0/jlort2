@@ -332,7 +332,7 @@ func UploadCommands(self *discordgo.Session, appId string, guildId string, testM
 			}
 		}
 		_, err = self.ApplicationCommandBulkOverwrite(appId, "", ls)
-		if err != nil && guildId != "" {
+		if err == nil && guildId != "" {
 			_, err = self.ApplicationCommandBulkOverwrite(appId, guildId, ls2)
 		}
 	}
@@ -359,7 +359,7 @@ func UploadCommands(self *discordgo.Session, appId string, guildId string, testM
 	batchCmdList = nil
 }
 
-func clearGuildCommands(self *discordgo.Session, appId string, guildID string) {
+func ClearGuildCommands(self *discordgo.Session, appId string, guildID string) {
 	_, err := self.ApplicationCommandBulkOverwrite(appId, guildID, nil)
 	if err != nil {
 		panic(err)

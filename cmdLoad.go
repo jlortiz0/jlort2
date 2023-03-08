@@ -28,6 +28,12 @@ import (
 )
 
 func initModules(self *discordgo.Session, guildId string) {
+	if len(guildId) > 0 && guildId[0] == '-' {
+		commands.ClearGuildCommands(self, self.State.Application.ID, guildId[1:])
+		log.Info("Cleared commands for " + guildId[1:])
+		sc <- nil
+		return
+	}
 	commands.Init(self)
 	log.Info("Loaded commands")
 	quotes.Init(self)

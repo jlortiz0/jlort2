@@ -61,7 +61,7 @@ start:
 	}
 	if len(guildId) > 0 {
 		s := guildId
-		if s[0] == 't' {
+		if s[0] == 't' || s[0] == '-' {
 			s = s[1:]
 		}
 		_, err = strconv.ParseUint(s, 10, 64)
@@ -107,13 +107,15 @@ start:
 		goto start
 	}
 	log.Info("Stopping...")
-	cleanup(client)
+	if len(guildId) > 0 && guildId[0] != '-' {
+		cleanup(client)
+	}
 }
 
 func crashMe(ch chan os.Signal) {
 	<-ch
 	debug.SetTraceback("all")
-	var test *int
+	var test *int = nil
 	*test = 0
 }
 
