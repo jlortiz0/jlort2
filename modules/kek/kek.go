@@ -222,8 +222,10 @@ func onReactionRemoveAllWrapper(self *discordgo.Session, event *discordgo.Messag
 }
 
 func onGuildRemoveKek(self *discordgo.Session, event *discordgo.GuildDelete) {
-	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM kekGuilds WHERE gid=?;", gid)
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM kekGuilds WHERE gid=?001;", gid)
+	}
 }
 
 func convertKek(kek int) string {
@@ -266,10 +268,7 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	setKekMsg, err = db.Prepare(`
-	INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003)
-	ON CONFLICT DO UPDATE SET score=excluded.score;
-	`)
+	setKekMsg, err = db.Prepare("INSERT OR REPLACE INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003);")
 	if err != nil {
 		log.Error(err)
 	}
