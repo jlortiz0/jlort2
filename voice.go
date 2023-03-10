@@ -75,7 +75,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 	if err != nil {
 		return
 	}
-	_, err = self.State.GuildChannel(event.GuildID, output)
+	_, err = self.State.Channel(output)
 	if err != nil {
 		return
 	}
@@ -164,7 +164,7 @@ func vachan(ctx commands.Context, args []string) error {
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
 	if _, ok := notForThisOne[event.ID]; ok {
-		self.RequestGuildMembers(event.ID, "", 250, false)
+		self.RequestGuildMembers(event.ID, "", 250, "", false)
 		return
 	}
 	time.Sleep(10 * time.Millisecond)

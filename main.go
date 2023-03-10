@@ -102,7 +102,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready) {
 	time.Sleep(5 * time.Millisecond)
 	// notForThisOne = make(map[string]struct{}, len(event.Guilds))
 	for i := 0; i < len(event.Guilds); i++ {
-		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, false)
+		err := self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
 		notForThisOne[event.Guilds[i].ID] = struct{}{}
 		if err != nil {
 			panic(err)
