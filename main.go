@@ -54,10 +54,12 @@ start:
 	}
 	// GSM_GUILD or tTEST_GUILD, KEY
 	key, guildId, _ := strings.Cut(string(strBytes), "\n")
-	guildId, _, _ = strings.Cut(guildId, "\n")
+	guildId, motd, _ := strings.Cut(guildId, "\n")
+	motd, _, _ = strings.Cut(motd, "\n")
 	if key[len(key)-1] == '\r' {
 		key = key[:len(key)-1]
 		guildId = guildId[:len(guildId)-1]
+		motd = motd[:len(motd)-1]
 	}
 	if len(guildId) > 0 {
 		s := guildId
@@ -86,7 +88,7 @@ start:
 		panic(err)
 	}
 
-	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId) })
+	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId, motd) })
 	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages
 	client.State.MaxMessageCount = 100
 	client.State.TrackVoice = true
@@ -119,7 +121,7 @@ func crashMe(ch chan os.Signal) {
 	*test = 0
 }
 
-func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
+func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd string) {
 	var err error
 	time.Sleep(5 * time.Millisecond)
 	for i := 0; i < len(event.Guilds); i++ {
@@ -158,7 +160,9 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string) {
 	self.AddHandler(oldGuild)
 	if ENABLE_OLD_CMD_NAG {
 		self.AddHandler(cmdMigrationNag)
-		self.UpdateWatchStatus(0, "Slash commands!")
+	}
+	if motd != "" {
+		self.UpdateGameStatus(0, motd)
 	}
 	log.Info("Ready!")
 }
