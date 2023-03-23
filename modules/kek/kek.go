@@ -55,7 +55,7 @@ func kekage(ctx *commands.Context) error {
 	kekI *= 50
 	var msg string
 	if kekI == 0 {
-		return ctx.Respond(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
+		return ctx.RespondPrivate(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
 	} else if kekI < 0 {
 		if kekI > -1000 {
 			msg = "%s is at %s cringe.\nThey should be wary, lest they falter further."
@@ -283,11 +283,8 @@ func Init(self *discordgo.Session) {
 	if err != nil {
 		log.Error(err)
 	}
-	queryKek, err = db.Prepare(`SELECT CASE
-		WHEN EXISTS (SELECT m.uid FROM kekMsgs m WHERE m.uid=?001)
-		THEN (SELECT u.score + SUM(m.score) FROM kekMsgs m WHERE m.uid = ?001)
-		ELSE u.score END
-		FROM kekUsers u
+	queryKek, err = db.Prepare(`SELECT u.score + ifnull(SUM(m.score), 0)
+		FROM kekUsers u LEFT OUTER JOIN kekMsgs m ON m.uid = u.uid
 		WHERE u.uid = ?001;`)
 	if err != nil {
 		log.Error(err)
@@ -313,7 +310,7 @@ func Init(self *discordgo.Session) {
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0;")
+	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0 AND uid NOT IN (SELECT uid FROM kekMsgs);")
 	queryKekEnabled.Close()
 	setKekMsg1.Close()
 	setKekMsg2.Close()
