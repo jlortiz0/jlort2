@@ -162,9 +162,17 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd
 		self.AddHandler(cmdMigrationNag)
 	}
 	if motd != "" {
-		self.UpdateGameStatus(0, motd)
+		motd = strings.Clone(motd)
+		setMotd(self, motd)
+		self.AddHandler(func(self *discordgo.Session, _ *discordgo.Resumed) {
+			setMotd(self, motd)
+		})
 	}
 	log.Info("Ready!")
+}
+
+func setMotd(self *discordgo.Session, motd string) {
+	self.UpdateGameStatus(0, motd)
 }
 
 func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
