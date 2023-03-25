@@ -9,5 +9,7 @@ pfps
 modules/music/bye.ogg
 *.zip
 *.exe
-logs
+logs/*
+*.swp
+jlort2
 .vscode

@@ -18,8 +18,6 @@ This program relies on some files existing before it can run. You must create a 
 
 Additionally, the bot requires a database file to function properly. A creation script for this file can be found in `dbGen/dbGen.go`. If you have existing persistent data for an older version of the bot, the script will migrate it.
 
-The program requires a help file for the help command to work. A help file for the current state of the program is included. You can generate a new help file by running `misc/helpGen.go` from the root of the project.
-
 The music module has a feature that requires a folder of sounds to surprise unsuspecting people with, called `spook`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k or 128k, and an audio rate of 48k.
 
 A feature of the `~!popcorn` command requires a folder called `time` containing similarly formatted files, one for each part of the date and time. More specifically, the numbers 1-20, 30, 40, 50, the current year, AM/PM, the first three letters of the month names, and two files called `itis.ogg` and `on.ogg`.
@@ -32,14 +30,14 @@ The bot will attempt to play a sound before leaving a channel. This sound should
 
 These commands existed and were removed before the version I uploaded to GitHub. Just for historical reference.
 
- - `~!midi <file/attachment>` - Plays a midi file using Timidity++ and SGM v2.01
- - `~!define <word>` - Looks something up on Wikipedia. Had an easter egg where trying to define the word "dead server" would give an invite to a friend's *extremely* dead server.
- - `~!booru <tag>` - Would return the most recent image with a given tag from Safebooru. Or Gelbooru, if the channel was configured that way.
- - `~!setting queue-length <number>` - A setting for the maximum queue length. I forgot about it and eventually removed it once I realized that it no longer had any effect. Remaining settings got thier own commands, since everybody used those aliases anyway.
- - `~!something` - I don't remember what this does, but it was in an old (pre-OMORI) help file and has no description.
- - `~!boot <user>` - Kick someone out of a call in case they fell asleep. Turns out that we're not nice people.
- - `~!sausage` - Causes a segmentation fault, for debugging.
- - `~!ud` - Displays definitions from Urban Dictionary. Made specifically to troll a friend whose full name had an unflattering one.
- - `~!relics` - A gacha game that was troubled by the fact that there were only 7 things to collect.
- - `~!trade` - A trading system for the above gacha game.
- - `~!duel` - A versus "minigame" based completely on chance. Minigame in quotes because it just flipped a coin to determine who won after 30 seconds.
+- `~!midi <file/attachment>` - Plays a midi file using Timidity++ and SGM v2.01
+- `~!define <word>` - Looks something up on Wikipedia. Had an easter egg where trying to define the word "dead server" would give an invite to a friend's *extremely* dead server.
+- `~!booru <tag>` - Would return the most recent image with a given tag from Safebooru. Or Gelbooru, if the channel was configured that way.
+- `~!setting queue-length <number>` - A setting for the maximum queue length. I forgot about it and eventually removed it once I realized that it no longer had any effect. Remaining settings got thier own commands, since everybody used those aliases anyway.
+- `~!something` - I don't remember what this does, but it was in an old (pre-OMORI) help file and has no description.
+- `~!boot <user>` - Kick someone out of a call in case they fell asleep. Turns out that we're not nice people.
+- `~!sausage` - Causes a segmentation fault, for debugging.
+- `~!ud` - Displays definitions from Urban Dictionary. Made specifically to troll a friend whose full name had an unflattering one.
+- `~!relics` - A gacha game that was troubled by the fact that there were only 7 things to collect.
+- `~!trade` - A trading system for the above gacha game.
+- `~!duel` - A versus "minigame" based completely on chance. Minigame in quotes because it just flipped a coin to determine who won after 30 seconds.

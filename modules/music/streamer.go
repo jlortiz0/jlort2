@@ -71,7 +71,7 @@ Streamer:
 		if err != nil || header[0] != 'O' || header[1] != 'g' || header[1] != header[2] || header[3] != 'S' {
 			break
 		}
-		_, err = io.CopyN(io.Discard, rd, 22)
+		_, err := io.CopyN(io.Discard, rd, 22)
 		if err != nil {
 			log.Error(err)
 			break
@@ -134,7 +134,7 @@ Streamer:
 	}
 	data.Subprocess.Process.Kill()
 	data.Subprocess.Wait()
-	data.Flags &= ^uint16(strflag_playing)
+	data.Flags &= ^strflag_playing
 	if data.Flags&strflag_special == 0 {
 		streamLock.Lock()
 		lastPlayed[vc.GuildID] = time.Now()
@@ -145,6 +145,8 @@ Streamer:
 	}
 }
 
+const music_queue_max = 10
+
 // ~!mp3 <link to audio file>
 // @Alias mp4
 // @Alias mp3skip
@@ -154,38 +156,35 @@ Streamer:
 // This supports numerous formats, including mp3, ogg, m4a, s3m, it, spc, vgm, and more.
 // Instead of linking a file, you can upload a file with ~!mp3 as the description. Do not delete the message until the stream has finished.
 // If invoked as ~!mp3skip, it will skip the current stream and play the linked file immediately if you have permission to do so.
-func mp3(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	connect(ctx, nil)
+func mp3(ctx *commands.Context) error {
+	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
-		return nil
+		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
 	var source string
-	if len(ctx.Message.Attachments) != 0 {
-		source = ctx.Message.Attachments[0].URL
-	} else if len(args) != 0 {
-		source = strings.Join(args, " ")
-		_, err := url.ParseRequestURI(source)
-		if err != nil {
-			return ctx.Send("Not a valid URL. Copy it again or upload the file.")
-		}
+	cmData := ctx.ApplicationCommandData()
+	if cmData.Name == "mp3file" {
+		source = cmData.Resolved.Attachments[cmData.Options[0].Value.(string)].URL
 	} else {
-		return ctx.Send("~!mp3 <link to audio file>\nAlternatively, upload an audio file with ~!mp3 as the description.")
+		source = cmData.Options[0].StringValue()
+	}
+	_, err := url.ParseRequestURI(source)
+	if err != nil {
+		return ctx.RespondPrivate("Not a valid URL.")
 	}
 	authorName := commands.DisplayName(ctx.Member)
 	np := false
 	data := new(StreamObj)
-	data.Author = ctx.Author.ID
-	data.Channel = ctx.ChanID
+	data.Author = ctx.User.ID
+	data.Channel = ctx.ChannelID
 	data.Source = source
 	data.Vol = 65
+	data.InterID = ctx.ID
 	ls := streams[ctx.GuildID]
-	if strings.HasSuffix(ctx.InvokedWith, "skip") {
+	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.Send("You do not have permission to skip this stream.")
+			return ctx.RespondPrivate("You do not have permission to skip this stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
@@ -193,7 +192,7 @@ func mp3(ctx commands.Context, args []string) error {
 			obj := elem.Value
 			if obj.Flags&strflag_noskip != 0 {
 				ls.Unlock()
-				return ctx.Send("This stream cannot be skipped.")
+				return ctx.RespondPrivate("This stream cannot be skipped.")
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
@@ -209,14 +208,20 @@ func mp3(ctx commands.Context, args []string) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
+	} else if ls.Len() >= music_queue_max {
+		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
 	}
 	ls.Unlock()
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
+	if !np {
+		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
+	}
+	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
-	_, err := ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
-	return err
+	return ctx.RespondEmbed(embed, false)
 }
 
 // ~!play <youtube url or search>
@@ -225,22 +230,19 @@ func mp3(ctx commands.Context, args []string) error {
 // Adds a Youtube video to the queue
 // If a direct link is not provided, the first search result will be taken instead.
 // This command also supports direct links to sites other than Youtube. Check https://ytdl-org.github.io/youtube-dl/supportedsites.html for a list.
-func play(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!play <YouTube search or supported URL>\nFor a list of supported websites, check https://ytdl-org.github.io/youtube-dl/supportedsites.html")
-	}
-	connect(ctx, nil)
+func play(ctx *commands.Context) error {
+	connect(ctx)
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
-		return nil
+		return ctx.RespondPrivate("Network hiccup, please try again.")
 	}
-	ctx.Bot.ChannelTyping(ctx.ChanID)
-	source := strings.Join(args, " ")
+	ctx.RespondDelayed(false)
+	source := ctx.ApplicationCommandData().Options[0].StringValue()
 	if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
-		source = source[:strings.IndexByte(source, '?')]
+		source, _, _ = strings.Cut(source, "?list=")
+	}
+	if strings.Contains(source, "&list=") && strings.Contains(source, "youtube.com") {
+		source, _, _ = strings.Cut(source, "&list=")
 	}
 	var entries YDLPlaylist
 	var info YDLInfo
@@ -248,47 +250,46 @@ func play(ctx commands.Context, args []string) error {
 	if err != nil {
 		err2, ok := err.(*exec.ExitError)
 		if ok {
-			return ctx.Send(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
+			return ctx.RespondEdit(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
 		}
 		return fmt.Errorf("failed to run subprocess: %w", err)
 	}
 	err = json.Unmarshal(out, &entries)
 	if err != nil {
-		ctx.Send("Could not get info from this URL.")
-		fmt.Println(err)
+		ctx.RespondEdit("Could not get info from this URL.")
 		return err
 	}
 	if len(entries.Entries) == 0 {
 		err = json.Unmarshal(out, &info)
 		if err != nil {
-			ctx.Send("Could not get info from this URL.")
-			fmt.Println(err)
+			ctx.RespondEdit("Could not get info from this URL.")
 			return err
 		}
 	} else {
 		info = entries.Entries[0]
 	}
 	if info.Extractor == "Generic" {
-		return ctx.Send("Use ~!mp3 for direct links to files.")
+		return ctx.RespondEdit("Use /mp3 for direct links to files.")
 	}
 	if info.URL == "" {
-		return ctx.Send("Couldn't find page URL.")
+		return ctx.RespondEdit("Could not get info from this URL.")
 	}
 	authorName := commands.DisplayName(ctx.Member)
 	np := false
 	data := new(StreamObj)
-	data.Author = ctx.Author.ID
-	data.Channel = ctx.ChanID
+	data.Author = ctx.User.ID
+	data.Channel = ctx.ChannelID
 	data.Info = &info
 	data.Source = info.URL
 	data.Vol = 65
+	data.InterID = ctx.ID
 	ls := streams[ctx.GuildID]
 	if ls == nil {
-		return ctx.Send("Discord network error while processing request. Please try again.")
+		return ctx.RespondEdit("Discord network error while processing request. Please try again.")
 	}
-	if strings.HasSuffix(ctx.InvokedWith, "skip") {
+	if strings.HasSuffix(ctx.ApplicationCommandData().Name, "skip") {
 		if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-			return ctx.Send("You do not have permission to modify the current stream.")
+			return ctx.RespondEdit("You do not have permission to modify the current stream.")
 		}
 		ls.Lock()
 		elem := ls.Head()
@@ -296,7 +297,7 @@ func play(ctx commands.Context, args []string) error {
 			obj := elem.Value
 			if obj.Flags&strflag_noskip != 0 {
 				ls.Unlock()
-				return ctx.Send("This stream cannot be skipped.")
+				return ctx.RespondEdit("This stream cannot be skipped.")
 			}
 			if obj.Flags&strflag_playing != 0 {
 				// <-vc.OpusSend
@@ -312,14 +313,63 @@ func play(ctx commands.Context, args []string) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
+	} else if ls.Len() >= music_queue_max {
+		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
 	}
 	ls.Unlock()
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
+	if !np {
+		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
+	} else {
+		btn.Emoji.Name = "\u23ED"
+	}
+	ctx.SetComponents(btn)
 	embed := buildMusEmbed(data, np, authorName)
-	_, err = ctx.Bot.ChannelMessageSendEmbed(ctx.ChanID, embed)
-	return err
+	return ctx.RespondEditEmbed(embed)
+}
+
+func playComponent(ctx *commands.Context) error {
+	interId, indS, np := strings.Cut(ctx.MessageComponentData().CustomID, "\a")
+	ctx.FollowupPrepare()
+	ls := streams[ctx.GuildID]
+	if ls == nil {
+		return ctx.RespondEmpty()
+	}
+	ls.Lock()
+	if !np {
+		obj := ls.Head()
+		if obj != nil && obj.Value != nil && obj.Value.InterID == interId {
+			ls.Unlock()
+			return skip(ctx)
+		}
+		ls.Unlock()
+		return ctx.RespondEmpty()
+	}
+	ind, _ := strconv.Atoi(indS)
+	elem := ls.Head()
+	i := 0
+	for i < ind && elem != nil && elem.Value != nil && elem.Value.InterID != interId {
+		elem = elem.Next()
+		i++
+	}
+	ls.Unlock()
+	if elem == nil || elem.Value == nil || elem.Value.InterID != interId {
+		return ctx.RespondEmpty()
+	}
+	if i == 0 {
+		return skip(ctx)
+	}
+	o := []*discordgo.ApplicationCommandInteractionDataOption{
+		{
+			Type: discordgo.ApplicationCommandOptionInteger, Value: i,
+		},
+	}
+	ctx.Data = discordgo.ApplicationCommandInteractionData{Options: o}
+	ctx.Type = discordgo.InteractionApplicationCommand
+	return remove(ctx)
 }
 
 // ~!vol [volume]
@@ -328,31 +378,23 @@ func play(ctx commands.Context, args []string) error {
 // Check or set stream volume
 // Range is 0-200%
 // To set the volume, you must have permission to modify the current stream.
-func vol(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
+func vol(ctx *commands.Context) error {
 	if streams[ctx.GuildID] == nil {
-		return ctx.Send("Nothing is playing.")
+		return ctx.RespondPrivate("Nothing is playing.")
 	}
 	elem := streams[ctx.GuildID].Head()
 	if elem == nil {
-		return ctx.Send("Nothing is playing.")
+		return ctx.RespondPrivate("Nothing is playing.")
 	}
 	strm := elem.Value
+	args := ctx.ApplicationCommandData().Options
 	if len(args) == 0 {
-		return ctx.Send(fmt.Sprintf("Volume: %d%%", strm.Vol))
+		return ctx.RespondPrivate(fmt.Sprintf("Volume: %d%%", strm.Vol))
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current stream.")
+		return ctx.RespondPrivate("You do not have permission to modify the current song.")
 	}
-	if args[0][len(args[0])-1] == '%' {
-		args[0] = args[0][:len(args[0])-1]
-	}
-	vol, err := strconv.Atoi(args[0])
-	if err != nil {
-		return ctx.Send("Not a number.")
-	}
+	vol := int(args[0].IntValue())
 	if vol < 0 {
 		vol = 0
 	} else if vol > 200 {
@@ -360,63 +402,57 @@ func vol(ctx commands.Context, args []string) error {
 	}
 	strm.Vol = vol
 	strm.Remake <- struct{}{}
-	return ctx.Send(fmt.Sprintf("Volume set to %d", vol))
+	return ctx.Respond(fmt.Sprintf("Volume set to %d", vol))
 }
 
-// ~!seek <position>
+// ~!seek <position m:ss or ss>
 // @GuildOnly
 // Seeks to a position in the stream
 // Position can be in m:ss format or just a number of seconds.
 // To seek, you must have permission to modify the current stream. To simply view the current position, use ~!np
-func seek(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
+func seek(ctx *commands.Context) error {
 	if streams[ctx.GuildID] == nil {
-		return ctx.Send("Nothing is playing.")
+		return ctx.RespondPrivate("Nothing is playing.")
 	}
 	elem := streams[ctx.GuildID].Head()
 	if elem == nil {
-		return ctx.Send("Nothing is playing.")
-	}
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!seek <position (m:ss or ss)>")
+		return ctx.RespondPrivate("Nothing is playing.")
 	}
 	if !hasMusPerms(ctx.Member, ctx.State, ctx.GuildID, 0) {
-		return ctx.Send("You do not have permission to modify the current stream.")
+		return ctx.RespondPrivate("You do not have permission to modify the current stream.")
 	}
-	stamp := args[0]
+	stamp := ctx.ApplicationCommandData().Options[0].StringValue()
 	var desired int
 	var err error
 	ind := strings.IndexByte(stamp, ':')
 	if ind == -1 {
 		desired, err = strconv.Atoi(stamp)
 		if err != nil {
-			return ctx.Send("Not a valid timestamp! (mm:ss or ss)")
+			return ctx.RespondPrivate("Not a valid timestamp! (mm:ss or ss)")
 		}
 	} else {
 		min, err := strconv.Atoi(stamp[:ind])
 		if err != nil {
-			return ctx.Send("Not a valid timestamp! (mm:ss or ss)")
+			return ctx.RespondPrivate("Not a valid timestamp! (mm:ss or ss)")
 		}
 		desired, err = strconv.Atoi(stamp[ind+1:])
 		if err != nil {
-			return ctx.Send("Not a valid timestamp! (mm:ss or ss)")
+			return ctx.RespondPrivate("Not a valid timestamp! (mm:ss or ss)")
 		}
 		desired += min * 60
 	}
 	strm := elem.Value
 	strm.StartedAt = time.Now().Add(time.Duration(-desired) * time.Second)
 	strm.Remake <- struct{}{}
-	return ctx.Send(fmt.Sprintf("Skipped to %d:%02d", desired/60, desired%60))
+	return ctx.Respond(fmt.Sprintf("Skipped to %d:%02d", desired/60, desired%60))
 }
 
 // ~!time
 // @Alias popcorn
 // Displays the time
-func popcorn(ctx commands.Context, _ []string) error {
+func popcorn(ctx *commands.Context) error {
 	now := time.Now()
-	err := ctx.Send(now.Format("It is 3:04 PM on January _2, 2006."))
+	err := ctx.Respond(now.Format("It is 3:04 PM on January _2, 2006."))
 	if err != nil || ctx.GuildID == "" {
 		return err
 	}
@@ -451,14 +487,6 @@ func popcorn(ctx commands.Context, _ []string) error {
 		sampleLs = append(sampleLs, strconv.Itoa(now.Day()))
 	}
 	sampleLs = append(sampleLs, strconv.Itoa(now.Year()))
-	switch int(now.Month())*128 + now.Day() {
-	case 129:
-		// New year
-	case 1433:
-		// Birthday
-	case 513:
-		// April fools
-	}
 	builder := new(strings.Builder)
 	builder.WriteString("concat:")
 	for k, v := range sampleLs {
@@ -470,7 +498,7 @@ func popcorn(ctx commands.Context, _ []string) error {
 		}
 	}
 	ls.Lock()
-	ls.PushFront(&StreamObj{Author: ctx.Author.ID, Channel: ctx.ChanID, Source: builder.String(), Flags: strflag_special | strflag_noskip})
+	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: builder.String(), Flags: strflag_special | strflag_noskip})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
 	return nil
@@ -481,52 +509,26 @@ func popcorn(ctx commands.Context, _ []string) error {
 // Leave the call with style
 // Only works if nothing else is playing
 // For a list of outros, do ~!outro list
-func outro(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command can only be used in servers.")
-	}
-	if len(args) == 0 {
-		return ctx.Send("Usage: ~!outro <name>\nFor a list of outros, do ~!outro list")
-	}
-	if args[0] == "list" {
-		f, err := os.Open("outro")
-		if err != nil {
-			return err
-		}
-		names, err := f.Readdirnames(0)
-		if err != nil {
-			return err
-		}
-		builder := new(strings.Builder)
-		builder.WriteString("Outros:")
-		for _, x := range names {
-			builder.WriteByte('\n')
-			ind := strings.LastIndexByte(x, '.')
-			if ind == -1 {
-				ind = len(x)
-			}
-			builder.WriteString(x[:ind])
-		}
-		return ctx.Send(builder.String())
-	}
+func outro(ctx *commands.Context) error {
 	ls := streams[ctx.GuildID]
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil || ls == nil {
-		return ctx.Send("Not connected to voice.")
+		return ctx.RespondPrivate("Not connected to voice.")
 	}
 	if ls.Len() > 0 {
-		return ctx.Send("Can't play an outro while something else is playing.")
+		return ctx.RespondPrivate("Can't play an outro while something else is playing.")
 	}
-	_, err := os.Stat("outro" + string(os.PathSeparator) + args[0] + ".ogg")
+	name := ctx.ApplicationCommandData().Options[0].StringValue()
+	_, err := os.Stat("outro" + string(os.PathSeparator) + name + ".ogg")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return ctx.Send("That outro does not exist.")
+			return ctx.RespondPrivate("That outro does not exist.")
 		}
 		return err
 	}
 	ls.Lock()
-	ls.PushFront(&StreamObj{Author: ctx.Author.ID, Channel: ctx.ChanID, Source: "outro" + string(os.PathSeparator) + args[0] + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
+	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: "outro" + string(os.PathSeparator) + name + ".ogg", Flags: strflag_dconend | strflag_noskip | strflag_special})
 	go musicStreamer(vc, ls.Head().Value)
 	ls.Unlock()
-	return nil
+	return ctx.RespondEmpty()
 }

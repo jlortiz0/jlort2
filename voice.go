@@ -21,7 +21,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -51,15 +50,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		voiceCooldown[event.UserID] = time.Now().Add(plusd)
 		return
 	}
-	mem, err := self.State.Member(event.GuildID, event.UserID)
-	if err != nil {
-		log.Warn(fmt.Sprintf("voice member not cached: %s", err.Error()))
-		mem, err = self.GuildMember(event.GuildID, event.UserID)
-		if err != nil {
-			log.Error(fmt.Errorf("failed to get voice member: %w", err))
-			return
-		}
-	}
+	mem := event.Member
 	if mem.User.Bot {
 		return
 	}
@@ -77,6 +68,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 	}
 	_, err = self.State.Channel(output)
 	if err != nil {
+		commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?;", gid)
 		return
 	}
 	displayname := commands.DisplayName(mem)
@@ -116,75 +108,26 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // Only people with the Manage Server permission can change the voice announcement channel.
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
-func vachan(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	if len(args) > 0 {
-		perms, err := ctx.State.MessagePermissions(ctx.Message)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions: %w", err)
-		}
-		if perms&discordgo.PermissionManageServer == 0 {
-			return ctx.Send("You need the Manage Server permission to change this setting.")
-		}
-		if strings.ToLower(args[0]) == "none" {
-			gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-			ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", gid)
-			return ctx.Send("Voice announcements disabled.")
-		}
-		if !strings.HasPrefix(args[0], "<#") || args[0][len(args[0])-1] != '>' {
-			return ctx.Send("Not a valid channel mention.")
-		}
-		ch, err := ctx.State.Channel(args[0][2 : len(args[0])-1])
-		if err != nil {
-			return err
-		}
-		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-		cid, _ := strconv.ParseUint(ch.ID, 10, 64)
-		ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, cid)
-		err = ctx.Send("Voice joins will be announced in " + ch.Name)
-		return err
-	}
+func vachan(ctx *commands.Context) error {
+	arg := ctx.ApplicationCommandData().Options[0].ChannelValue(ctx.Bot)
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	row := voiceStatement.QueryRow(gid)
-	var chID string
-	err := row.Scan(&chID)
-	if err == nil {
-		return ctx.Send("Voice announcements are disabled on this server")
+	if arg.Type != discordgo.ChannelTypeGuildText {
+		ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", gid)
+		return ctx.RespondPrivate("Voice announcements disabled.")
 	}
-	ch, err := ctx.State.Channel(chID)
-	if err != nil {
-		log.Error(err)
-		return ctx.Send("Voice announcements are disabled on this server")
-	}
-	return ctx.Send("Voice joins are announced in " + ch.Name)
+	ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, arg.ID)
+	return ctx.RespondPrivate(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
 }
 
+// TODO: Do I even need this anymore?
 func newGuild(self *discordgo.Session, event *discordgo.GuildCreate) {
 	self.State.GuildAdd(event.Guild)
-	if _, ok := notForThisOne[event.ID]; ok {
-		self.RequestGuildMembers(event.ID, "", 250, "", false)
-		return
-	}
-	time.Sleep(10 * time.Millisecond)
-	// event.Guild, _ = self.State.Guild(event.ID)
-	notForThisOne[event.ID] = struct{}{}
-	var chanID string
-	for _, v := range event.Channels {
-		if v.Type == discordgo.ChannelTypeGuildText {
-			perms, err := self.State.UserChannelPermissions(self.State.User.ID, v.ID)
-			if err == nil && perms&discordgo.PermissionSendMessages != 0 {
-				chanID = v.ID
-				break
-			}
-		}
-	}
-	if chanID != "" {
-		_, err := self.ChannelMessageSend(chanID, "Hello! Run ~!help for a list of commands.\nTo manage automatic voice announcements, do ~!vachan\nTo set the DJ role, do ~!dj")
-		if err != nil {
-			log.Error(err)
-			return
-		}
+	self.RequestGuildMembers(event.ID, "", 250, "", false)
+}
+
+func oldGuild(self *discordgo.Session, event *discordgo.GuildDelete) {
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?;", gid)
 	}
 }

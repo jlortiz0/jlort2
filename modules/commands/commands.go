@@ -19,7 +19,10 @@ package commands
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -29,92 +32,353 @@ var db *sql.DB
 // Context is a helper struct for defining a command invokation context.
 // All this can be gotten from the three fields in MakeContext, but this makes it shorter to do so.
 type Context struct {
-	Message     *discordgo.Message
-	Bot         *discordgo.Session
-	InvokedWith string
-	Author      *discordgo.User
-	Member      *discordgo.Member
-	Me          *discordgo.User
-	ChanID      string
-	GuildID     string
-	State       *discordgo.State
-	Database    *sql.DB
+	*discordgo.Interaction
+
+	Bot        *discordgo.Session
+	Me         *discordgo.User
+	State      *discordgo.State
+	Database   *sql.DB
+	hasDelayed bool
+	components []discordgo.MessageComponent
+	origName   string
+	followup   string
 }
 
-// Send a message to the channel where the command was invoked.
-func (ctx Context) Send(msg string) error {
-	_, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, msg)
+func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool) error {
+	if ctx.followup == "0" {
+		ctx.RespondDelayed(private)
+		data := new(discordgo.WebhookParams)
+		data.Content = msg
+		data.Components = ctx.components
+		if private {
+			data.Flags = discordgo.MessageFlagsEphemeral
+		}
+		if embed != nil {
+			data.Embeds = []*discordgo.MessageEmbed{embed}
+		}
+		s, err := ctx.Bot.FollowupMessageCreate(ctx.Interaction, true, data)
+		if err != nil {
+			err = fmt.Errorf("failed to send response: %w", err)
+		} else {
+			ctx.followup = s.ID
+		}
+		return err
+	} else if ctx.followup != "" {
+		resp := new(discordgo.WebhookEdit)
+		resp.Content = &msg
+		resp.Components = &ctx.components
+		if embed != nil {
+			resp.Embeds = &[]*discordgo.MessageEmbed{embed}
+		}
+		_, err := ctx.Bot.FollowupMessageEdit(ctx.Interaction, ctx.followup, resp)
+		if err != nil {
+			err = fmt.Errorf("failed to send response: %w", err)
+		}
+		return err
+	}
+	resp := new(discordgo.InteractionResponse)
+	if ctx.origName == "" {
+		resp.Type = discordgo.InteractionResponseChannelMessageWithSource
+	} else {
+		resp.Type = discordgo.InteractionResponseUpdateMessage
+	}
+	resp.Data = new(discordgo.InteractionResponseData)
+	resp.Data.Content = msg
+	resp.Data.Components = ctx.components
+	if private {
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
+	}
+	if embed != nil {
+		resp.Data.Embeds = []*discordgo.MessageEmbed{embed}
+	}
+	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
 	if err != nil {
-		err = fmt.Errorf("could not send message: %w", err)
+		err = fmt.Errorf("failed to send response: %w", err)
 	}
 	return err
 }
 
-// MakeContext returns a Context populated with data from the message event.
-func MakeContext(self *discordgo.Session, event *discordgo.MessageCreate, invocation string) Context {
-	ctx := Context{Bot: self, InvokedWith: invocation}
-	ctx.Author = event.Author
-	if event.Member != nil {
-		ctx.Member = event.Member
-		ctx.Member.User = event.Author
+// Send a message to the channel where the command was invoked.
+func (ctx *Context) Respond(msg string) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEdit(msg)
 	}
-	ctx.Message = event.Message
-	ctx.ChanID = event.ChannelID
-	ctx.GuildID = event.GuildID
+	return ctx.resp(msg, nil, false)
+}
+
+func (ctx *Context) RespondPrivate(msg string) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEdit(msg)
+	}
+	return ctx.resp(msg, nil, true)
+}
+
+func (ctx *Context) RespondEmbed(embed *discordgo.MessageEmbed, private bool) error {
+	if ctx.hasDelayed {
+		return ctx.RespondEditEmbed(embed)
+	}
+	return ctx.resp("", embed, private)
+}
+
+func (ctx *Context) RespondDelayed(private bool) error {
+	if ctx.hasDelayed {
+		return nil
+	}
+	resp := new(discordgo.InteractionResponse)
+	resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
+	if ctx.origName != "" {
+		resp.Type = discordgo.InteractionResponseDeferredMessageUpdate
+	}
+	resp.Data = new(discordgo.InteractionResponseData)
+	if private {
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
+	}
+	err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
+	if err != nil {
+		err = fmt.Errorf("failed to send response: %w", err)
+	} else {
+		ctx.hasDelayed = true
+	}
+	return err
+}
+
+func (ctx *Context) RespondEdit(msg string) error {
+	if ctx.origName != "" {
+		return ctx.Respond(msg)
+	}
+	resp := new(discordgo.WebhookEdit)
+	resp.Content = &msg
+	resp.Components = &ctx.components
+	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
+	if err != nil {
+		err = fmt.Errorf("failed to edit response: %w", err)
+	}
+	return err
+}
+
+func (ctx *Context) RespondEditEmbed(embed *discordgo.MessageEmbed) error {
+	if ctx.origName != "" {
+		return ctx.RespondEmbed(embed, false)
+	}
+	resp := new(discordgo.WebhookEdit)
+	resp.Embeds = &[]*discordgo.MessageEmbed{embed}
+	resp.Components = &ctx.components
+	_, err := ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
+	if err != nil {
+		err = fmt.Errorf("failed to edit response: %w", err)
+	}
+	return err
+}
+
+func (ctx *Context) RespondEmpty() error {
+	if ctx.origName != "" {
+		return ctx.Bot.InteractionRespond(ctx.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
+	}
+	if !ctx.hasDelayed {
+		resp := new(discordgo.InteractionResponse)
+		resp.Type = discordgo.InteractionResponseDeferredChannelMessageWithSource
+		resp.Data = new(discordgo.InteractionResponseData)
+		resp.Data.Flags = discordgo.MessageFlagsEphemeral
+		err := ctx.Bot.InteractionRespond(ctx.Interaction, resp)
+		if err != nil {
+			return fmt.Errorf("failed to send response: %w", err)
+		}
+	}
+	return ctx.Bot.InteractionResponseDelete(ctx.Interaction)
+}
+
+func (ctx *Context) SetComponents(args ...discordgo.MessageComponent) {
+	if len(args) == 0 {
+		return
+	}
+	name := ctx.origName + "\a"
+	if name == "\a" {
+		name = ctx.ApplicationCommandData().Name + "\a"
+	}
+	for i, x := range args {
+		if x.Type() == discordgo.ButtonComponent {
+			x2 := x.(discordgo.Button)
+			x2.CustomID = name + x2.CustomID
+			args[i] = x2
+		} else {
+			return
+		}
+	}
+	com := new(discordgo.ActionsRow)
+	com.Components = args
+	ctx.components = []discordgo.MessageComponent{com}
+}
+
+func (ctx *Context) FollowupPrepare() {
+	ctx.followup = "0"
+}
+
+func (ctx *Context) FollowupDestroy() {
+	ctx.followup = ""
+}
+
+// MakeContext returns a Context populated with data from the message event.
+func MakeContext(self *discordgo.Session, event *discordgo.Interaction) *Context {
+	ctx := new(Context)
+	ctx.Interaction = event
+	if ctx.Member != nil {
+		ctx.User = event.Member.User
+	}
+	ctx.Bot = self
 	ctx.State = self.State
 	ctx.Me = self.State.User
+	if event.Type == discordgo.InteractionMessageComponent {
+		data := event.MessageComponentData()
+		ctx.origName, data.CustomID, _ = strings.Cut(data.CustomID, "\a")
+		event.Data = data
+	}
 	ctx.Database = db
 	return ctx
 }
 
 // Command defines the function interface for a valid command.
-type Command func(Context, []string) error
+type Command func(*Context) error
+type Autocompleter func(*Context) []*discordgo.ApplicationCommandOptionChoice
+type cmdMapEntry struct {
+	c Command
+	a Autocompleter
+	h Command // Component handler
+}
 
-var cmdMap map[string]Command
+var batchCmdList []commandStruct
+var cmdMap map[string]cmdMapEntry
 
-// RegisterCommand registers a command with the commands module.
-// The name need not be the same as the function, but it must be unique.
-// A command can have multiple names, and can see which is used to call it.
-func RegisterCommand(cmd Command, name string) {
-	_, in := cmdMap[name]
-	if in {
-		panic(fmt.Sprintf("Command name %s already registered", name))
+type commandStruct struct {
+	*discordgo.ApplicationCommand
+	autocomplete Autocompleter
+	handler      Command
+	gsm          bool
+}
+
+func PrepareCommand(name, description string) commandStruct {
+	cmd := new(discordgo.ApplicationCommand)
+	cmd.Description = description
+	cmd.Name = name
+	cmd.Type = discordgo.ChatApplicationCommand
+	return commandStruct{ApplicationCommand: cmd}
+}
+
+func (c commandStruct) AsMsg() commandStruct {
+	c.Type = discordgo.MessageApplicationCommand
+	c.Description = ""
+	return c
+}
+
+func (c commandStruct) AsUser() commandStruct {
+	c.Type = discordgo.UserApplicationCommand
+	c.Description = ""
+	return c
+}
+
+func (c commandStruct) NSFW() commandStruct {
+	b := true
+	c.ApplicationCommand.NSFW = &b
+	return c
+}
+
+func (c commandStruct) Guild() commandStruct {
+	b := false
+	c.DMPermission = &b
+	return c
+}
+
+func (c commandStruct) Perms(p int64) commandStruct {
+	c.DefaultMemberPermissions = &p
+	return c
+}
+
+func (c commandStruct) Auto(c2 Autocompleter) commandStruct {
+	c.autocomplete = c2
+	return c
+}
+
+func (c commandStruct) Component(c2 Command) commandStruct {
+	c.handler = c2
+	return c
+}
+
+func (c commandStruct) Gsm() commandStruct {
+	c.gsm = true
+	return c
+}
+
+func (c commandStruct) Register(cmd Command, options []*discordgo.ApplicationCommandOption) {
+	c.Options = options
+	batchCmdList = append(batchCmdList, c)
+	cmdMap[c.Name] = cmdMapEntry{cmd, c.autocomplete, c.handler}
+}
+
+func UploadCommands(self *discordgo.Session, appId string, guildId string, testMode bool) {
+	var err error
+	if testMode {
+		ls := make([]*discordgo.ApplicationCommand, len(batchCmdList))
+		for i, x := range batchCmdList {
+			ls[i] = x.ApplicationCommand
+		}
+		_, err = self.ApplicationCommandBulkOverwrite(appId, guildId, ls)
+	} else {
+		ls := make([]*discordgo.ApplicationCommand, 0, len(batchCmdList))
+		ls2 := make([]*discordgo.ApplicationCommand, 0, 4)
+		for _, x := range batchCmdList {
+			if x.gsm {
+				ls2 = append(ls2, x.ApplicationCommand)
+			} else {
+				ls = append(ls, x.ApplicationCommand)
+			}
+		}
+		_, err = self.ApplicationCommandBulkOverwrite(appId, "", ls)
+		if err == nil && guildId != "" {
+			_, err = self.ApplicationCommandBulkOverwrite(appId, guildId, ls2)
+		}
 	}
-	cmdMap[name] = cmd
+	if err != nil {
+		if testMode {
+			err2 := err.(*discordgo.RESTError)
+			var errBody struct {
+				Code   int
+				Errors map[string]interface{}
+			}
+			json.Unmarshal(err2.ResponseBody, &errBody)
+			if errBody.Code == discordgo.ErrCodeInvalidFormBody {
+				for k := range errBody.Errors {
+					i, _ := strconv.Atoi(k)
+					fmt.Printf("%d: %s\n", i, batchCmdList[i].Name)
+					for _, v := range batchCmdList[i].Options {
+						fmt.Printf(" - %s (%d)\n", v.Name, v.Type)
+					}
+				}
+			}
+		}
+		panic(err)
+	}
+	batchCmdList = nil
+}
+
+func ClearGuildCommands(self *discordgo.Session, appId string, guildID string) {
+	_, err := self.ApplicationCommandBulkOverwrite(appId, guildID, nil)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // GetCommand returns the command associated with the given name
 func GetCommand(name string) Command {
-	return cmdMap[name]
+	return cmdMap[name].c
 }
 
-// UnregisterCommand dissociates the command with the given name
-// The function will not error even if there is no command with that name
-func UnregisterCommand(name string) {
-	delete(cmdMap, name)
+// GetCommand returns the command associated with the given name
+func GetCommandAutocomplete(name string) Autocompleter {
+	return cmdMap[name].a
 }
 
-// FindMember returns the first member with the given name or nickname from a guild
-// If the name begins with @, the @ is stripped before searching.
-// If no member is found, but there was no error getting the members, nil, nil is returned.
-// If there was an error getting the members, nil, error is returned.
-func FindMember(self *discordgo.Session, name string, guildID string) (*discordgo.Member, error) {
-	guild, err := self.State.Guild(guildID)
-	if err != nil {
-		return nil, err
-	}
-	if name[0] == '<' && name[1] == '@' && name[len(name)-1] == '>' {
-		if name[2] == '!' {
-			return self.GuildMember(guildID, name[3:len(name)-1])
-		}
-		return self.GuildMember(guildID, name[2:len(name)-1])
-	}
-	for i := 0; i < len(guild.Members); i++ {
-		if guild.Members[i].Nick == name || guild.Members[i].User.Username == name {
-			return guild.Members[i], nil
-		}
-	}
-	return nil, nil
+func GetCommandComponentHandler(data discordgo.MessageComponentInteractionData) Command {
+	name, _, _ := strings.Cut(data.CustomID, "\a")
+	return cmdMap[name].h
 }
 
 // DisplayName returns the nickname of a member, or the username if there is none.
@@ -127,4 +391,83 @@ func DisplayName(mem *discordgo.Member) string {
 
 func GetDatabase() *sql.DB {
 	return db
+}
+
+type commandOption struct {
+	discordgo.ApplicationCommandOption
+}
+
+func NewCommandOption(name, description string) *commandOption {
+	ret := new(commandOption)
+	ret.Name = name
+	ret.Description = description
+	return ret
+}
+
+func (c *commandOption) AsInt() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionInteger
+	return c
+}
+
+func (c *commandOption) AsString() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionString
+	return c
+}
+
+func (c *commandOption) AsUser() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionUser
+	return c
+}
+
+func (c *commandOption) AsBool() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionBoolean
+	return c
+}
+
+func (c *commandOption) AsChannel() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionChannel
+	return c
+}
+
+func (c *commandOption) AsRole() *commandOption {
+	c.Type = discordgo.ApplicationCommandOptionRole
+	return c
+}
+
+func (c *commandOption) AsSubcommand(o []*discordgo.ApplicationCommandOption) *discordgo.ApplicationCommandOption {
+	c.Type = discordgo.ApplicationCommandOptionSubCommand
+	c.Options = o
+	return &c.ApplicationCommandOption
+}
+
+func (c *commandOption) SetMinMax(min, max int) *commandOption {
+	min2 := float64(min)
+	c.MinValue = &min2
+	max2 := float64(max)
+	c.MaxValue = max2
+	return c
+}
+
+func (c *commandOption) Required() *commandOption {
+	c.ApplicationCommandOption.Required = true
+	return c
+}
+
+func (c *commandOption) Auto() *commandOption {
+	c.Autocomplete = true
+	c.Choices = nil
+	return c
+}
+
+func (c *commandOption) Choice(ls []*discordgo.ApplicationCommandOptionChoice) *commandOption {
+	c.Choices = ls
+	c.Autocomplete = false
+	return c
+}
+
+func (c *commandOption) Finalize() *discordgo.ApplicationCommandOption {
+	if c.Type == 0 {
+		panic("command option type not set")
+	}
+	return &(*c).ApplicationCommandOption
 }

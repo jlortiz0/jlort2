@@ -16,11 +16,11 @@ fi
 
 if [ "$1" = "help" ]; then
 	echo "Usage:"
-	echo "~!gsm <server> - Start a server"
-	echo "~!gsm stop - Send stop command to all servers"
-	echo "~!gsm list - List of servers"
-	echo "~!gsm ping - List servers that are up"
-	echo "~!gsm ip - Get IP address"
+	echo "/gsm <server> - Start a server"
+	echo "/gsm stop - Send stop command to all servers"
+	echo "/gsm list - List of servers"
+	echo "/gsm ping - List servers that are up"
+	echo "/gsm ip - Get IP address"
 	exit
 fi
 
@@ -44,7 +44,7 @@ fi
 if [ -z "$1" ] || [ "$1" = "list" ]; then
 	echo "List of servers:"
 	ls -d /home/McServer/*/ | awk '{split($0,a,"/"); print a[5]}'
-	echo "Use ~!gsm <server> to start the server or ~!gsm help for additional commands."
+	echo "Use /gsm <server> to start the server or /gsm help for additional commands."
 	exit
 fi
 
@@ -81,7 +81,7 @@ screen -list | grep Terraria > /dev/null && echo "There is already a server runn
 screen -list | grep McServer > /dev/null && echo "There is already a server running!" && exit
 cd /home/McServer/$1
 if ./bg.sh "$2" > /dev/null 2>&1; then
-    echo "Server should be up shortly..."
+    echo "$1" "should be up shortly..."
 else
     echo "There was an error starting the server."
 fi

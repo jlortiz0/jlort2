@@ -51,23 +51,26 @@ type YDLPlaylist struct {
 	Entries []YDLInfo
 }
 
+type streamFlag uint8
+
 const (
-	strflag_special = 1 << iota // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
-	strflag_loop                // If true, stream will loop after end
-	strflag_playing             // If true, there is currently a thread running this stream
-	strflag_paused              // If true, the thread running this stream should sleep
-	strflag_noskip              // If true, this stream should not be skippable once playing
-	strflag_dconend             // If true, the bot should disconnect once this stream ends
+	strflag_special streamFlag = 1 << iota // Should this stream be treated as special? If true, lastPlayed will not be set, and the source will not be filtered.
+	strflag_loop                           // If true, stream will loop after end
+	strflag_playing                        // If true, there is currently a thread running this stream
+	strflag_paused                         // If true, the thread running this stream should sleep
+	strflag_noskip                         // If true, this stream should not be skippable once playing
+	strflag_dconend                        // If true, the bot should disconnect once this stream ends
 )
 
 // StreamObj stores the data needed for an active stream. A partial version of this is used for a queued stream.
 type StreamObj struct {
-	Author  string   // The ID of the user who queued the stream
-	Channel string   // The channel in which the stream was queued, used for next up announcements
-	Source  string   // The URL to stream from
-	Vol     int      // The volume, 0-200. This will be copied from the previous stream if possible
-	Flags   uint16   // See above constants
-	Info    *YDLInfo // The YDLInfo associated with this stream. If nil, this is a direct file stream
+	Author  string     // The ID of the user who queued the stream
+	Channel string     // The channel in which the stream was queued, used for next up announcements
+	Source  string     // The URL to stream from
+	Vol     int        // The volume, 0-200. This will be copied from the previous stream if possible
+	Flags   streamFlag // See above constants
+	InterID string     // Interaction ID
+	Info    *YDLInfo   // The YDLInfo associated with this stream. If nil, this is a direct file stream
 	// Fields below this line may not be populated or valid until the streamer starts
 	Remake     chan struct{}                   // When this channel is written to, the ffmpeg process will be recreated with new parameters
 	Skippers   map[string]struct{}             // A set of the IDs of users who have voted to skip this stream
@@ -75,6 +78,7 @@ type StreamObj struct {
 	Subprocess *exec.Cmd                       // The ffmpeg subprocess that the streamer streams from
 	Stop       chan struct{}                   // When this channel is written to, the streamer will stop
 	Redirect   chan *discordgo.VoiceConnection // Uses this new VoiceConnection instead of the original one passsed in
+	PauseTs    time.Duration                   // How long the stream was playing when we paused it
 }
 
 var streams map[string]*lockQueue
@@ -89,15 +93,12 @@ const popRefreshRate = 3 * time.Second
 // ~!connect
 // @GuildOnly
 // Connects to voice
-// If you are in a voice channel and jlort jlort is in a different voice channel, you will be asked to move.
-// This function is automatically called if you queue something and jlort is not connected.
-func connect(ctx commands.Context, _ []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.Author.ID)
+// If you are in a voice channel and I am in a different voice channel, you will be asked to move.
+// This function is automatically called if you queue something and I am not connected.
+func connect(ctx *commands.Context) error {
+	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
 	if err != nil || authorVoice.ChannelID == "" {
-		return ctx.Send("You must be in a voice channel to use this command.")
+		return ctx.RespondPrivate("You must be in a voice channel to use this command.")
 	}
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
@@ -115,7 +116,7 @@ func connect(ctx commands.Context, _ []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to get channel info: %w", err)
 			}
-			return ctx.Send("Please move to voice channel " + channel.Name)
+			return ctx.RespondPrivate("Please move to voice channel " + channel.Name)
 		}
 	} else {
 		perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, authorVoice.ChannelID)
@@ -123,7 +124,7 @@ func connect(ctx commands.Context, _ []string) error {
 			return fmt.Errorf("failed to get permissions: %w", err)
 		}
 		if perms&discordgo.PermissionVoiceConnect == 0 {
-			return ctx.Send("I need the Connect permission to use this command.")
+			return ctx.RespondPrivate("I need the Connect permission to use this command.")
 		}
 		streamLock.Lock()
 		if streams[ctx.GuildID] != nil && streams[ctx.GuildID].Len() > 0 {
@@ -137,6 +138,9 @@ func connect(ctx commands.Context, _ []string) error {
 			return fmt.Errorf("failed to connect to voice: %w", err)
 		}
 	}
+	if ctx.ApplicationCommandData().Name == "connect" {
+		return ctx.RespondEmpty()
+	}
 	return nil
 }
 
@@ -144,86 +148,55 @@ func connect(ctx commands.Context, _ []string) error {
 // @Alias disconnect
 // @GuildOnly
 // Disconnects from voice
-// If streams are currently playing, paused, or queued, jlort jlort will not disconnect unless you have permissions to clear the queue.
-// jlort jlort will automatically disconnect after 5 minutes of inactivity or if there is nobody to listen to it.
-// Note that jlort jlort may consider bots valid listeners if they are not server deafened. For best results, you should server deafen other bots.
-func dc(ctx commands.Context, _ []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
+// If streams are currently playing, paused, or queued, I will not disconnect unless you have permissions to clear the queue.
+// I will automatically disconnect after 5 minutes of inactivity or if there is nobody else in the call.
+// Note that I may consider bots as "other people" if they are not server deafened. For best results, you should server deafen other bots.
+func dc(ctx *commands.Context) error {
 	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if ok {
 		streamLock.RLock()
 		ls, ok := streams[ctx.GuildID]
 		streamLock.RUnlock()
 		if ok && ls.Len() > 1 {
-			err := remove(ctx, []string{"all-q"})
+			ctx.Data.(*discordgo.ApplicationCommandInteractionData).Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
+			err := remove(ctx)
 			if ls.Len() > 1 {
 				return err
 			}
 		}
 		if ok && ls.Head() != nil && ls.Head().Value.Flags&strflag_noskip != 0 {
 			if ls.Head().Value.Flags&strflag_dconend != 0 {
-				return ctx.Send("Won't you at least wait for the outro?")
+				return ctx.RespondPrivate("Won't you at least wait for the outro?")
 			}
-			return ctx.Send("This stream cannot be ended.")
+			return ctx.RespondPrivate("This stream cannot be ended.")
 		}
 		err := vc.Disconnect()
 		if err != nil {
 			return fmt.Errorf("failed to disconnect from voice: %w", err)
 		}
 	}
-	return nil
+	return ctx.RespondEmpty()
 }
 
-// ~!dj [@role]
+// ~!dj <@role>
 // @GuildOnly
 // @ManageServer
 // See or change the DJ role
 // People with the DJ role can remove or skip any stream, regardless of who queued it.
 // Only people with the Manage Server permission can change the DJ role.
-// You must mention the DJ role to set it because I am lazy.
-// To disable the DJ role, set to "none" without quotes or @
-func dj(ctx commands.Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	if len(args) == 0 {
-		gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-		result := queryDj.QueryRow(gid)
-		var rid string
-		if result.Scan(&rid) != nil {
-			return ctx.Send("No DJ role set.")
-		}
-		role, err := ctx.State.Role(ctx.GuildID, rid)
-		if err != nil {
-			ctx.Database.Exec("DELETE FROM djRole WHERE gid=?001;", gid)
-			return ctx.Send("No DJ role set.")
-		}
-		return ctx.Send("DJ role is " + role.Name)
-	}
-	perms, err := ctx.State.UserChannelPermissions(ctx.Author.ID, ctx.ChanID)
-	if err != nil {
-		return err
-	}
-	if perms&discordgo.PermissionManageServer == 0 {
-		return ctx.Send("You need Manage Server to change the DJ role.")
+// To disable the DJ role, set to @everyone
+func dj(ctx *commands.Context) error {
+	role := ctx.ApplicationCommandData().Options[0].RoleValue(ctx.Bot, ctx.GuildID)
+	if role.Managed {
+		return ctx.RespondPrivate("Role must be user-created.")
 	}
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	if strings.ToLower(args[0]) == "none" {
+	if role.Name == "@everyone" {
 		ctx.Database.Exec("DELETE FROM djRole WHERE gid=?001;", gid)
-		return ctx.Send("DJ role disabled.")
+		return ctx.RespondPrivate("DJ role disabled.")
 	}
-	if !strings.HasPrefix(args[0], "<@&") || args[0][len(args[0])-1] != '>' {
-		return ctx.Send("Not a valid role mention.")
-	}
-	roleID := args[0][3 : len(args[0])-1]
-	ctx.Database.Exec("INSERT OR REPLACE INTO djRole (gid, rid) VALUES (?001, ?002);", gid, roleID)
-	role, err := ctx.State.Role(ctx.GuildID, roleID)
-	if err != nil {
-		return err
-	}
-	return ctx.Send("DJ role set to " + role.Name)
+	ctx.Database.Exec("INSERT OR REPLACE INTO djRole (gid, rid) VALUES (?001, ?002);", gid, role.ID)
+	return ctx.RespondPrivate("DJ role set to " + role.Name)
 }
 
 // onDc is called when a user, including the bot, disconnects from a voice channel.
@@ -347,10 +320,14 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 				}
 				vc := self.VoiceConnections[k]
 				if vc == nil {
+					v.Lock()
+					v.Clear()
+					v.Unlock()
 					continue
 				}
 				mem, err := self.State.Member(k, obj.Author)
 				if err != nil {
+					go musicStreamer(vc, obj)
 					continue
 				}
 				authorName := commands.DisplayName(mem)
@@ -359,7 +336,11 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 					embed.Title = "Looping"
 				}
 				go musicStreamer(vc, obj)
-				self.ChannelMessageSendEmbed(obj.Channel, embed)
+				component := discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\u23ED"}, Style: discordgo.SecondaryButton, CustomID: "skip\a"}}}
+				self.ChannelMessageSendComplex(obj.Channel, &discordgo.MessageSend{
+					Embeds:     []*discordgo.MessageEmbed{embed},
+					Components: []discordgo.MessageComponent{component},
+				})
 			}
 		}
 		streamLock.RUnlock()
@@ -480,8 +461,10 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
-	gid, _ := strconv.ParseUint(event.ID, 10, 64)
-	commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
+	if !event.Unavailable {
+		gid, _ := strconv.ParseUint(event.ID, 10, 64)
+		commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
+	}
 	v := streams[event.ID]
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value
@@ -498,33 +481,56 @@ func Init(self *discordgo.Session) {
 	self.AddHandler(onDc)
 	self.AddHandler(delGuildSongs)
 	self.AddHandler(handleReconnect)
-	commands.RegisterCommand(connect, "connect")
-	commands.RegisterCommand(dc, "dc")
-	commands.RegisterCommand(dj, "dj")
-	commands.RegisterCommand(mp3, "mp3")
-	commands.RegisterCommand(mp3, "mp3skip")
-	commands.RegisterCommand(mp3, "mp4")
-	commands.RegisterCommand(mp3, "mp4skip")
-	commands.RegisterCommand(loop, "loop")
-	commands.RegisterCommand(skip, "skip")
-	commands.RegisterCommand(play, "play")
-	commands.RegisterCommand(play, "playskip")
-	commands.RegisterCommand(pause, "pause")
-	commands.RegisterCommand(pause, "unpause")
-	commands.RegisterCommand(remove, "remove")
-	commands.RegisterCommand(remove, "rm")
-	commands.RegisterCommand(np, "np")
-	commands.RegisterCommand(np, "playing")
-	commands.RegisterCommand(queue, "queue")
-	commands.RegisterCommand(vol, "vol")
-	commands.RegisterCommand(seek, "seek")
-	commands.RegisterCommand(popcorn, "popcorn")
-	commands.RegisterCommand(popcorn, "time")
-	commands.RegisterCommand(locket, "_locket")
-	commands.RegisterCommand(outro, "outro")
+	commands.PrepareCommand("connect", "Connect to voice").Guild().Register(connect, nil)
+	commands.PrepareCommand("dc", "Disconnect from voice").Guild().Register(dc, nil)
+	commands.PrepareCommand("dj", "Set DJ role").Guild().Perms(discordgo.PermissionManageServer).Register(dj, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("role", "DJ role to set, @everyone to disable").AsRole().Required().Finalize(),
+	})
+	optionLink := commands.NewCommandOption("url", "Link to audio file").AsString().Required().Finalize()
+	commands.PrepareCommand("mp3", "Play file from a link").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3skip", "Skip to file from a link").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{optionLink})
+	commands.PrepareCommand("mp3file", "Play an uploaded file").Guild().Component(playComponent).Register(mp3, []*discordgo.ApplicationCommandOption{
+		{Name: "file", Description: "File to play", Type: discordgo.ApplicationCommandOptionAttachment, Required: true},
+	})
+	commands.PrepareCommand("loop", "Set stream loop").Guild().Register(loop, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("enabled", "Loop this song?").AsBool().Required().Finalize(),
+	})
+	commands.PrepareCommand("skip", "Skip current song").Guild().Component(skip).Register(skip, nil)
+	optionVideo := commands.NewCommandOption("url", "Link to YouTube video, or anything supported by yt-dlp").AsString().Required().Finalize()
+	commands.PrepareCommand("play", "Play YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("playskip", "Skip to YouTube video").Guild().Component(playComponent).Register(play, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("pause", "Pause or unpause current stream").Guild().Component(pause).Register(pause, nil)
+	commands.PrepareCommand("remove", "Remove stream from queue").Guild().Register(remove, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("index", "Index to remove, -1 for all").AsInt().SetMinMax(-1, music_queue_max*2).Required().Finalize(),
+	})
+	commands.PrepareCommand("np", "Details of current stream").Guild().Register(np, nil)
+	commands.PrepareCommand("queue", "See what's in the queue").Guild().Register(queue, nil)
+	commands.PrepareCommand("vol", "Check or change volume").Guild().Register(vol, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("volume", "Volume in percent").AsInt().SetMinMax(0, 200).Finalize(),
+	})
+	commands.PrepareCommand("seek", "Seek to a position in the stream").Guild().Register(seek, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
+	})
+	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
+	fList, err := os.ReadDir("outro")
+	if err != nil {
+		log.Error(err)
+	} else {
+		outroComp := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
+		for _, x := range fList {
+			n := x.Name()
+			if !strings.HasSuffix(n, ".ogg") {
+				continue
+			}
+			n = n[:len(n)-4]
+			outroComp = append(outroComp, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
+		}
+		commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
+			commands.NewCommandOption("name", "Name of outro to play").AsString().Required().Choice(outroComp).Finalize(),
+		})
+	}
 	popLock++
 	go musicPopper(self, popLock)
-	var err error
 	queryDj, err = commands.GetDatabase().Prepare("SELECT rid FROM djRole WHERE gid=?001;")
 	if err != nil {
 		log.Error(err)

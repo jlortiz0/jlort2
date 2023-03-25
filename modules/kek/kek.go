@@ -29,7 +29,6 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-var botId string
 var queryKekEnabled *sql.Stmt
 var setKekMsg *sql.Stmt
 var queryKek *sql.Stmt
@@ -37,31 +36,26 @@ var queryKek *sql.Stmt
 // ~!kekage [user]
 // Checks someone's kekage
 // If not specified, gives the kekage of the command runner.
-func kekage(ctx commands.Context, args []string) error {
-	target := ctx.Member
-	var err error
-	if len(args) > 0 && ctx.GuildID != "" {
-		name := strings.Join(args, " ")
-		target, err = commands.FindMember(ctx.Bot, name, ctx.GuildID)
-		if err != nil {
-			return err
-		}
-		if target == nil {
-			return ctx.Send("No such member " + name)
-		}
+func kekage(ctx *commands.Context) error {
+	target := ctx.User
+	data := ctx.ApplicationCommandData()
+	if len(data.Options) > 0 && ctx.GuildID != "" {
+		target = data.Options[0].UserValue(ctx.Bot)
+	} else if data.TargetID != "" {
+		target = data.Resolved.Users[data.TargetID]
 	}
-	if target.User.Bot {
-		return ctx.Send("Bots can't be kek.")
+	if target.Bot {
+		return ctx.RespondPrivate("Bots can't be kek.")
 	}
-	name := commands.DisplayName(target)
+	name := target.Username
 	var kekI int
-	uid, _ := strconv.ParseUint(target.User.ID, 10, 64)
+	uid, _ := strconv.ParseUint(target.ID, 10, 64)
 	result := queryKek.QueryRow(uid)
 	result.Scan(&kekI)
 	kekI *= 50
 	var msg string
 	if kekI == 0 {
-		return ctx.Send(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
+		return ctx.RespondPrivate(name + " is in perfect harmony between kek and cringe.\nAll they have to do now is turn off thier computer and get a life.")
 	} else if kekI < 0 {
 		if kekI > -1000 {
 			msg = "%s is at %s cringe.\nThey should be wary, lest they falter further."
@@ -79,19 +73,43 @@ func kekage(ctx commands.Context, args []string) error {
 			msg = "%s is at %s kek.\nThey are blessed with the power of good vibes."
 		}
 	}
-	return ctx.Send(fmt.Sprintf(msg, name, convertKek(kekI)))
+	return ctx.RespondPrivate(fmt.Sprintf(msg, name, convertKek(kekI)))
 }
+
+const kekreport_paginate_amount = 20
 
 // ~!kekReport
 // @GuildOnly
 // Gets the kekage of everyone
-func kekReport(ctx commands.Context, _ []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
+func kekReport(ctx *commands.Context) error {
+	var ind int
+	if ctx.Type == discordgo.InteractionMessageComponent {
+		cid := ctx.MessageComponentData().CustomID
+		ind, _ = strconv.Atoi(cid[1:])
+		if cid[0] == 'r' {
+			ind += kekreport_paginate_amount
+		} else {
+			ind -= kekreport_paginate_amount
+		}
 	}
 	guild, err := ctx.State.Guild(ctx.GuildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild: %w", err)
+	}
+	mList := make([]*discordgo.Member, 0, len(guild.Members)-1)
+	for _, x := range guild.Members {
+		if !x.User.Bot {
+			mList = append(mList, x)
+		}
+	}
+	if ind >= len(mList) {
+		ind = len(mList) - kekreport_paginate_amount
+	} else if ind < 0 {
+		ind = 0
+	}
+	mList2 := mList[ind:]
+	if len(mList2) > kekreport_paginate_amount {
+		mList2 = mList2[:kekreport_paginate_amount]
 	}
 	output := new(strings.Builder)
 	tx, err := ctx.Database.Begin()
@@ -101,7 +119,7 @@ func kekReport(ctx commands.Context, _ []string) error {
 	defer tx.Commit()
 	stmt := tx.Stmt(queryKek)
 	defer stmt.Close()
-	for _, mem := range guild.Members {
+	for _, mem := range mList2 {
 		if mem.User.Bot {
 			continue
 		}
@@ -120,9 +138,13 @@ func kekReport(ctx commands.Context, _ []string) error {
 		}
 	}
 	if output.Len() == 0 {
-		output.WriteString("All keks are zero.")
+		return ctx.RespondPrivate("All keks are zero.")
 	}
-	return ctx.Send(output.String())
+	if len(mList) > kekreport_paginate_amount {
+		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(mList) <= ind+kekreport_paginate_amount, Style: discordgo.SecondaryButton})
+	}
+	return ctx.RespondPrivate(output.String())
 }
 
 // ~!kekOn
@@ -130,34 +152,19 @@ func kekReport(ctx commands.Context, _ []string) error {
 // @ManageServer
 // Toggles kekage on a server
 // You must have Manage Server to do this.
-func kekOn(ctx commands.Context, _ []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	perms, err := ctx.State.MessagePermissions(ctx.Message)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageServer == 0 {
-		return ctx.Send("You need the Manage Server permission to toggle kek.")
-	}
+func kekOn(ctx *commands.Context) error {
 	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	result := queryKekEnabled.QueryRow(gid)
-	if result.Scan(&sql.NullInt64{}) != nil {
+	if ctx.ApplicationCommandData().Options[0].BoolValue() {
 		ctx.Database.Exec("INSERT INTO kekGuilds VALUES (?001);", gid)
-		return ctx.Send("Kek enabled on this server.")
+		return ctx.RespondPrivate("Kek enabled on this server.")
 	}
 	ctx.Database.Exec("DELETE FROM kekGuilds WHERE gid=?001;", gid)
-	return ctx.Send("Kek disabled on this server.")
+	return ctx.RespondPrivate("Kek disabled on this server.")
 }
 
 func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
 	if event.Author.Bot || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
-		return
-	}
-	perms, err := self.State.UserChannelPermissions(self.State.User.ID, event.ChannelID)
-	if err != nil || perms&discordgo.PermissionAddReactions == 0 {
 		return
 	}
 	vote := false
@@ -187,7 +194,7 @@ func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd)
 		return
 	}
 	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
-	if event.UserID == botId || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
+	if event.UserID == self.State.User.ID || queryKekEnabled.QueryRow(gid).Scan(&sql.NullInt64{}) != nil {
 		return
 	}
 	msg, err := self.ChannelMessage(event.ChannelID, event.MessageID)
@@ -247,22 +254,21 @@ func convertKek(kek int) string {
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
 // Here, it also initializes the cooldown and duel maps and loads the kek data from disk, as well as collapsing old kek data.
 func Init(self *discordgo.Session) {
-	commands.RegisterCommand(kekage, "kekage")
-	commands.RegisterCommand(kekOn, "kekOn")
-	commands.RegisterCommand(kekOn, "kekOff")
-	commands.RegisterCommand(kekReport, "kekReport")
+	commands.PrepareCommand("kek", "Kek or cringe with "+self.State.Application.Name).Register(kekage, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("user", "Person to check the kekage of, default you").AsUser().Finalize(),
+	})
+	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Component(kekReport).Register(kekReport, nil)
+	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
+		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Required().Finalize()})
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)
 	self.AddHandler(onReactionRemoveWrapper)
 	self.AddHandler(onReactionRemoveAllWrapper)
 	self.AddHandler(onGuildRemoveKek)
-	u, err := self.User("@me")
-	if err != nil {
-		log.Error(err)
-	}
-	botId = u.ID
 
 	db := commands.GetDatabase()
+	var err error
 	queryKekEnabled, err = db.Prepare("SELECT gid FROM kekGuilds WHERE gid=?001;")
 	if err != nil {
 		log.Error(err)
@@ -272,11 +278,8 @@ func Init(self *discordgo.Session) {
 	if err != nil {
 		log.Error(err)
 	}
-	queryKek, err = db.Prepare(`SELECT CASE
-		WHEN EXISTS (SELECT m.uid FROM kekMsgs m WHERE m.uid=?001)
-		THEN (SELECT u.score + SUM(m.score) FROM kekMsgs m WHERE m.uid = ?001)
-		ELSE u.score END
-		FROM kekUsers u
+	queryKek, err = db.Prepare(`SELECT u.score + ifnull(SUM(m.score), 0)
+		FROM kekUsers u LEFT OUTER JOIN kekMsgs m ON m.uid = u.uid
 		WHERE u.uid = ?001;`)
 	if err != nil {
 		log.Error(err)
@@ -302,7 +305,7 @@ func Init(self *discordgo.Session) {
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
 // Here, it saves the kek data to disk.
 func Cleanup(_ *discordgo.Session) {
-	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0;")
+	commands.GetDatabase().Exec("DELETE FROM kekMsgs WHERE score=0; DELETE FROM kekUsers WHERE score=0 AND uid NOT IN (SELECT uid FROM kekMsgs);")
 	queryKekEnabled.Close()
 	setKekMsg.Close()
 	queryKek.Close()

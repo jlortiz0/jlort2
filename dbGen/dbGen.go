@@ -111,6 +111,7 @@ func main() {
 	db.Exec("CREATE TABLE kekUsers (uid UNSIGNED BIGINT PRIMARY KEY, score INTEGER DEFAULT 0 NOT NULL);")
 	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid));")
 	db.Exec("CREATE TRIGGER KekNewUser BEFORE INSERT ON kekMsgs FOR EACH ROW BEGIN INSERT OR IGNORE INTO kekUsers (uid) VALUES (new.uid); END;")
+	db.Exec("CREATE INDEX KekMsgsUid ON kekMsgs(uid);")
 	data, err = os.ReadFile("kek")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)

@@ -19,12 +19,8 @@ package commands
 
 import (
 	"database/sql"
-	"encoding/base64"
-	"errors"
 	"fmt"
-	"io"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -37,42 +33,17 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-const gsmServerID = ""
-
-// ~!echo <message>
-// Says stuff back
-func echo(ctx Context, args []string) error {
-	out := strings.Join(args, " ")
-	if out == "" {
-		out = "You have to type something, you know."
-	}
-	err := ctx.Send(out)
-	if err != nil {
-		return err
-	}
-	if ctx.GuildID != "" {
-		perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, ctx.Message.ChannelID)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions: %w", err)
-		}
-		if perms&discordgo.PermissionManageMessages != 0 {
-			return ctx.Bot.ChannelMessageDelete(ctx.ChanID, ctx.Message.ID)
-		}
-	}
-	return nil
-}
-
 // ~!purge [user]
 // Delete a user's messages
 // If not specified, or if we are in a DM, purges messages by me.
 // If used in a server, will also purge messages with the prefix ~!
 // For this command to work in servers, I need the Manage Messages permission.
 // To specify a user other than me, you need the Manage Messages permission.
-// Due to library limitations, this only scans the 100 most recent messages.
-func purge(ctx Context, args []string) error {
+// Due to Discord limitations, this only scans the 100 most recent messages.
+func purge(ctx *Context) error {
+	ctx.RespondDelayed(true)
 	if ctx.GuildID == "" {
-		ctx.Bot.ChannelTyping(ctx.ChanID)
-		msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
+		msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 		if err != nil {
 			return fmt.Errorf("failed to get message list: %w", err)
 		}
@@ -83,42 +54,35 @@ func purge(ctx Context, args []string) error {
 			}
 		}
 		for _, msg := range todel {
-			err = ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg)
+			err = ctx.Bot.ChannelMessageDelete(ctx.ChannelID, msg)
 			if err != nil {
 				return fmt.Errorf("failed to delete message: %w", err)
 			}
 		}
-		msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages")
-		time.AfterFunc(3*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
-		return err
+		return ctx.RespondPrivate(fmt.Sprintf("Purged %d messages", len(todel)))
 	}
-	perms, err := ctx.State.UserChannelPermissions(ctx.Me.ID, ctx.Message.ChannelID)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageMessages == 0 {
-		return ctx.Send("I need the Manage Messages permission to use this command.")
+	if ctx.AppPermissions&discordgo.PermissionManageMessages == 0 {
+		return ctx.RespondPrivate("I need the Manage Messages permission to use this command.")
 	}
 	target := ctx.Me.ID
-	if len(args) > 0 {
-		perms, err = ctx.State.MessagePermissions(ctx.Message)
-		if err != nil {
-			return fmt.Errorf("failed to get permissions: %w", err)
-		}
-		if perms&discordgo.PermissionManageMessages == 0 {
-			return ctx.Send("You need the Manage Messages permission to clear other users' messages.")
-		}
-		other := strings.Join(args, " ")
-		targetMem, err := FindMember(ctx.Bot, other, ctx.GuildID)
-		if err != nil {
-			return err
-		}
-		if targetMem == nil {
-			return ctx.Send("No such member " + other)
-		}
-		target = targetMem.User.ID
+	d := ctx.ApplicationCommandData()
+	if d.TargetID != "" {
+		target = d.TargetID
+	} else if len(d.Options) != 0 {
+		args := d.Options[0].UserValue(nil)
+		// Uncomment this if Perms(discordgo.ManageMessages) is removed for this command
+		// if args.ID != target {
+		// 	perms, err := ctx.State.UserChannelPermissions(ctx.User.ID, ctx.ChannelID)
+		// 	if err != nil {
+		// 		return fmt.Errorf("failed to get permissions: %w", err)
+		// 	}
+		// 	if perms&discordgo.PermissionManageMessages == 0 {
+		// 		return ctx.RespondPrivate("You need the Manage Messages permission to purge other people's messages.")
+		// 	}
+		// }
+		target = args.ID
 	}
-	msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
+	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
 	}
@@ -128,21 +92,15 @@ func purge(ctx Context, args []string) error {
 		if msg.Timestamp.Before(cutoff) {
 			break
 		}
-		if msg.Author.ID == target || strings.HasPrefix(msg.Content, "~!") {
+		if msg.Author.ID == target {
 			todel = append(todel, msg.ID)
 		}
 	}
-	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChanID, todel)
+	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChannelID, todel)
 	if err != nil {
-		return fmt.Errorf("failed to delete messages: %w", err)
+		return fmt.Errorf("failed to delete message: %w", err)
 	}
-	channel, err := ctx.State.Channel(ctx.ChanID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel info: %w", err)
-	}
-	msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages from "+channel.Name)
-	time.AfterFunc(3*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
-	return err
+	return ctx.RespondPrivate(fmt.Sprintf("Purged %d messages from <#%s>", len(todel), ctx.ChannelID))
 }
 
 // ~!ppurge [prefix]
@@ -152,22 +110,10 @@ func purge(ctx Context, args []string) error {
 // If not specified, the prefix is assumed to be ~!
 // You need Manage Messages to use this command.
 // Due to library limitations, this only scans the 100 most recent messages, and then only on messages from the last 2 weeks.
-func ppurge(ctx Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	perms, err := ctx.State.MessagePermissions(ctx.Message)
-	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
-	}
-	if perms&discordgo.PermissionManageMessages == 0 {
-		return ctx.Send("You need the Manage Messages permission to clear other users' messages.")
-	}
-	prefix := "~!"
-	if len(args) == 0 {
-		prefix = strings.Join(args, " ")
-	}
-	msgs, err := ctx.Bot.ChannelMessages(ctx.ChanID, 100, "", "", "")
+func ppurge(ctx *Context) error {
+	ctx.RespondDelayed(true)
+	prefix := ctx.ApplicationCommandData().Options[0].StringValue()
+	msgs, err := ctx.Bot.ChannelMessages(ctx.ChannelID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to get message list: %w", err)
 	}
@@ -181,45 +127,33 @@ func ppurge(ctx Context, args []string) error {
 			todel = append(todel, msg.ID)
 		}
 	}
-	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChanID, todel)
+	err = ctx.Bot.ChannelMessagesBulkDelete(ctx.ChannelID, todel)
 	if err != nil {
-		return fmt.Errorf("failed to delete messages: %w", err)
+		return fmt.Errorf("failed to delete message: %w", err)
 	}
-	channel, err := ctx.State.Channel(ctx.ChanID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel info: %w", err)
-	}
-	msg, err := ctx.Bot.ChannelMessageSend(ctx.ChanID, "Purged "+strconv.Itoa(len(todel))+" messages from "+channel.Name)
-	time.AfterFunc(3*time.Second, func() { ctx.Bot.ChannelMessageDelete(ctx.ChanID, msg.ID) })
-	return err
+	return ctx.RespondPrivate(fmt.Sprintf("Purged %d messages from <#%s>", len(todel), ctx.ChannelID))
 }
 
 // ~!ping
 // Get latency
-func ping(ctx Context, _ []string) error {
-	return ctx.Send(fmt.Sprintf("Latency: %d ms", ctx.Bot.HeartbeatLatency().Milliseconds()))
+func ping(ctx *Context) error {
+	return ctx.RespondPrivate(fmt.Sprintf("Latency: %d ms", ctx.Bot.HeartbeatLatency().Milliseconds()))
 }
 
 var updating bool
 
-// ~!gsm <arg1> [arg2]
+// ~!gsm <arg1>
 // @Hidden
 // Run a game server. Do ~!gsm help for help.
 // You must be part of a private server to use this command.
-func gsm(ctx Context, args []string) error {
-	if _, err := ctx.State.Member(gsmServerID, ctx.Author.ID); err != nil {
-		return ctx.Send("You do not have access to these servers.")
-	}
+func gsm(ctx *Context) error {
 	if updating {
-		return ctx.Send("The servers are currently updating.")
+		return ctx.RespondPrivate("The servers are currently updating.")
 	}
-	if len(args) > 0 && (args[0] == "update" || args[0] == "poweroff") {
-		app, err := ctx.Bot.Application("@me")
-		if err != nil {
-			return fmt.Errorf("failed to get app info: %w", err)
-		}
-		if app.Owner.ID != ctx.Author.ID {
-			return ctx.Send("You do not have access to that command, and never will.")
+	arg := ctx.ApplicationCommandData().Options[0].StringValue()
+	if arg == "update" || arg == "poweroff" {
+		if ctx.State.Application.Owner.ID != ctx.User.ID {
+			return ctx.RespondPrivate("You do not have access to that command, and never will.")
 		}
 	}
 	bashLoc, err := exec.LookPath("bash")
@@ -227,153 +161,83 @@ func gsm(ctx Context, args []string) error {
 		// This means bash dissapeared at some point between init and now, which is quite panic-worthy
 		panic(err)
 	}
-	if len(args) > 0 && args[0] == "update" {
-		cmd := exec.Command(bashLoc, "gsm.sh", args[0])
-		cmd.Start()
+	if arg == "update" {
 		updating = true
-		ctx.Send("Updating now, please wait...")
+		ctx.RespondDelayed(true)
+		cmd := exec.Command(bashLoc, "gsm.sh", arg)
+		cmd.Start()
 		cmd.Wait()
 		os.Chtimes("lastUpdate", time.Now(), time.Now())
 		updating = false
-		return nil
+		return ctx.RespondEdit("Update complete!")
 	}
-	var out []byte
-	switch len(args) {
-	case 0:
-		out, err = exec.Command(bashLoc, "gsm.sh").Output()
-	case 1:
-		for _, x := range args[0] {
-			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
-				return ctx.Send("Illegal character.")
-			}
+	for _, x := range arg {
+		if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
+			return ctx.RespondPrivate("Illegal character.")
 		}
-		out, err = exec.Command(bashLoc, "gsm.sh", args[0]).Output()
-	default:
-		for _, x := range args[0] {
-			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
-				return ctx.Send("Illegal character.")
-			}
-		}
-		for _, x := range args[1] {
-			if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
-				return ctx.Send("Illegal character.")
-			}
-		}
-		out, err = exec.Command(bashLoc, "gsm.sh", args[0], args[1]).Output()
 	}
+	var cmd *exec.Cmd
+	if len(ctx.ApplicationCommandData().Options) == 1 {
+		exec.Command(bashLoc, "gsm.sh", arg)
+	} else {
+		exec.Command(bashLoc, "gsm.sh", arg, "silent")
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run gsm: %w", err)
 	}
-	return ctx.Send(string(out))
+	if len(out) == 0 {
+		log.Warn("Empty output from /gsm " + arg)
+		return ctx.RespondEmpty()
+	}
+	return ctx.Respond(string(out))
 }
 
-// ~!invite
-// Invite me!
-// Bots can't accept regular invites, they must use this link.
-// Fun fact: this is the shortest command at only 1 line.
-func invite(ctx Context, _ []string) error {
-	return ctx.Send("https://discord.com/api/oauth2/authorize?client_id=787850217302130688&permissions=8192&scope=bot")
+func gsmAutocomplete(ctx *Context) []*discordgo.ApplicationCommandOptionChoice {
+	pre := ctx.ApplicationCommandData().Options[0].StringValue()
+	fList, err := os.ReadDir("/home/McServer/")
+	if err != nil {
+		return nil
+	}
+	output := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList)+3)
+	for _, x := range fList {
+		if x.IsDir() && strings.HasPrefix(x.Name(), pre) {
+			output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: x.Name(), Value: x.Name()})
+		}
+	}
+	if strings.HasPrefix("stop", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "stop", Value: "stop"})
+	} else if strings.HasPrefix("ping", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ping", Value: "ping"})
+	} else if strings.HasPrefix("ip", pre) {
+		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ip", Value: "ip"})
+	}
+	return output
 }
 
-// ~!tpa <user>
-// @Alias ~!tpahere
-// @Hidden
-// @GuildOnly
-// Send a teleport request to someone.
-// Doesn't really do anything, it's just for fun.
-func tpa(ctx Context, args []string) error {
-	if ctx.GuildID == "" {
-		return ctx.Send("This command only works in servers.")
-	}
-	if len(args) == 0 {
-		return ctx.Send(fmt.Sprintf("~!%s <user>", ctx.InvokedWith))
-	}
-	other := strings.Join(args, " ")
-	targetMem, err := FindMember(ctx.Bot, other, ctx.GuildID)
-	if err != nil {
-		return err
-	}
-	if targetMem == nil {
-		return ctx.Send("**Error:** No player by that name.")
-	}
-	if targetMem.User.Bot {
-		return ctx.Send(fmt.Sprintf("**%s** has teleportation disabled.", DisplayName(targetMem)))
-	}
-	if targetMem.User.ID == ctx.Author.ID {
-		return ctx.Send("**Error:** Cannot teleport to yourself.")
-	}
-	channel, err := ctx.Bot.UserChannelCreate(targetMem.User.ID)
-	if err != nil {
-		return err
-	}
-	err = ctx.Send(fmt.Sprintf("Request sent to **%s**.", DisplayName(targetMem)))
-	if err != nil {
-		return err
-	}
-	_, err = ctx.Bot.ChannelMessageSend(channel.ID, fmt.Sprintf("**%s** has requested that you teleport to <#%s>.\nTo teleport, type **~!tpaccept**.\nTo deny this request, type **~!tpdeny**.", DisplayName(ctx.Member), ctx.ChanID))
-	return err
-}
+var buildDate string
+var verNum string
 
-func avatar(ctx Context, _ []string) error {
-	app, err := ctx.Bot.Application("@me")
-	if err != nil {
-		return fmt.Errorf("failed to get app info: %w", err)
-	}
-	if app.Owner.ID != ctx.Author.ID {
-		return ctx.Send("You do not have access to that command, and never will.")
-	}
-	if len(ctx.Message.Attachments) == 0 {
-		return ctx.Send("Attach an image in png or jpg format.")
-	}
-	URL := ctx.Message.Attachments[0].URL
-	ind := strings.LastIndexByte(URL, '.')
-	ext := URL[ind+1:]
-	ind = strings.IndexByte(ext, '?')
-	if ind != -1 {
-		ext = ext[:ind]
-	}
-	if ext != "png" && ext != "jpg" && ext != "jpeg" {
-		return ctx.Send("Invalid format.")
-	}
-	resp, err := http.Get(URL)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode/100 > 3 {
-		return errors.New(resp.Status)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	prefix := "data:image/jpeg;base64,"
-	if ext == "png" {
-		prefix = "data:image/png;base64,"
-	}
-	_, err = ctx.Bot.UserUpdate("", prefix+base64.StdEncoding.EncodeToString(data))
-	if err != nil {
-		return err
-	}
-	return ctx.Send("Updated avatar.")
+// ~!version
+// Get bot info
+func version(ctx *Context) error {
+	return ctx.RespondPrivate(ctx.State.Application.Name + " " + verNum + " running on discordgo v" + discordgo.VERSION + " " + runtime.Version() + "\nBuilt: " + buildDate)
 }
 
 // ~!flip [times]
 // Flips a coin
 // If times is provided, flips multiple coins.
-func flip(ctx Context, args []string) error {
-	var err error
+func flip(ctx *Context) error {
 	count := 1
+	args := ctx.ApplicationCommandData().Options
 	if len(args) > 0 {
-		count, err = strconv.Atoi(args[0])
-		if err != nil {
-			return ctx.Send(args[0] + " is not a number.")
-		}
+		count = int(args[0].IntValue())
 	}
 	if count == 1 {
 		if rand.Int()&1 == 0 {
-			return ctx.Send("Heads")
+			return ctx.Respond("Heads")
 		}
-		return ctx.Send("Tails")
+		return ctx.Respond("Tails")
 	}
 	heads := 0
 	for i := 0; i < count; i++ {
@@ -381,59 +245,59 @@ func flip(ctx Context, args []string) error {
 			heads++
 		}
 	}
-	return ctx.Send(strconv.Itoa(heads) + " heads")
+	return ctx.Respond(strconv.Itoa(heads) + " heads")
 }
 
 // ~!roll [count]
 // Rolls a six-sided die
 // If count is provided, rolls multiple.
-func roll(ctx Context, args []string) error {
-	var err error
+func roll(ctx *Context) error {
 	count := 1
+	args := ctx.ApplicationCommandData().Options
 	if len(args) > 0 {
-		count, err = strconv.Atoi(args[0])
-		if err != nil {
-			return ctx.Send(args[0] + " is not a number.")
-		}
+		count = int(args[0].IntValue())
 	}
 	total := count
 	for i := 0; i < count; i++ {
 		total += rand.Intn(6)
 	}
-	return ctx.Send("Rolled " + strconv.Itoa(total))
+	return ctx.Respond("Rolled " + strconv.Itoa(total))
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
-// Here, it also initializes the command map. This means that calling commands. Init will unregister any existing commands.
-func Init(_ *discordgo.Session) {
-	cmdMap = make(map[string]Command, 72)
-	helpMap = make(map[string]*helpData, 72)
-	err := loadHelpData()
-	if err != nil {
-		log.Error(err)
-		return
-	}
+// Here, it also initializes the command map. This means that calling commands.Init will unregister any existing commands.
+func Init(self *discordgo.Session) {
+	cmdMap = make(map[string]cmdMapEntry, 64)
+	var err error
 	db, err = sql.Open("sqlite3", "persistent.db")
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	db.Exec("pragma journal_mode = WAL; pragma synchronous = normal; pragma mmap_size = 4194304;")
-	RegisterCommand(help, "help")
-	RegisterCommand(echo, "echo")
-	RegisterCommand(purge, "purge")
-	RegisterCommand(ppurge, "ppurge")
-	RegisterCommand(ping, "ping")
-	RegisterCommand(ping, "latency")
-	RegisterCommand(invite, "invite")
-	RegisterCommand(version, "version")
-	RegisterCommand(tpa, "tpa")
-	RegisterCommand(tpa, "tpahere")
-	RegisterCommand(avatar, "_avatar")
-	RegisterCommand(flip, "flip")
-	RegisterCommand(roll, "roll")
-	if runtime.GOOS != "windows" && gsmServerID != "" {
-		RegisterCommand(gsm, "gsm")
+	PrepareCommand("purge", "Delete messages by user").Perms(discordgo.PermissionManageMessages).Register(purge, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("user", "User to purge, default me").AsUser().Finalize(),
+	})
+	PrepareCommand("Purge Messages", "").AsUser().Guild().Perms(discordgo.PermissionManageMessages).Register(purge, nil)
+	PrepareCommand("ppurge", "Delete messages by prefix").Guild().Perms(discordgo.PermissionManageMessages).Register(ppurge, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("prefix", "Messages that start with this will be deleted").AsString().Required().Finalize(),
+	})
+	PrepareCommand("ping", "Get bot latency").Register(ping, nil)
+	PrepareCommand("version", "Get version info").Register(version, nil)
+	PrepareCommand("flip", "Flip one or more coins").Register(flip, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("coins", "How many coins to flip").AsInt().SetMinMax(1, 255).Finalize(),
+	})
+	PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
+		NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
+	})
+	if runtime.GOOS != "windows" {
+		st, _ := os.Stat("gsm.sh")
+		if st != nil && st.Mode()&0100 != 0 {
+			PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete).Gsm().Register(gsm, []*discordgo.ApplicationCommandOption{
+				NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Auto().Finalize(),
+				NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
+			})
+		}
 	}
 	info, err := os.Stat("lastUpdate")
 	if err == nil {
