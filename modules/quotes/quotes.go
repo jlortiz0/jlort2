@@ -211,12 +211,12 @@ func delquote(ctx *commands.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec("INSERT OR REPLACE INTO quotes SELECT ?001, ind - 1, quote FROM quotes WHERE gid=?001 AND ind > ?002 ORDER BY ind ASC;", gid, sel)
+	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = ?002;", gid, sel)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = ?002;", gid, total)
+	_, err = tx.Exec("UPDATE quotes SET ind = ind - 1 WHERE gid = ?001 AND ind > ?002 ORDER BY ind ASC;", gid, sel)
 	if err != nil {
 		tx.Rollback()
 		return err

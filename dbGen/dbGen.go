@@ -43,7 +43,7 @@ func main() {
 	defer db.Close()
 	fmt.Println("opened db")
 
-	db.Exec("CREATE TABLE vachan (gid UNSIGNED BIGINT PRIMARY KEY, cid UNSIGNED BIGINT NOT NULL);")
+	db.Exec("CREATE TABLE vachan (gid INTEGER PRIMARY KEY, cid INTEGER NOT NULL);")
 	data, err := os.ReadFile("vachan")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -64,7 +64,7 @@ func main() {
 		fmt.Println("inserted vachan")
 	}
 
-	db.Exec("CREATE TABLE djRole (gid UNSIGNED BIGINT PRIMARY KEY, rid UNSIGNED BIGINT NOT NULL);")
+	db.Exec("CREATE TABLE djRole (gid INTEGER PRIMARY KEY, rid INTEGER NOT NULL);")
 	data, err = os.ReadFile("dj")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -85,7 +85,7 @@ func main() {
 		fmt.Println("inserted dj")
 	}
 
-	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER CHECK, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind)) WITHOUT ROWID;")
+	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind), CHECK(ind > 1));")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -107,11 +107,10 @@ func main() {
 		fmt.Println("inserted quotes")
 	}
 
-	db.Exec("CREATE TABLE kekGuilds (gid UNSIGNED BIGINT PRIMARY KEY);")
-	db.Exec("CREATE TABLE kekUsers (uid UNSIGNED BIGINT PRIMARY KEY, score INTEGER DEFAULT 0 NOT NULL);")
+	db.Exec("CREATE TABLE kekGuilds (gid INTEGER PRIMARY KEY);")
+	db.Exec("CREATE TABLE kekUsers (uid INTEGER PRIMARY KEY, score INTEGER DEFAULT 0 NOT NULL);")
 	db.Exec("CREATE TABLE kekMsgs (uid UNSIGNED BIGINT REFERENCES kekUsers, mid UNSIGNED BIGINT, score INTEGER DEFAULT 0 NOT NULL, PRIMARY KEY (uid, mid));")
 	db.Exec("CREATE TRIGGER KekNewUser BEFORE INSERT ON kekMsgs FOR EACH ROW BEGIN INSERT OR IGNORE INTO kekUsers (uid) VALUES (new.uid); END;")
-	db.Exec("CREATE INDEX KekMsgsUid ON kekMsgs(uid);")
 	data, err = os.ReadFile("kek")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
