@@ -216,7 +216,7 @@ func delquote(ctx *commands.Context) error {
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = (SELECT COUNT(*) FROM quotes WHERE gid = ?001);")
+	_, err = tx.Exec("DELETE FROM quotes WHERE gid = ?001 AND ind = ?002;", gid, total)
 	if err != nil {
 		tx.Rollback()
 		return err
