@@ -203,16 +203,15 @@ func mp3(ctx *commands.Context) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
-	} else if ls.Len() == 0 {
-		ls.Lock()
-		ls.PushFront(data)
-		go musicStreamer(vc, data)
-		np = true
 	} else if ls.Len() >= music_queue_max {
 		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
+		if ls.Len() == 1 {
+			go musicStreamer(vc, data)
+			np = true
+		}
 	}
 	ls.Unlock()
 	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
@@ -308,16 +307,15 @@ func play(ctx *commands.Context) error {
 		ls.PushFront(data)
 		go musicStreamer(vc, data)
 		np = true
-	} else if ls.Len() == 0 {
-		ls.Lock()
-		ls.PushFront(data)
-		go musicStreamer(vc, data)
-		np = true
 	} else if ls.Len() >= music_queue_max {
 		return ctx.RespondPrivate("Queue is full.")
 	} else {
 		ls.Lock()
 		ls.PushBack(data)
+		if ls.Len() == 1 {
+			go musicStreamer(vc, data)
+			np = true
+		}
 	}
 	ls.Unlock()
 	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
@@ -364,7 +362,7 @@ func playComponent(ctx *commands.Context) error {
 	}
 	o := []*discordgo.ApplicationCommandInteractionDataOption{
 		{
-			Type: discordgo.ApplicationCommandOptionInteger, Value: i,
+			Type: discordgo.ApplicationCommandOptionInteger, Value: float64(i),
 		},
 	}
 	ctx.Data = discordgo.ApplicationCommandInteractionData{Options: o}
