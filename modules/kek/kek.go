@@ -190,7 +190,7 @@ func onMessageKek(self *discordgo.Session, event *discordgo.MessageCreate) {
 }
 
 func onReactionAdd(self *discordgo.Session, event *discordgo.MessageReactionAdd) {
-	if event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
+	if len(event.Emoji.Name) == 3 && event.Emoji.Name[:3] != "\u2b06" && event.Emoji.Name[:3] != "\u2b07" {
 		return
 	}
 	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
