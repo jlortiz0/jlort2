@@ -39,11 +39,10 @@ func (o *queueObj) Prev() *queueObj {
 }
 
 type lockQueue struct {
-	sync.RWMutex
-
 	head   *queueObj
 	tail   *queueObj
 	length int
+	sync.RWMutex
 }
 
 func (q *lockQueue) Clear() {

@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,12 +37,12 @@ import (
 // YDLInfo holds some of the fields returned by youtube-dl.
 // Only those needed for my streamer to work are represented.
 type YDLInfo struct {
-	Duration  float32
 	Title     string
 	Thumbnail string
 	Extractor string `json:"extractor_key"`
 	Webpage   string `json:"webpage_url"`
 	URL       string
+	Duration  float32
 }
 
 // YDLPlaylist is a list of YDLInfo, used when youtube-dl returns a playlist instead of a single video.
@@ -64,21 +65,20 @@ const (
 
 // StreamObj stores the data needed for an active stream. A partial version of this is used for a queued stream.
 type StreamObj struct {
-	Author  string     // The ID of the user who queued the stream
-	Channel string     // The channel in which the stream was queued, used for next up announcements
-	Source  string     // The URL to stream from
-	Vol     int        // The volume, 0-200. This will be copied from the previous stream if possible
-	Flags   streamFlag // See above constants
-	InterID string     // Interaction ID
-	Info    *YDLInfo   // The YDLInfo associated with this stream. If nil, this is a direct file stream
-	// Fields below this line may not be populated or valid until the streamer starts
+	StartedAt  time.Time                       // The time the streamer started
+	Info       *YDLInfo                        // The YDLInfo associated with this stream. If nil, this is a direct file stream
 	Remake     chan struct{}                   // When this channel is written to, the ffmpeg process will be recreated with new parameters
 	Skippers   map[string]struct{}             // A set of the IDs of users who have voted to skip this stream
-	StartedAt  time.Time                       // The time the streamer started
 	Subprocess *exec.Cmd                       // The ffmpeg subprocess that the streamer streams from
 	Stop       chan struct{}                   // When this channel is written to, the streamer will stop
 	Redirect   chan *discordgo.VoiceConnection // Uses this new VoiceConnection instead of the original one passsed in
+	Author     string                          // The ID of the user who queued the stream
+	Channel    string                          // The channel in which the stream was queued, used for next up announcements
+	Source     string                          // The URL to stream from
+	InterID    string                          // Interaction ID
+	Vol        int                             // The volume, 0-200. This will be copied from the previous stream if possible
 	PauseTs    time.Duration                   // How long the stream was playing when we paused it
+	Flags      streamFlag                      // See above constants
 }
 
 var streams map[string]*lockQueue
@@ -203,29 +203,30 @@ func dj(ctx *commands.Context) error {
 // This function determines if the bot should also disconnect depending on how many users are left in the channel.
 // If it was the bot that triggered this event, the bot cleans up the stream queue and additonal structures.
 func onDc(self *discordgo.Session, event *discordgo.VoiceStateUpdate) {
+	if self.State.User.ID == event.UserID && event.ChannelID == "" {
+		lastPlayed[event.GuildID] = time.Time{}
+		time.AfterFunc(5*time.Second, func() {
+			streamLock.RLock()
+			if streams[event.GuildID] != nil && !lastPlayed[event.GuildID].IsZero() {
+				streams[event.GuildID].Lock()
+				elem := streams[event.GuildID].Head()
+				if elem != nil {
+					elem.Value.Stop <- struct{}{}
+				}
+				streams[event.GuildID].Unlock()
+				streamLock.RUnlock()
+				streamLock.Lock()
+				delete(streams, event.GuildID)
+				delete(lastPlayed, event.GuildID)
+				streamLock.Unlock()
+			} else {
+				streamLock.RUnlock()
+			}
+		})
+		return
+	}
 	vc := self.VoiceConnections[event.GuildID]
 	if vc != nil {
-		if self.State.User.ID == event.UserID && event.ChannelID == "" {
-			lastPlayed[event.GuildID] = time.Time{}
-			time.AfterFunc(5*time.Second, func() {
-				streamLock.RLock()
-				if streams[event.GuildID] != nil && !lastPlayed[event.GuildID].IsZero() {
-					streams[event.GuildID].Lock()
-					elem := streams[event.GuildID].Head()
-					if elem != nil {
-						elem.Value.Stop <- struct{}{}
-					}
-					streams[event.GuildID].Unlock()
-					streamLock.RUnlock()
-					streamLock.Lock()
-					delete(streams, event.GuildID)
-					streamLock.Unlock()
-				} else {
-					streamLock.RUnlock()
-				}
-			})
-			return
-		}
 		vguild, err := self.State.Guild(event.GuildID)
 		if err != nil {
 			return
@@ -267,7 +268,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 						vc.Disconnect()
 					}
 				} else if lp.Before(eggCutoff) && eggCutoff.Sub(lp) < popRefreshRate {
-					if rand.Intn(4) != 0 {
+					if rand.Intn(8) != 0 {
 						continue
 					}
 					f, err := os.Open("spook/")
@@ -374,18 +375,20 @@ func buildMusEmbed(data *StreamObj, np bool, authorName string) *discordgo.Messa
 		output.Title = "Uploaded File"
 		output.URL = data.Source
 	}
-	f, err := os.Open("/run/systemd/shutdown/scheduled")
-	if err == nil {
-		var nsec int64
-		fmt.Fscanf(f, "USEC=%d\n", &nsec)
-		nsec *= 1000
-		until := time.Until(time.Unix(0, nsec))
-		if until > 0 && until < time.Minute*45 {
-			footer := new(discordgo.MessageEmbedFooter)
-			footer.Text = fmt.Sprintf("Notice: jlort jlort will shut down in %d minutes", until/time.Minute)
-			output.Footer = footer
+	if runtime.GOOS != "windows" {
+		f, err := os.Open("/run/systemd/shutdown/scheduled")
+		if err == nil {
+			var nsec int64
+			fmt.Fscanf(f, "USEC=%d\n", &nsec)
+			nsec *= 1000
+			until := time.Until(time.Unix(0, nsec))
+			if until > 0 && until < time.Minute*45 {
+				footer := new(discordgo.MessageEmbedFooter)
+				footer.Text = fmt.Sprintf("Notice: jlort jlort will shut down in %d minutes", until/time.Minute)
+				output.Footer = footer
+			}
+			f.Close()
 		}
-		f.Close()
 	}
 	return output
 }
@@ -445,8 +448,10 @@ func hasMusPerms(user *discordgo.Member, state *discordgo.State, guild string, i
 
 func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 	time.Sleep(time.Millisecond * 50)
+	cutoff := time.Now().Add(dcTimeout)
+	streamLock.Lock()
 	for k, v := range self.VoiceConnections {
-		if time.Until(lastPlayed[k]) < dcTimeout {
+		if lastPlayed[k].Before(cutoff) {
 			v.Disconnect()
 		} else if streams[k] == nil {
 			streams[k] = new(lockQueue)
@@ -458,6 +463,7 @@ func handleReconnect(self *discordgo.Session, _ *discordgo.Resumed) {
 			log.Warn("Redirected on " + k)
 		}
 	}
+	streamLock.Unlock()
 }
 
 func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
@@ -465,12 +471,15 @@ func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
 		gid, _ := strconv.ParseUint(event.ID, 10, 64)
 		commands.GetDatabase().Exec("DELETE FROM djRole WHERE gid = ?001;", gid)
 	}
+	streamLock.Lock()
 	v := streams[event.ID]
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value
 		obj.Stop <- struct{}{}
 	}
 	delete(streams, event.ID)
+	delete(lastPlayed, event.ID)
+	streamLock.Unlock()
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
@@ -553,4 +562,5 @@ func Cleanup(self *discordgo.Session) {
 	for _, v := range self.VoiceConnections {
 		v.Disconnect()
 	}
+	queryDj.Close()
 }

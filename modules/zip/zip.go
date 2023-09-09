@@ -157,9 +157,9 @@ func chatlog(ctx *commands.Context) error {
 func archive(ctx *commands.Context) error {
 	ctx.RespondDelayed(true)
 	type FileInfo struct {
+		Timestamp time.Time
 		Filename  string
 		URL       string
-		Timestamp time.Time
 	}
 	files := make([]FileInfo, 0, 500)
 	lastMsg := ""
@@ -174,12 +174,12 @@ func archive(ctx *commands.Context) error {
 		for _, v := range toProc {
 			ts := v.Timestamp
 			for _, a := range v.Attachments {
-				files = append(files, FileInfo{a.ID + "-" + a.Filename, a.URL, ts})
+				files = append(files, FileInfo{ts, a.ID + "-" + a.Filename, a.URL})
 			}
 			for _, a := range v.Embeds {
 				if a.Image != nil && a.Image.URL != "" {
 					s := strings.Split(a.Image.URL, "/")
-					files = append(files, FileInfo{v.ID + "-" + s[len(s)-1], a.Image.URL, ts})
+					files = append(files, FileInfo{ts, v.ID + "-" + s[len(s)-1], a.Image.URL})
 				}
 			}
 			lastMsg = v.ID

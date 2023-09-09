@@ -38,10 +38,10 @@ type Context struct {
 	Me         *discordgo.User
 	State      *discordgo.State
 	Database   *sql.DB
-	hasDelayed bool
-	components []discordgo.MessageComponent
 	origName   string
 	followup   string
+	components []discordgo.MessageComponent
+	hasDelayed bool
 }
 
 func (ctx *Context) resp(msg string, embed *discordgo.MessageEmbed, private bool) error {
@@ -340,8 +340,8 @@ func UploadCommands(self *discordgo.Session, appId string, guildId string, testM
 		if testMode {
 			err2 := err.(*discordgo.RESTError)
 			var errBody struct {
-				Code   int
 				Errors map[string]interface{}
+				Code   int
 			}
 			json.Unmarshal(err2.ResponseBody, &errBody)
 			if errBody.Code == discordgo.ErrCodeInvalidFormBody {
