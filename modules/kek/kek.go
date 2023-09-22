@@ -274,7 +274,7 @@ func Init(self *discordgo.Session) {
 		log.Error(err)
 		return
 	}
-	setKekMsg, err = db.Prepare("INSERT OR REPLACE INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003);")
+	setKekMsg, err = db.Prepare("INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003);")
 	if err != nil {
 		log.Error(err)
 	}
