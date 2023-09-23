@@ -18,11 +18,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package music
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/exec"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -213,6 +216,7 @@ func onDc(self *discordgo.Session, event *discordgo.VoiceStateUpdate) {
 				if elem != nil {
 					elem.Value.Stop <- struct{}{}
 				}
+				streams[event.GuildID].Clear()
 				streams[event.GuildID].Unlock()
 				streamLock.RUnlock()
 				streamLock.Lock()
@@ -476,10 +480,78 @@ func delGuildSongs(_ *discordgo.Session, event *discordgo.GuildDelete) {
 	if v != nil && v.Len() != 0 {
 		obj := v.Head().Value
 		obj.Stop <- struct{}{}
+		v.Clear()
 	}
 	delete(streams, event.ID)
 	delete(lastPlayed, event.ID)
 	streamLock.Unlock()
+}
+
+func dfpwm(ctx *commands.Context) error {
+	var source, title string
+	cmData := ctx.ApplicationCommandData()
+	ctx.RespondDelayed(false)
+	if cmData.Name == "dfpwmfile" {
+		source = cmData.Resolved.Attachments[cmData.Options[0].Value.(string)].URL
+		title = path.Base(source)
+		ind := strings.LastIndexByte(title, '.')
+		if ind != -1 {
+			title = title[:ind]
+		}
+	} else {
+		source = cmData.Options[0].StringValue()
+		if strings.Contains(source, "?list=") && strings.Contains(source, "youtu.be") {
+			source, _, _ = strings.Cut(source, "?list=")
+		}
+		if strings.Contains(source, "&list=") && strings.Contains(source, "youtube.com") {
+			source, _, _ = strings.Cut(source, "&list=")
+		}
+		var entries YDLPlaylist
+		var info YDLInfo
+		out, err := exec.Command("yt-dlp", "-f", "bestaudio/best", "-J", "--default-search", "ytsearch", "--no-playlist", source).Output()
+		if err != nil {
+			err2, ok := err.(*exec.ExitError)
+			if ok {
+				return ctx.RespondEdit(fmt.Sprintf("Failed to run subprocess: %s\n%s", err2.Error(), string(err2.Stderr)))
+			}
+			return fmt.Errorf("failed to run subprocess: %w", err)
+		}
+		err = json.Unmarshal(out, &entries)
+		if err != nil {
+			ctx.RespondEdit("Could not get info from this URL.")
+			return err
+		}
+		if len(entries.Entries) == 0 {
+			err = json.Unmarshal(out, &info)
+			if err != nil {
+				ctx.RespondEdit("Could not get info from this URL.")
+				return err
+			}
+		} else {
+			info = entries.Entries[0]
+		}
+		if info.Extractor == "Generic" {
+			title = path.Base(source)
+			ind := strings.LastIndexByte(title, '.')
+			if ind != -1 {
+				title = title[:ind]
+			}
+		} else {
+			source = info.URL
+			title = info.Title
+		}
+		if info.URL == "" {
+			return ctx.RespondEdit("Could not get info from this URL.")
+		}
+	}
+	out, err := exec.Command("ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-map_metadata", "-1", "-f", "dfpwm", "-ar", "48k", "-ac", "1", "-loglevel", "warning", "pipe:1").Output()
+	if err != nil {
+		return fmt.Errorf("failed to run subprocess: %w", err)
+	}
+	resp := new(discordgo.WebhookEdit)
+	resp.Files = []*discordgo.File{{Name: title + ".dfpwm", Reader: bytes.NewReader(out)}}
+	_, err = ctx.Bot.InteractionResponseEdit(ctx.Interaction, resp)
+	return err
 }
 
 // Init is defined in the command interface to initalize a module. This includes registering commands, making structures, and loading persistent data.
@@ -521,6 +593,10 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
+	commands.PrepareCommand("dfpwm", "Convert to DFPWM").Register(dfpwm, []*discordgo.ApplicationCommandOption{optionVideo})
+	commands.PrepareCommand("dfpwmfile", "Convert to DFPWM").Register(dfpwm, []*discordgo.ApplicationCommandOption{
+		{Name: "file", Description: "File to convert", Type: discordgo.ApplicationCommandOptionAttachment, Required: true},
+	})
 	fList, err := os.ReadDir("outro")
 	if err != nil {
 		log.Error(err)
