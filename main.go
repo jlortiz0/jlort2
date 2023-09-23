@@ -59,7 +59,9 @@ start:
 	if key[len(key)-1] == '\r' {
 		key = key[:len(key)-1]
 		guildId = guildId[:len(guildId)-1]
-		motd = motd[:len(motd)-1]
+		if motd[len(motd)-1] == '\r' {
+			motd = motd[:len(motd)-1]
+		}
 	}
 	if len(guildId) > 0 {
 		s := guildId
@@ -89,7 +91,7 @@ start:
 	}
 
 	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId, motd) })
-	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages
+	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages | discordgo.IntentMessageContent
 	client.State.MaxMessageCount = 100
 	client.State.TrackVoice = true
 	err = client.Open()
@@ -112,13 +114,6 @@ start:
 	if len(guildId) > 0 && guildId[0] != '-' {
 		cleanup(client)
 	}
-}
-
-func crashMe(ch chan os.Signal) {
-	<-ch
-	debug.SetTraceback("all")
-	var test *int = nil
-	*test = 0
 }
 
 func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd string) {
