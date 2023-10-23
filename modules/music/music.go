@@ -161,7 +161,8 @@ func dc(ctx *commands.Context) error {
 		ls, ok := streams[ctx.GuildID]
 		streamLock.RUnlock()
 		if ok && ls.Len() > 1 {
-			ctx.Data.(*discordgo.ApplicationCommandInteractionData).Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
+			dr := ctx.Data.(discordgo.ApplicationCommandInteractionData)
+			dr.Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
 			err := remove(ctx)
 			if ls.Len() > 1 {
 				return err
