@@ -46,12 +46,14 @@ func updatePfp(self *discordgo.Session) {
 	// fmt.Println(ts, ots)
 	var buf [4]byte
 	var dFlag bool
+	var name string
+	var n int
 	for {
-		n, _ := rd.Read(buf[:])
+		n, err = rd.Read(buf[:])
 		if n != 4 {
 			break
 		}
-		name, err := rd.ReadString(0)
+		name, err = rd.ReadString(0)
 		if err != nil {
 			break
 		}
