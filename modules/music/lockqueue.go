@@ -23,12 +23,6 @@ import "sync"
 // import "fmt"
 // import "jlortiz.org/jlort2/modules/log"
 
-var queueObjPool *sync.Pool = &sync.Pool{
-	New: func() interface{} {
-		return new(queueObj)
-	},
-}
-
 type queueObj struct {
 	next   *queueObj
 	prev   *queueObj
@@ -52,12 +46,6 @@ type lockQueue struct {
 }
 
 func (q *lockQueue) Clear() {
-	for x := q.head; x != nil; {
-		prev := x
-		x = x.next
-		*prev = queueObj{}
-		queueObjPool.Put(prev)
-	}
 	q.head = nil
 	q.tail = nil
 	q.length = 0
@@ -76,7 +64,7 @@ func (q *lockQueue) Len() int {
 }
 
 func (q *lockQueue) PushBack(obj *StreamObj) *queueObj {
-	qo := queueObjPool.Get().(*queueObj)
+	qo := new(queueObj)
 	qo.Value = obj
 	if q.tail != nil {
 		qo.prev = q.tail
@@ -92,7 +80,7 @@ func (q *lockQueue) PushBack(obj *StreamObj) *queueObj {
 }
 
 func (q *lockQueue) PushFront(obj *StreamObj) *queueObj {
-	qo := queueObjPool.Get().(*queueObj)
+	qo := new(queueObj)
 	qo.Value = obj
 	if q.head != nil {
 		qo.next = q.head
@@ -120,8 +108,6 @@ func (q *lockQueue) Remove(obj *queueObj) {
 		obj.next.prev = obj.prev
 	}
 	q.length -= 1
-	*obj = queueObj{}
-	queueObjPool.Put(obj)
 }
 
 func (q *lockQueue) Lock() {
