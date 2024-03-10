@@ -171,10 +171,19 @@ func setMotd(self *discordgo.Session, motd string) {
 }
 
 func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
-	if event.Author.Bot || len(event.Content) < 3 {
+	msg := event.Content
+	if event.Author.Bot || len(msg) < 3 {
 		return
 	}
-	if event.Content[1] == '!' && (event.Content[0] == '~' || event.Content[0] == '!') {
+	ind := strings.IndexByte(msg, ' ')
+	if ind != -1 {
+		msg = msg[:ind]
+	}
+	if len(msg) < 3 || msg[1] != '!' || (msg[0] != '~' && msg[0] != '!') {
+		return
+	}
+	msg = msg[2:]
+	if msg == "help" || commands.GetCommand(msg) != nil {
 		self.ChannelMessageSendReply(event.ChannelID, self.State.Application.Name+" has switched to slash commands", &discordgo.MessageReference{
 			MessageID: event.ID, ChannelID: event.ChannelID, GuildID: event.GuildID,
 		})
