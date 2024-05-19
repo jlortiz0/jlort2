@@ -9,4 +9,5 @@ use (
 	./modules/music
 	./modules/quotes
 	./modules/zip
+	./modules/reminder
 )

@@ -24,6 +24,7 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 	"jlortiz.org/jlort2/modules/music"
 	"jlortiz.org/jlort2/modules/quotes"
+	"jlortiz.org/jlort2/modules/reminder"
 	"jlortiz.org/jlort2/modules/zip"
 )
 
@@ -44,6 +45,8 @@ func initModules(self *discordgo.Session, guildId string) {
 	log.Info("Loaded zip")
 	music.Init(self)
 	log.Info("Loaded music")
+	reminder.Init(self)
+	log.Info("Loaded remind")
 	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?;")
 	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Required().Finalize(),
@@ -57,6 +60,7 @@ func initModules(self *discordgo.Session, guildId string) {
 
 func cleanup(self *discordgo.Session) {
 	voiceStatement.Close()
+	reminder.Cleanup(self)
 	music.Cleanup(self)
 	zip.Cleanup(self)
 	kek.Cleanup(self)

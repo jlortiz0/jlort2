@@ -148,4 +148,6 @@ func main() {
 		stmt2.Close()
 		fmt.Println("inserted kek")
 	}
+	db.Exec("CREATE TABLE reminders (ts INTEGER NOT NULL, uid INTEGER NOT NULL, created INTEGER NOT NULL, what VARCHAR(2000) NOT NULL, PRIMARY KEY (ts, uid, created));")
+	db.Exec("CREATE INDEX remindUid ON reminders (uid);")
 }
