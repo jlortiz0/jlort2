@@ -445,63 +445,6 @@ func seek(ctx *commands.Context) error {
 	return ctx.Respond(fmt.Sprintf("Skipped to %d:%02d", desired/60, desired%60))
 }
 
-// ~!time
-// @Alias popcorn
-// Displays the time
-func popcorn(ctx *commands.Context) error {
-	now := time.Now()
-	err := ctx.Respond(now.Format("It is 3:04 PM on January _2, 2006."))
-	if err != nil || ctx.GuildID == "" {
-		return err
-	}
-
-	ls := streams[ctx.GuildID]
-	if ls == nil || ls.Len() > 0 {
-		return nil
-	}
-	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
-	if vc == nil {
-		return nil
-	}
-	sampleLs := make([]string, 2, 11)
-	sampleLs[0] = "itis"
-	sampleLs[1] = strconv.Itoa(now.Hour() % 12)
-	if sampleLs[1] == "0" {
-		sampleLs[1] = "12"
-	}
-	if now.Minute() == 0 {
-	} else if now.Minute() > 20 && now.Minute()%10 > 0 {
-		sampleLs = append(sampleLs, strconv.Itoa(now.Minute()/10*10), strconv.Itoa(now.Minute()%10))
-	} else {
-		if now.Minute() < 10 {
-			sampleLs = append(sampleLs, "0")
-		}
-		sampleLs = append(sampleLs, strconv.Itoa(now.Minute()))
-	}
-	sampleLs = append(sampleLs, now.Format("PM"), "on", now.Format("Jan"))
-	if now.Day() > 20 && now.Day()%10 > 0 {
-		sampleLs = append(sampleLs, strconv.Itoa(now.Day()/10*10), strconv.Itoa(now.Day()%10))
-	} else {
-		sampleLs = append(sampleLs, strconv.Itoa(now.Day()))
-	}
-	sampleLs = append(sampleLs, strconv.Itoa(now.Year()))
-	builder := new(strings.Builder)
-	builder.WriteString("concat:")
-	for k, v := range sampleLs {
-		builder.WriteString("time/")
-		builder.WriteString(v)
-		builder.WriteString(".ogg")
-		if k < len(sampleLs)-1 {
-			builder.WriteByte('|')
-		}
-	}
-	ls.Lock()
-	ls.PushFront(&StreamObj{Author: ctx.User.ID, Channel: ctx.ChannelID, Source: builder.String(), Flags: strflag_special | strflag_noskip})
-	go musicStreamer(vc, ls.Head().Value)
-	ls.Unlock()
-	return nil
-}
-
 // ~!outro <name>
 // @GuildOnly
 // Leave the call with style

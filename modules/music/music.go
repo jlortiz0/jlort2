@@ -593,7 +593,6 @@ func Init(self *discordgo.Session) {
 	commands.PrepareCommand("seek", "Seek to a position in the stream").Guild().Register(seek, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("pos", "Position in mm:ss").AsString().Required().Finalize(),
 	})
-	commands.PrepareCommand("time", "Check the current time (PST)").Register(popcorn, nil)
 	commands.PrepareCommand("dfpwm", "Convert to DFPWM").Register(dfpwm, []*discordgo.ApplicationCommandOption{optionVideo})
 	commands.PrepareCommand("dfpwmfile", "Convert to DFPWM").Register(dfpwm, []*discordgo.ApplicationCommandOption{
 		{Name: "file", Description: "File to convert", Type: discordgo.ApplicationCommandOptionAttachment, Required: true},
