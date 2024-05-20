@@ -8,7 +8,8 @@ import (
 )
 
 var regRel = regexp.MustCompile(`(\d+) ?(m[io]?|[dhwy])[a-z]*`)
-var regAbs = regexp.MustCompile(`^([a-z]+)? ?(?:(\d+)[a-z]+)?(?:(\d\d?)(?::(\d\d))? ?([ap]?)m?)?$`)
+
+// var regAbs = regexp.MustCompile(`^([a-z]+)? ?(?:(\d+)[a-z]+)?(?:(\d\d?)(?::(\d\d))? ?([ap]?)m?)?$`)
 
 func parseTime(s string) (t time.Time) {
 	s = strings.ToLower(s)
@@ -37,95 +38,101 @@ func parseTime(s string) (t time.Time) {
 		}
 		return
 	}
-	match2 := regAbs.FindStringSubmatch(s)
-	if len(match2) > 0 {
-		match2 = match2[1:]
-		t2 := t
-		month := t.Month()
-		day := t.Day()
-		hour := t.Hour()
-		minute := t.Minute()
-		if len(match2[0]) > 2 {
-			switch match2[0][:3] {
-			case "feb":
-				month = time.February
-			case "sep":
-				month = time.September
-			case "oct":
-				month = time.October
-			case "nov":
-				month = time.November
-			case "dec":
-				month = time.December
-			case "jan":
-				month = time.January
-			case "jun":
-				month = time.June
-			case "jul":
-				month = time.July
-			case "apr":
-				month = time.April
-			case "aug":
-				month = time.August
-			case "mar":
-				month = time.March
-			case "may":
-				month = time.May
-			default:
-				// illegal month, bail
-				t = time.Time{}
-				return
-			}
-		}
-		if len(match2[1]) > 0 {
-			day, _ = strconv.Atoi(match2[1])
-		}
-		if len(match2[2]) > 0 {
-			hour, _ = strconv.Atoi(match2[2])
-			if match2[3] == "p" {
-				hour += 12
-			}
-		}
-		if len(match2[4]) > 0 {
-			minute, _ = strconv.Atoi(match2[4])
-		}
-		t = time.Date(t.Year(), month, day, hour, minute, t.Second(), t.Nanosecond()+5, t.Location())
-		if t.Before(t2) {
-			if !t.AddDate(0, 0, 1).Before(t2) {
-				t = t.AddDate(0, 0, 1)
-			} else if !t.AddDate(0, 1, 0).Before(t2) {
-				t = t.AddDate(0, 1, 0)
-			} else {
-				t = t.AddDate(1, 0, 0)
-			}
-		}
-		return
-	}
+	// commented out absolute time since not all users will be in PST
+	// TODO time zone?
+	// match2 := regAbs.FindStringSubmatch(s)
+	// if len(match2) > 0 {
+	// 	match2 = match2[1:]
+	// 	t2 := t
+	// 	month := t.Month()
+	// 	day := t.Day()
+	// 	hour := t.Hour()
+	// 	minute := t.Minute()
+	// 	if len(match2[0]) > 2 {
+	// 		switch match2[0][:3] {
+	// 		case "feb":
+	// 			month = time.February
+	// 		case "sep":
+	// 			month = time.September
+	// 		case "oct":
+	// 			month = time.October
+	// 		case "nov":
+	// 			month = time.November
+	// 		case "dec":
+	// 			month = time.December
+	// 		case "jan":
+	// 			month = time.January
+	// 		case "jun":
+	// 			month = time.June
+	// 		case "jul":
+	// 			month = time.July
+	// 		case "apr":
+	// 			month = time.April
+	// 		case "aug":
+	// 			month = time.August
+	// 		case "mar":
+	// 			month = time.March
+	// 		case "may":
+	// 			month = time.May
+	// 		default:
+	// 			// illegal month, bail
+	// 			t = time.Time{}
+	// 			return
+	// 		}
+	// 	}
+	// 	if len(match2[1]) > 0 {
+	// 		day, _ = strconv.Atoi(match2[1])
+	// 	}
+	// 	if len(match2[2]) > 0 {
+	// 		hour, _ = strconv.Atoi(match2[2])
+	// 		if match2[3] == "p" {
+	// 			hour += 12
+	// 		}
+	// 	}
+	// 	if len(match2[4]) > 0 {
+	// 		minute, _ = strconv.Atoi(match2[4])
+	// 	}
+	// 	t = time.Date(t.Year(), month, day, hour, minute, t.Second(), t.Nanosecond()+5, t.Location())
+	// 	if t.Before(t2) {
+	// 		if !t.AddDate(0, 0, 1).Before(t2) {
+	// 			t = t.AddDate(0, 0, 1)
+	// 		} else if !t.AddDate(0, 1, 0).Before(t2) {
+	// 			t = t.AddDate(0, 1, 0)
+	// 		} else {
+	// 			t = t.AddDate(1, 0, 0)
+	// 		}
+	// 	}
+	// 	return
+	// }
 	ok := strings.HasPrefix(s, "tom")
 	if ok {
 		t = t.AddDate(0, 0, 1)
-		ind := strings.IndexByte(s, ' ')
-		if ind == -1 {
-			return
-		}
-		s = s[ind+1:]
-	}
-	hour := -1
-	if strings.HasPrefix(s, "morn") {
-		hour = 8
-	} else if strings.HasPrefix(s, "noon") {
-		hour = 12
-	} else if strings.HasPrefix(s, "aft") {
-		hour = 15
-	} else if strings.HasPrefix(s, "eve") {
-		hour = 18
-	} else if strings.HasPrefix(s, "night") {
-		hour = 20
-	} else if !ok {
+		// ind := strings.IndexByte(s, ' ')
+		// if ind == -1 {
+		// 	return
+		// }
+		// s = s[ind+1:]
+	} else {
+		// remove this branch if the below is uncommented
 		t = time.Time{}
 	}
-	if hour != -1 {
-		t = time.Date(t.Year(), t.Month(), t.Day(), hour, 0, 0, 0, t.Location())
-	}
+	// also commented out since we don't know what "morning" may be for the user
+	// hour := -1
+	// if strings.HasPrefix(s, "morn") {
+	// 	hour = 8
+	// } else if strings.HasPrefix(s, "noon") {
+	// 	hour = 12
+	// } else if strings.HasPrefix(s, "aft") {
+	// 	hour = 15
+	// } else if strings.HasPrefix(s, "eve") {
+	// 	hour = 18
+	// } else if strings.HasPrefix(s, "night") {
+	// 	hour = 20
+	// } else if !ok {
+	// 	t = time.Time{}
+	// }
+	// if hour != -1 {
+	// 	t = time.Date(t.Year(), t.Month(), t.Day(), hour, 0, 0, 0, t.Location())
+	// }
 	return
 }
