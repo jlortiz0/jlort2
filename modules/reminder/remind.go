@@ -12,12 +12,27 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-var stmtIns, stmtSel, stmtSelU, stmtCount, stmtClean *sql.Stmt
+var stmtIns, stmtSel, stmtSelU, stmtCount, stmtClean, stmtGetTz *sql.Stmt
 var channelCache map[string]string
 var runStopper chan struct{}
 
 const tsFormat = "Jan _2 3:04 PM MST"
 const max_reminders_per_user = 32
+
+func loadTz(uid string) (*time.Location, bool, error) {
+	zone := time.Local
+	row := stmtGetTz.QueryRow(uid)
+	var zoneS string
+	row.Scan(&zoneS)
+	if zoneS != "" {
+		var err error
+		zone, err = time.LoadLocation(zoneS)
+		if err != nil {
+			return nil, true, fmt.Errorf("failed to load tz %s: %w", zoneS, err)
+		}
+	}
+	return zone, zoneS != "", nil
+}
 
 func remind(ctx *commands.Context) error {
 	when := ctx.ApplicationCommandData().Options[0].StringValue()
@@ -25,20 +40,28 @@ func remind(ctx *commands.Context) error {
 	if len(what) > 2000 {
 		return ctx.RespondPrivate("Reminder is too long, max 2000 chars")
 	}
-	t := parseTime(when)
+	zone, hasZone, err := loadTz(ctx.Interaction.User.ID)
+	if err != nil {
+		return err
+	}
+	t := parseTime(when, zone)
 	if t.IsZero() {
 		log.Debug(when)
 		return ctx.RespondPrivate("Unable to parse time: " + when)
 	}
-	count := stmtCount.QueryRow(ctx.Interaction.User.ID)
-	var rCount int
-	count.Scan(&rCount)
-	if rCount >= max_reminders_per_user {
+	row := stmtCount.QueryRow(ctx.Interaction.User.ID)
+	var count int
+	row.Scan(&count)
+	if count >= max_reminders_per_user {
 		return ctx.RespondPrivate("Reached limit of " + strconv.Itoa(max_reminders_per_user) + " reminders")
 	}
 	now := time.Now()
 	stmtIns.Exec(t, ctx.Interaction.User.ID, now, what)
-	return ctx.RespondPrivate("I will remind you on " + t.Format(tsFormat) + ". To cancel, do /remindcancel " + strconv.Itoa(rCount+1))
+	msg := "I will remind you on " + t.Format(tsFormat) + ". To cancel, do /remindcancel " + strconv.Itoa(count+1)
+	if !hasZone {
+		msg += "\nIf the above time zone is incorrect, use /settz to set it"
+	}
+	return ctx.RespondPrivate(msg)
 }
 
 func remindcancel(ctx *commands.Context) error {
@@ -59,6 +82,10 @@ func reminders(ctx *commands.Context) error {
 		return err
 	}
 	defer results.Close()
+	zone, _, err := loadTz(ctx.Interaction.User.ID)
+	if err != nil {
+		return err
+	}
 	builder := new(strings.Builder)
 	var i int
 	var ts time.Time
@@ -67,8 +94,7 @@ func reminders(ctx *commands.Context) error {
 		i += 1
 		results.Scan(&ts, &what)
 		builder.WriteString(strconv.Itoa(i))
-		// .Local is used so that the UTC offset is converted into a proper Location with a name
-		builder.WriteString(ts.Local().Format(". [" + tsFormat + "] "))
+		builder.WriteString(ts.In(zone).Format(". [" + tsFormat + "] "))
 		builder.WriteString(what)
 		builder.WriteByte('\n')
 	}
@@ -80,6 +106,23 @@ func reminders(ctx *commands.Context) error {
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
 	return ctx.RespondEmbed(output, true)
+}
+
+func settz(ctx *commands.Context) error {
+	where := strings.ToUpper(ctx.ApplicationCommandData().Options[0].StringValue())
+	zoneS, ok := timezones[where]
+	if !ok {
+		return ctx.RespondPrivate("Time zone not recognized, use the abbrevation (GMT, PST, NZT, etc)")
+	}
+	zone, err := time.LoadLocation(zoneS)
+	if err != nil {
+		return fmt.Errorf("failed to load tz %s: %w", zoneS, err)
+	}
+	ctx.Database.Exec("INSERT OR REPLACE INTO userTz (uid, tz) VALUES (?001, ?002);", ctx.Interaction.User.ID, zoneS)
+	if where == zoneS {
+		return ctx.RespondPrivate("Set timezone to " + where)
+	}
+	return ctx.RespondPrivate("Set timezone to " + where + ", aka " + zone.String())
 }
 
 func runner(self *discordgo.Session, stopper <-chan struct{}) {
@@ -135,15 +178,19 @@ func Init(self *discordgo.Session) {
 	stmtSel, _ = commands.GetDatabase().Prepare(`SELECT uid, created, what FROM reminders WHERE ts < ?001;`)
 	stmtSelU, _ = commands.GetDatabase().Prepare(`SELECT ts, what FROM reminders WHERE uid = ?001 ORDER BY created ASC;`)
 	stmtClean, _ = commands.GetDatabase().Prepare(`DELETE FROM reminders WHERE ts < ?001;`)
+	stmtGetTz, _ = commands.GetDatabase().Prepare("SELECT tz FROM userTz WHERE uid = ?001;")
 	channelCache = make(map[string]string)
 	commands.PrepareCommand("remind", "Set a reminder").Register(remind, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("when", "When to send the reminder, accepts \"1d\", \"5h\", \"10mo\", and combinations").AsString().Required().Finalize(),
+		commands.NewCommandOption("when", "When to send the reminder, accepts \"1d\", \"5h3m\", \"8pm\", \"25th\", \"March 7th 5:55 AM\"").AsString().Required().Finalize(),
 		commands.NewCommandOption("what", "What to remind you about").AsString().Required().Finalize(),
 	})
 	commands.PrepareCommand("remnindcancel", "Cancel a reminder").Register(remindcancel, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("id", "Index of reminder to cancel").AsInt().SetMinMax(1, max_reminders_per_user).Required().Finalize(),
 	})
 	commands.PrepareCommand("reminders", "See all your reminders").Register(reminders, nil)
+	commands.PrepareCommand("settz", "Set time zone").Register(settz, []*discordgo.ApplicationCommandOption{
+		commands.NewCommandOption("zone", "Time zone abbreviation (GMT, PST, NZT, etc)").AsString().Required().Finalize(),
+	})
 	runStopper = make(chan struct{})
 	go runner(self, runStopper)
 }
@@ -154,5 +201,6 @@ func Cleanup(self *discordgo.Session) {
 	stmtSel.Close()
 	stmtSelU.Close()
 	stmtClean.Close()
+	stmtGetTz.Close()
 	close(runStopper)
 }

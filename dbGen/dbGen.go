@@ -85,7 +85,7 @@ func main() {
 		fmt.Println("inserted dj")
 	}
 
-	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind), CHECK(ind > 1));")
+	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind));")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
@@ -150,4 +150,5 @@ func main() {
 	}
 	db.Exec("CREATE TABLE reminders (ts TIMESTAMP NOT NULL, uid INTEGER NOT NULL, created TIMESTAMP NOT NULL, what VARCHAR(2000) NOT NULL, PRIMARY KEY (uid, created));")
 	db.Exec("CREATE INDEX remindTs ON reminders (ts);")
+	db.Exec("CREATE TABLE userTz (uid INTEGER PRIMARY KEY, tz VARCHAR(31) NOT NULL);")
 }
