@@ -118,11 +118,18 @@ func settz(ctx *commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load tz %s: %w", zoneS, err)
 	}
+	row := stmtCount.QueryRow(ctx.Interaction.User.ID)
+	var rCount int
+	row.Scan(&rCount)
+	var suffix string
+	if rCount != 0 {
+		suffix = "\nCheck existing reminders with /reminders to ensure that the times are stil correct."
+	}
 	ctx.Database.Exec("INSERT OR REPLACE INTO userTz (uid, tz) VALUES (?001, ?002);", ctx.Interaction.User.ID, zoneS)
 	if where == zoneS {
-		return ctx.RespondPrivate("Set timezone to " + where)
+		return ctx.RespondPrivate("Set timezone to " + where + suffix)
 	}
-	return ctx.RespondPrivate("Set timezone to " + where + ", aka " + zone.String())
+	return ctx.RespondPrivate("Set timezone to " + where + ", aka " + zone.String() + suffix)
 }
 
 func runner(self *discordgo.Session, stopper <-chan struct{}) {
