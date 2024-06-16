@@ -178,9 +178,9 @@ func gsm(ctx *Context) error {
 	}
 	var cmd *exec.Cmd
 	if len(ctx.ApplicationCommandData().Options) == 1 {
-		exec.Command(bashLoc, "gsm.sh", arg)
+		cmd = exec.Command(bashLoc, "gsm.sh", arg)
 	} else {
-		exec.Command(bashLoc, "gsm.sh", arg, "silent")
+		cmd = exec.Command(bashLoc, "gsm.sh", arg, "silent")
 	}
 	out, err := cmd.Output()
 	if err != nil {

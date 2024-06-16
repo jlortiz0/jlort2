@@ -1,6 +1,6 @@
 module jlortiz.org/jlort2
 
-go 1.16
+go 1.18
 
 require (
 	github.com/bwmarrin/discordgo v0.27.1

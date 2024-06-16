@@ -1,6 +1,6 @@
 module jlortiz.org/jlort2/modules/commands
 
-go 1.16
+go 1.18
 
 replace jlortiz.org/jlort2/modules/log => ../log
 

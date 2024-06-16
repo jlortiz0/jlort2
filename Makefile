@@ -8,7 +8,7 @@ endif
 
 CC=go build
 CFLAGS=
-VERSION=3.1.1
+VERSION=3.1.2
 LDFLAGS=-ldflags="-X 'jlortiz.org/jlort2/modules/commands.buildDate=$(DATE)' -X 'jlortiz.org/jlort2/modules/commands.verNum=$(VERSION)' -s -w"
 FILES=$(wildcard *.go) $(wildcard modules/*/*.go)
 
