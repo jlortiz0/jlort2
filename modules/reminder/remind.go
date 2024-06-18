@@ -16,7 +16,8 @@ var stmtIns, stmtSel, stmtSelU, stmtCount, stmtClean, stmtGetTz *sql.Stmt
 var channelCache map[string]string
 var runStopper chan struct{}
 
-const tsFormat = "Jan _2 3:04 PM MST"
+const shortTsFormat = "Jan _2 3:04 PM"
+const tsFormat = shortTsFormat + " MST"
 const max_reminders_per_user = 32
 
 func loadTz(uid string) (*time.Location, bool, error) {
@@ -167,7 +168,7 @@ func runner(self *discordgo.Session, stopper <-chan struct{}) {
 				channelCache[uid] = channel.ID
 				chanId = channel.ID
 			}
-			_, err = self.ChannelMessageSend(chanId, "A reminder for you, from "+created.Format(tsFormat)+":\n\n"+what)
+			_, err = self.ChannelMessageSend(chanId, "A reminder for you, from "+created.Format(shortTsFormat)+":\n\n"+what)
 			if err != nil {
 				log.Error(fmt.Errorf("failed to send message: %w", err))
 				channelCache[uid] = "0"
