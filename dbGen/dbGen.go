@@ -43,7 +43,7 @@ func main() {
 	defer db.Close()
 	fmt.Println("opened db")
 
-	db.Exec("CREATE TABLE vachan (gid INTEGER PRIMARY KEY, cid INTEGER NOT NULL);")
+	db.Exec("CREATE TABLE vachan (gid INTEGER NOT NULL, vid INTEGER NOT NULL, cid INTEGER NOT NULL, PRIMARY KEY (gid, vid));")
 	data, err := os.ReadFile("vachan")
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)

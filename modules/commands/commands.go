@@ -424,8 +424,9 @@ func (c *commandOption) AsBool() *commandOption {
 	return c
 }
 
-func (c *commandOption) AsChannel() *commandOption {
+func (c *commandOption) AsChannel(chType []discordgo.ChannelType) *commandOption {
 	c.Type = discordgo.ApplicationCommandOptionChannel
+	c.ChannelTypes = chType
 	return c
 }
 

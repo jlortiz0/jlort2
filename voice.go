@@ -59,16 +59,25 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		log.Error(fmt.Errorf("failed to get voice guild: %w", err))
 		return
 	}
-	gid, _ := strconv.ParseUint(event.GuildID, 10, 64)
-	row := voiceStatement.QueryRow(gid)
+	row := voiceStatement.QueryRow(event.GuildID, event.ChannelID)
 	var output string
+	specificVc := true
 	err = row.Scan(&output)
+	if err == sql.ErrNoRows {
+		row = voiceStatement.QueryRow(event.GuildID, 0)
+		err = row.Scan(&output)
+		specificVc = false
+	}
 	if err != nil {
 		return
 	}
 	_, err = self.State.Channel(output)
 	if err != nil {
-		commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?;", gid)
+		if specificVc {
+			commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?001 AND vid=?002;", event.GuildID, event.ChannelID)
+		} else {
+			commands.GetDatabase().Exec("DELETE FROM vachan WHERE gid=?001 AND vid=?002;", event.GuildID, 0)
+		}
 		return
 	}
 	displayname := commands.DisplayName(mem)
@@ -79,6 +88,8 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 			return
 		}
 		voicePrevious[event.UserID] = event.BeforeUpdate.ChannelID
+		// TODO: Maybe don't do this if the channels aren't the same
+		// Or add special handling to redirect to whatever the origin channel is if !specificVc?
 		msg, err = self.ChannelMessageSend(output, displayname+" is now AFK")
 	} else {
 		old, ok := voicePrevious[event.UserID]
@@ -109,14 +120,23 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 // You must mention the channel to change the setting because I am lazy.
 // You can disable voice join annoucements by setting it to "none" without quotes or pound.
 func vachan(ctx *commands.Context) error {
-	arg := ctx.ApplicationCommandData().Options[0].ChannelValue(ctx.Bot)
-	gid, _ := strconv.ParseUint(ctx.GuildID, 10, 64)
-	if arg.Type != discordgo.ChannelTypeGuildText {
-		ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", gid)
-		return ctx.RespondPrivate("Voice announcements disabled.")
+	args := ctx.ApplicationCommandData().Options
+	ch := args[0].ChannelValue(ctx.Bot)
+	if len(args) == 1 {
+		if ch.Type != discordgo.ChannelTypeGuildText {
+			ctx.Database.Exec("DELETE FROM vachan WHERE gid=?;", ctx.GuildID)
+			return ctx.RespondPrivate("Voice announcements disabled on this server.")
+		}
+		ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, vid, cid) VALUES(?001, 0, ?002);", ctx.GuildID, ch.ID)
+		return ctx.RespondPrivate("Voice joins will be announced in <#" + ch.ID + "> by default")
 	}
-	ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, cid) VALUES(?001, ?002);", gid, arg.ID)
-	return ctx.RespondPrivate(fmt.Sprintf("Voice joins will be announced in <#%s>", arg.ID))
+	vc := ctx.ApplicationCommandData().Options[1].ChannelValue(ctx.Bot)
+	if ch.Type != discordgo.ChannelTypeGuildText {
+		ctx.Database.Exec("DELETE FROM vachan WHERE gid=?001 AND vid=?002;", ctx.GuildID, vc.ID)
+		return ctx.RespondPrivate("Voice announcements disabled for <#" + vc.ID + ">")
+	}
+	ctx.Database.Exec("INSERT OR REPLACE INTO vachan (gid, vid, cid) VALUES(?001, ?002, ?003);", ctx.GuildID, vc.ID, ch.ID)
+	return ctx.RespondPrivate("Voice joins for <#" + vc.ID + "> will be announced in <#" + ch.ID + ">")
 }
 
 // TODO: Do I even need this anymore?

@@ -47,9 +47,10 @@ func initModules(self *discordgo.Session, guildId string) {
 	log.Info("Loaded music")
 	reminder.Init(self)
 	log.Info("Loaded remind")
-	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?;")
+	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?001 AND vid=?002;")
 	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
-		commands.NewCommandOption("channel", "Voice join announcements will be posted here").AsChannel().Required().Finalize(),
+		commands.NewCommandOption("channel", "Voice join announcements will be posted here, select a category to disable").AsChannel([]discordgo.ChannelType{discordgo.ChannelTypeGuildText, discordgo.ChannelTypeGuildCategory}).Required().Finalize(),
+		commands.NewCommandOption("voice", "Voice channel to modify announcements for, omit to modify for entire server").AsChannel([]discordgo.ChannelType{discordgo.ChannelTypeGuildVoice}).Finalize(),
 	})
 	testMode := len(guildId) > 0 && guildId[0] == 't'
 	if testMode {
