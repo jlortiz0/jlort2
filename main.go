@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -42,9 +41,8 @@ var sc chan os.Signal
 
 func main() {
 	if !isatty.IsTerminal(os.Stdout.Fd()) {
-		log.SetLevel(log.LevelWarn)
+		log.SetLevel(log.LevelWARN)
 	}
-	rand.Seed(time.Now().Unix())
 	log.Init()
 	defer log.Cleanup()
 start:
@@ -105,7 +103,7 @@ start:
 	// sc2 := make(chan os.Signal)
 	// signal.Notify(sc2, syscall.SIGUSR1)
 	// go crashMe(sc2)
-	if (<-sc) == syscall.SIGHUP && log.GetLevel() == log.LevelWarn {
+	if (<-sc) == syscall.SIGHUP && log.GetLevel() == log.LevelWARN {
 		cleanup(client)
 		client.Close()
 		goto start

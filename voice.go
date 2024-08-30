@@ -32,7 +32,7 @@ import (
 var voiceCooldown map[string]time.Time = make(map[string]time.Time)
 var voicePrevious map[string]string = make(map[string]string)
 var voiceStatement *sql.Stmt
-var voiceStateLock *sync.Mutex = new(sync.Mutex)
+var voiceStateLock sync.Mutex
 
 const plusd = 3 * time.Second
 

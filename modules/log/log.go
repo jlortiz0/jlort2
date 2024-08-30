@@ -26,38 +26,21 @@ import (
 	"os"
 )
 
+//go:generate stringer -type Level -trimprefix Level
 type Level uint8
 
 const (
-	LevelNone Level = iota
-	LevelFatal
-	LevelError
-	LevelWarn
-	LevelInfo
-	LevelDebug
-	LevelFine
+	LevelNONE Level = iota
+	LevelFATAL
+	LevelERROR
+	LevelWARN
+	LevelINFO
+	LevelDEBUG
+	LevelFINE
 )
 
-var curLvl Level = LevelInfo
+var curLvl Level = LevelINFO
 var output *os.File
-
-func (l Level) name() string {
-	switch l {
-	case LevelFine:
-		return "FINE"
-	case LevelDebug:
-		return "DEBUG"
-	case LevelInfo:
-		return "INFO"
-	case LevelWarn:
-		return "WARN"
-	case LevelError:
-		return "ERROR"
-	case LevelFatal:
-		return "FATAL"
-	}
-	return ""
-}
 
 func Init() {
 	os.Mkdir("logs", 0700)
@@ -113,7 +96,7 @@ func Cleanup() {
 func logOut(level Level, msg string) {
 	if level <= curLvl {
 		if level != curLvl {
-			fmt.Fprint(os.Stderr, level.name(), ": ")
+			fmt.Fprint(os.Stderr, level.String(), ": ")
 		}
 		fmt.Fprintln(os.Stderr, msg)
 	}
@@ -128,7 +111,7 @@ func GetLevel() Level {
 }
 
 func Fatal(msg string) {
-	logOut(LevelFatal, msg)
+	logOut(LevelFATAL, msg)
 }
 
 func Error(msg error) {
@@ -136,21 +119,21 @@ func Error(msg error) {
 }
 
 func Errors(msg string) {
-	logOut(LevelError, msg)
+	logOut(LevelERROR, msg)
 }
 
 func Warn(msg string) {
-	logOut(LevelWarn, msg)
+	logOut(LevelWARN, msg)
 }
 
 func Info(msg string) {
-	logOut(LevelInfo, msg)
+	logOut(LevelINFO, msg)
 }
 
 func Debug(msg string) {
-	logOut(LevelDebug, msg)
+	logOut(LevelDEBUG, msg)
 }
 
 func Fine(msg string) {
-	logOut(LevelFine, msg)
+	logOut(LevelFINE, msg)
 }

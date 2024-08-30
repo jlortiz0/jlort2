@@ -86,7 +86,7 @@ type StreamObj struct {
 
 var streams map[string]*lockQueue
 var lastPlayed map[string]time.Time
-var streamLock *sync.RWMutex = new(sync.RWMutex)
+var streamLock sync.RWMutex
 var queryDj *sql.Stmt
 
 const dcTimeout time.Duration = time.Minute * -10
