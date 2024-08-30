@@ -47,7 +47,16 @@ func kekage(ctx *commands.Context) error {
 	if target.Bot {
 		return ctx.RespondPrivate("Bots can't be kek.")
 	}
-	name := target.Username
+	name := target.GlobalName
+	if target.GlobalName == "" {
+		name = target.Username
+	}
+	if ctx.GuildID != "" {
+		mem, err := ctx.State.Member(ctx.GuildID, target.ID)
+		if err == nil && mem.Nick != "" {
+			name = mem.Nick
+		}
+	}
 	var kekI int
 	uid, _ := strconv.ParseUint(target.ID, 10, 64)
 	result := queryKek.QueryRow(uid)
@@ -123,12 +132,11 @@ func kekReport(ctx *commands.Context) error {
 		if mem.User.Bot {
 			continue
 		}
-		name := commands.DisplayName(mem)
 		var kekI int
 		uid, _ := strconv.ParseUint(mem.User.ID, 10, 64)
 		result := queryKek.QueryRow(uid)
 		if result.Scan(&kekI) == nil && kekI != 0 {
-			output.WriteString(name)
+			output.WriteString(mem.DisplayName())
 			output.WriteString(": ")
 			if kekI < 0 {
 				output.WriteByte('-')

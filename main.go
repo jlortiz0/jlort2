@@ -261,7 +261,7 @@ func handleCommandError(err error, ctx *commands.Context, stack string) {
 			ctx.RespondPrivate("A lengthy error occured.")
 		}
 	} else {
-		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to " + ctx.State.Application.Owner.Username)
+		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to " + ctx.State.Application.Owner.GlobalName)
 		if err2 == nil {
 			channel, err2 := ctx.Bot.UserChannelCreate(ctx.State.Application.Owner.ID)
 			if err2 == nil {

@@ -284,8 +284,7 @@ func np(ctx *commands.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get member: %w", err)
 	}
-	footer = commands.DisplayName(author)
-	embed.Author = &discordgo.MessageEmbedAuthor{Name: footer, IconURL: author.User.AvatarURL("")}
+	embed.Author = &discordgo.MessageEmbedAuthor{Name: author.DisplayName(), IconURL: author.User.AvatarURL("")}
 	embed.Fields = []*discordgo.MessageEmbedField{{Name: "Elapsed", Value: timeFld}}
 	embed.Color = 0x992d22
 	err = ctx.RespondEmbed(embed, true)

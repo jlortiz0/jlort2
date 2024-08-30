@@ -52,7 +52,10 @@ func chatlog(ctx *commands.Context) error {
 	output := bytes.NewBufferString("Discord Text Archive created on ")
 	output.WriteString(time.Now().Format(tsFormat))
 	output.WriteString(" by ")
-	output.WriteString(ctx.User.Username)
+	output.WriteString(ctx.User.GlobalName)
+	if ctx.User.GlobalName == "" {
+		output.WriteString(ctx.User.Username)
+	}
 	channel, err := ctx.State.Channel(ctx.ChannelID)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
@@ -109,7 +112,10 @@ func chatlog(ctx *commands.Context) error {
 				continue
 			}
 			if nicks[v.Author.ID] == "" {
-				nicks[v.Author.ID] = v.Author.Username
+				nicks[v.Author.ID] = v.Author.GlobalName
+				if v.Author.GlobalName == "" {
+					nicks[v.Author.ID] = v.Author.Username
+				}
 				if ctx.GuildID != "" {
 					mem, err := ctx.State.Member(ctx.GuildID, v.Author.ID)
 					if err == nil && mem.Nick != "" {

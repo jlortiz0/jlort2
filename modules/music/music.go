@@ -163,6 +163,7 @@ func dc(ctx *commands.Context) error {
 		if ok && ls.Len() > 1 {
 			dr := ctx.Data.(discordgo.ApplicationCommandInteractionData)
 			dr.Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
+			ctx.Data = dr
 			err := remove(ctx)
 			if ls.Len() > 1 {
 				return err
@@ -336,8 +337,7 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 					go musicStreamer(vc, obj)
 					continue
 				}
-				authorName := commands.DisplayName(mem)
-				embed := buildMusEmbed(obj, true, authorName)
+				embed := buildMusEmbed(obj, true, mem.DisplayName())
 				if obj.Flags&strflag_loop != 0 {
 					embed.Title = "Looping"
 				}

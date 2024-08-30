@@ -80,7 +80,6 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		}
 		return
 	}
-	displayname := commands.DisplayName(mem)
 	var msg *discordgo.Message
 	if event.ChannelID == guild.AfkChannelID && event.BeforeUpdate != nil {
 		if event.UserID == self.State.User.ID {
@@ -90,11 +89,11 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 		voicePrevious[event.UserID] = event.BeforeUpdate.ChannelID
 		// TODO: Maybe don't do this if the channels aren't the same
 		// Or add special handling to redirect to whatever the origin channel is if !specificVc?
-		msg, err = self.ChannelMessageSend(output, displayname+" is now AFK")
+		msg, err = self.ChannelMessageSend(output, event.Member.DisplayName()+" is now AFK")
 	} else {
 		old, ok := voicePrevious[event.UserID]
 		if event.BeforeUpdate != nil && event.BeforeUpdate.ChannelID == guild.AfkChannelID && ok && event.ChannelID == old {
-			msg, err = self.ChannelMessageSend(output, displayname+" is no longer AFK")
+			msg, err = self.ChannelMessageSend(output, event.Member.DisplayName()+" is no longer AFK")
 		} else {
 			var vch *discordgo.Channel
 			vch, err = self.State.Channel(event.ChannelID)
@@ -102,7 +101,7 @@ func voiceStateUpdate(self *discordgo.Session, event *discordgo.VoiceStateUpdate
 				log.Error(fmt.Errorf("failed to get current voice channel: %w", err))
 				return
 			}
-			msg, err = self.ChannelMessageSend(output, displayname+" joined "+vch.Name)
+			msg, err = self.ChannelMessageSend(output, event.Member.DisplayName()+" joined "+vch.Name)
 		}
 	}
 	if err != nil {

@@ -173,7 +173,6 @@ func mp3(ctx *commands.Context) error {
 	if err != nil {
 		return ctx.RespondPrivate("Not a valid URL.")
 	}
-	authorName := commands.DisplayName(ctx.Member)
 	np := false
 	data := new(StreamObj)
 	data.Author = ctx.User.ID
@@ -219,7 +218,7 @@ func mp3(ctx *commands.Context) error {
 		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
 	}
 	ctx.SetComponents(btn)
-	embed := buildMusEmbed(data, np, authorName)
+	embed := buildMusEmbed(data, np, ctx.Member.DisplayName())
 	return ctx.RespondEmbed(embed, false)
 }
 
@@ -273,7 +272,6 @@ func play(ctx *commands.Context) error {
 	if info.URL == "" {
 		return ctx.RespondEdit("Could not get info from this URL.")
 	}
-	authorName := commands.DisplayName(ctx.Member)
 	np := false
 	data := new(StreamObj)
 	data.Author = ctx.User.ID
@@ -325,7 +323,7 @@ func play(ctx *commands.Context) error {
 		btn.Emoji.Name = "\u23ED"
 	}
 	ctx.SetComponents(btn)
-	embed := buildMusEmbed(data, np, authorName)
+	embed := buildMusEmbed(data, np, ctx.Member.DisplayName())
 	return ctx.RespondEditEmbed(embed)
 }
 

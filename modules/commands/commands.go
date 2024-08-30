@@ -381,14 +381,6 @@ func GetCommandComponentHandler(data discordgo.MessageComponentInteractionData) 
 	return cmdMap[name].h
 }
 
-// DisplayName returns the nickname of a member, or the username if there is none.
-func DisplayName(mem *discordgo.Member) string {
-	if mem.Nick == "" {
-		return mem.User.Username
-	}
-	return mem.Nick
-}
-
 func GetDatabase() *sql.DB {
 	return db
 }

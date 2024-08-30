@@ -158,9 +158,9 @@ func guildAndModeSel() {
 					fmt.Fprintf(output, "On guild %s (%s):\n\n", guild.Name, guild.ID)
 					for k, v := range guild.Members {
 						if v.Nick != "" {
-							fmt.Fprintf(output, "%d. %s (%s) ", k+1, v.Nick, v.User.Username)
+							fmt.Fprintf(output, "%d. %s (%s) ", k+1, v.Nick, v.User.GlobalName)
 						} else {
-							fmt.Fprintf(output, "%d. %s ", k+1, v.User.Username)
+							fmt.Fprintf(output, "%d. %s ", k+1, v.User.GlobalName)
 						}
 						if v.User.ID == client.State.User.ID {
 							fmt.Fprint(output, "(Me)")
@@ -179,7 +179,7 @@ func guildAndModeSel() {
 					}
 					user := guild.Members[ind-1]
 					clear()
-					fmt.Fprintf(output, "Username: %s#%s\n", user.User.Username, user.User.Discriminator)
+					fmt.Fprintf(output, "Username: %s (%s)\n", user.User.GlobalName, user.User.Username)
 					if user.Nick != "" {
 						fmt.Fprintf(output, "Nick: %s\n", user.Nick)
 					}
@@ -328,7 +328,10 @@ func chatter(channel *discordgo.Channel, guild *discordgo.Guild) {
 				v = v2
 			}
 			if nicks[v.Author.ID] == "" {
-				nicks[v.Author.ID] = v.Author.Username
+				nicks[v.Author.ID] = v.Author.GlobalName
+				if v.Author.GlobalName == "" {
+					nicks[v.Author.ID] = v.Author.Username
+				}
 				if guild != nil {
 					mem, err := client.State.Member(guild.ID, v.Author.ID)
 					if err == nil && mem.Nick != "" {
