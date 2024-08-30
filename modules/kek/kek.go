@@ -141,8 +141,8 @@ func kekReport(ctx *commands.Context) error {
 		return ctx.RespondPrivate("All keks are zero.")
 	}
 	if len(mList) > kekreport_paginate_amount {
-		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
-			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(mList) <= ind+kekreport_paginate_amount, Style: discordgo.SecondaryButton})
+		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: &discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: &discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: len(mList) <= ind+kekreport_paginate_amount, Style: discordgo.SecondaryButton})
 	}
 	return ctx.RespondPrivate(output.String())
 }

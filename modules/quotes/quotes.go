@@ -62,7 +62,7 @@ func quote(ctx *commands.Context) error {
 	} else {
 		sel = rand.Intn(total) + 1
 	}
-	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
+	ctx.SetComponents(discordgo.Button{Emoji: &discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
 	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
 	var q string
 	result.Scan(&q)
@@ -90,7 +90,7 @@ func quoteReroll(ctx *commands.Context) error {
 	for sel == sel2 {
 		sel = rand.Intn(total) + 1
 	}
-	ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
+	ctx.SetComponents(discordgo.Button{Emoji: &discordgo.ComponentEmoji{Name: "\U0001f3b2"}, CustomID: strconv.Itoa(sel)})
 	result = tx.Stmt(queryGetInd).QueryRow(gid, sel)
 	var q string
 	result.Scan(&q)
@@ -151,8 +151,8 @@ func quotes(ctx *commands.Context) error {
 	output.Description = builder.String()[:builder.Len()-1]
 	output.Color = 0x7289da
 	if total > quotes_paginate_amount {
-		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
-			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: total <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
+		ctx.SetComponents(discordgo.Button{CustomID: "l" + strconv.Itoa(ind), Disabled: ind == 0, Emoji: &discordgo.ComponentEmoji{Name: "\u2B05"}, Style: discordgo.SecondaryButton},
+			discordgo.Button{CustomID: "r" + strconv.Itoa(ind), Emoji: &discordgo.ComponentEmoji{Name: "\u27A1"}, Disabled: total <= ind+quotes_paginate_amount, Style: discordgo.SecondaryButton})
 	}
 	err = ctx.RespondEmbed(output, false)
 	return err

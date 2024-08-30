@@ -145,7 +145,7 @@ func pause(ctx *commands.Context) error {
 		return ctx.RespondPrivate("You do not have permission to modify the current stream.")
 	}
 	ctx.SetComponents(discordgo.Button{
-		Emoji: discordgo.ComponentEmoji{Name: "\u23EF"},
+		Emoji: &discordgo.ComponentEmoji{Name: "\u23EF"},
 	})
 	strm.Flags ^= strflag_paused
 	if strm.Flags&strflag_paused != 0 {
@@ -210,7 +210,7 @@ func skip(ctx *commands.Context) error {
 		}
 		if len(obj.Skippers) < count/2 {
 			ctx.FollowupDestroy()
-			ctx.SetComponents(discordgo.Button{Emoji: discordgo.ComponentEmoji{Name: "\u23ED"}, Style: discordgo.SecondaryButton})
+			ctx.SetComponents(discordgo.Button{Emoji: &discordgo.ComponentEmoji{Name: "\u23ED"}, Style: discordgo.SecondaryButton})
 			return ctx.Respond(fmt.Sprintf("Still need %d more vote(s) to skip.", count/2-len(obj.Skippers)))
 		}
 	}

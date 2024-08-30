@@ -214,7 +214,7 @@ func mp3(ctx *commands.Context) error {
 		}
 	}
 	ls.Unlock()
-	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: &discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
 	if !np {
 		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
 	}
@@ -318,7 +318,7 @@ func play(ctx *commands.Context) error {
 		}
 	}
 	ls.Unlock()
-	btn := discordgo.Button{CustomID: ctx.ID, Emoji: discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
+	btn := discordgo.Button{CustomID: ctx.ID, Emoji: &discordgo.ComponentEmoji{Name: "\U0001f5d1"}, Style: discordgo.SecondaryButton}
 	if !np {
 		btn.CustomID += "\a" + strconv.Itoa(ls.Len())
 	} else {
