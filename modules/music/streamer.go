@@ -39,22 +39,27 @@ import (
 // It uses a rather long ffmpeg subprocess that pipes to stdout. Stderr is shared with the system.
 // On read, the program strips out the headers to get the raw opus data and sends it to the voice connection send channel.
 func musicStreamer(vc *discordgo.VoiceConnection, data *StreamObj) {
+	var f io.ReadCloser
+	var err error
 	if data.Flags&strflag_special != 0 {
-		data.Subprocess = exec.Command("ffmpeg", "-i", data.Source, "-map_metadata", "-1", "-acodec", "copy", "-f", "opus", "-loglevel", "warning", "pipe:1")
+		f, err = os.Open(data.Source)
+		// data.Subprocess = exec.Command("ffmpeg", "-i", data.Source, "-map_metadata", "-1", "-acodec", "copy", "-f", "opus", "-loglevel", "warning", "pipe:1")
 	} else {
 		data.Subprocess = exec.Command("ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", data.Source, "-map_metadata", "-1", "-f", "opus", "-ar", "48k", "-ac", "2", "-b:a", "64k", "-compression_level", "8", "-af", fmt.Sprintf("volume=%.2f", float32(data.Vol)/100), "-loglevel", "warning", "pipe:1")
+		data.Subprocess.Stderr = os.Stderr
 	}
-	data.Subprocess.Stderr = os.Stderr
-	f, err := data.Subprocess.StdoutPipe()
+	// f, err := data.Subprocess.StdoutPipe()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = data.Subprocess.Start()
-	if err != nil {
-		fmt.Println(err)
-		f.Close()
-		return
+	if data.Subprocess != nil {
+		err = data.Subprocess.Start()
+		if err != nil {
+			fmt.Println(err)
+			f.Close()
+			return
+		}
 	}
 	data.Skippers = make(map[string]struct{})
 	data.Flags |= strflag_playing
@@ -107,6 +112,9 @@ Streamer:
 		}
 		select {
 		case <-data.Remake:
+			if data.Subprocess == nil {
+				continue
+			}
 			data.Subprocess.Process.Kill()
 			data.Subprocess.Process.Wait()
 			elapsed := time.Since(data.StartedAt).Round(time.Millisecond)
@@ -132,8 +140,12 @@ Streamer:
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	data.Subprocess.Process.Kill()
-	data.Subprocess.Wait()
+	if data.Subprocess != nil {
+		data.Subprocess.Process.Kill()
+		data.Subprocess.Wait()
+	} else {
+		f.Close()
+	}
 	data.Flags &= ^strflag_playing
 	if data.Flags&strflag_special == 0 {
 		streamLock.Lock()
@@ -161,6 +173,9 @@ func mp3(ctx *commands.Context) error {
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
 		return ctx.RespondPrivate("Network hiccup, please try again.")
+	}
+	if lastPlayed[ctx.GuildID] == inTheFuture {
+		return ctx.RespondPrivate("You have a ClickArt session active.")
 	}
 	var source string
 	cmData := ctx.ApplicationCommandData()
@@ -233,6 +248,9 @@ func play(ctx *commands.Context) error {
 	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
 	if vc == nil {
 		return ctx.RespondPrivate("Network hiccup, please try again.")
+	}
+	if lastPlayed[ctx.GuildID] == inTheFuture {
+		return ctx.RespondPrivate("You have a ClickArt session active.")
 	}
 	ctx.RespondDelayed(false)
 	source := ctx.ApplicationCommandData().Options[0].StringValue()
@@ -456,6 +474,9 @@ func outro(ctx *commands.Context) error {
 	}
 	if ls.Len() > 0 {
 		return ctx.RespondPrivate("Can't play an outro while something else is playing.")
+	}
+	if lastPlayed[ctx.GuildID] == inTheFuture {
+		return ctx.RespondPrivate("You have a ClickArt session active.")
 	}
 	name := ctx.ApplicationCommandData().Options[0].StringValue()
 	_, err := os.Stat("outro" + string(os.PathSeparator) + name + ".ogg")

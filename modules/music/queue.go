@@ -320,3 +320,49 @@ func queue(ctx *commands.Context) error {
 	embed.Color = 0x992d22
 	return ctx.RespondEmbed(embed, true)
 }
+
+func SetClickArt(gid string, enabled bool) bool {
+	streamLock.Lock()
+	st, ok := streams[gid]
+	if ok {
+		if enabled {
+			st.RLock()
+			l := st.Len()
+			st.RUnlock()
+			if l > 0 {
+				streamLock.Unlock()
+				return false
+			}
+			lastPlayed[gid] = inTheFuture
+		} else {
+			lastPlayed[gid] = time.Now()
+		}
+		streamLock.Unlock()
+	} else if enabled {
+		return false
+	}
+	return true
+}
+
+func PlaySpecialSound(self *discordgo.Session, gid, loc string) {
+	vc := self.VoiceConnections[gid]
+	musicStreamer(vc, &StreamObj{
+		Source: loc,
+		Flags:  strflag_special | strflag_noskip,
+		Author: "@me",
+	})
+}
+
+func TryConnect(ctx *commands.Context) error {
+	err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	streamLock.RLock()
+	_, ok := streams[ctx.GuildID]
+	streamLock.RUnlock()
+	if !ok {
+		return &time.ParseError{}
+	}
+	return nil
+}

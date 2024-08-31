@@ -159,7 +159,11 @@ func dc(ctx *commands.Context) error {
 	if ok {
 		streamLock.RLock()
 		ls, ok := streams[ctx.GuildID]
+		tm := lastPlayed[ctx.GuildID]
 		streamLock.RUnlock()
+		if ok && tm == inTheFuture {
+			return ctx.RespondPrivate("You have a ClickArt session active.")
+		}
 		if ok && ls.Len() > 1 {
 			dr := ctx.Data.(discordgo.ApplicationCommandInteractionData)
 			dr.Options = []*discordgo.ApplicationCommandInteractionDataOption{{Type: discordgo.ApplicationCommandOptionInteger, Value: -5738}}
@@ -253,6 +257,7 @@ func onDc(self *discordgo.Session, event *discordgo.VoiceStateUpdate) {
 // This can occur if RESUMED is not handled properly
 // I would use a Once, but I think that an invalid session could cause issues
 var popLock byte
+var inTheFuture time.Time = time.Now().AddDate(2, 4, 8)
 
 // musicPopper checks all guilds registered in the streams map every 3 seconds.
 // If the voice client in that guild has been inactive too long, it is disconnected. onDc takes care of the cleanup for that.
@@ -268,7 +273,9 @@ func musicPopper(self *discordgo.Session, myLock byte) {
 		for k, v := range streams {
 			if v.Len() == 0 {
 				lp := lastPlayed[k]
-				if lp.Before(cutoff) {
+				if lp == inTheFuture {
+					continue
+				} else if lp.Before(cutoff) {
 					vc := self.VoiceConnections[k]
 					if vc != nil {
 						vc.Disconnect()
