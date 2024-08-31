@@ -19,6 +19,7 @@ package main
 
 import (
 	"github.com/bwmarrin/discordgo"
+	"jlortiz.org/jlort2/modules/clickart"
 	"jlortiz.org/jlort2/modules/commands"
 	"jlortiz.org/jlort2/modules/kek"
 	"jlortiz.org/jlort2/modules/log"
@@ -47,6 +48,8 @@ func initModules(self *discordgo.Session, guildId string) {
 	log.Info("Loaded music")
 	reminder.Init(self)
 	log.Info("Loaded remind")
+	clickart.Init(self)
+	log.Info("Loaded clickart")
 	voiceStatement, _ = commands.GetDatabase().Prepare("SELECT cid FROM vachan WHERE gid=?001 AND vid=?002;")
 	commands.PrepareCommand("vachan", "Change voice join announcer").Guild().Perms(discordgo.PermissionManageServer).Register(vachan, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("channel", "Voice join announcements will be posted here, select a category to disable").AsChannel([]discordgo.ChannelType{discordgo.ChannelTypeGuildText, discordgo.ChannelTypeGuildCategory}).Required().Finalize(),
@@ -61,6 +64,7 @@ func initModules(self *discordgo.Session, guildId string) {
 
 func cleanup(self *discordgo.Session) {
 	voiceStatement.Close()
+	clickart.Cleanup(self)
 	reminder.Cleanup(self)
 	music.Cleanup(self)
 	zip.Cleanup(self)

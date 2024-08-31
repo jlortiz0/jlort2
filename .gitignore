@@ -13,3 +13,5 @@ logs/*
 *.swp
 jlort2
 .vscode
+modules/clickart/affirmations/*
+modules/clickart/clicker.ogg

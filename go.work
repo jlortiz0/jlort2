@@ -3,6 +3,7 @@ go 1.22
 use (
 	.
 	./console
+	./modules/clickart
 	./modules/commands
 	./modules/kek
 	./modules/log
