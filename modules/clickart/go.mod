@@ -16,6 +16,5 @@ require (
 	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
 	jlortiz.org/jlort2/modules/commands v0.0.0-00010101000000-000000000000
-	jlortiz.org/jlort2/modules/log v0.0.0-00010101000000-000000000000 // indirect
-	jlortiz.org/jlort2/modules/music v0.0.0-00010101000000-000000000000
+	jlortiz.org/jlort2/modules/log v0.0.0-00010101000000-000000000000
 )

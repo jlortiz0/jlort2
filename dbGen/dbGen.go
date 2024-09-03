@@ -64,27 +64,6 @@ func main() {
 		fmt.Println("inserted vachan")
 	}
 
-	db.Exec("CREATE TABLE djRole (gid INTEGER PRIMARY KEY, rid INTEGER NOT NULL);")
-	data, err = os.ReadFile("dj")
-	if err != nil && !os.IsNotExist(err) {
-		panic(err)
-	} else if err == nil {
-		var vaChannels map[string]string
-		checkFatal(json.Unmarshal(data, &vaChannels))
-		fmt.Println("read dj")
-		stmt, _ := db.Prepare("INSERT INTO djRole VALUES (?, ?);")
-		for k, v := range vaChannels {
-			if v == "" || k == "" {
-				continue
-			}
-			k2, _ := strconv.ParseInt(k, 10, 64)
-			v2, _ := strconv.ParseInt(v, 10, 64)
-			stmt.Exec(k2, v2)
-		}
-		stmt.Close()
-		fmt.Println("inserted dj")
-	}
-
 	db.Exec("CREATE TABLE quotes (gid UNSIGNED BIGINT, ind UNSIGNED INTEGER, quote VARCHAR(512) NOT NULL, PRIMARY KEY(gid, ind));")
 	data, err = os.ReadFile("quotes")
 	if err != nil && !os.IsNotExist(err) {

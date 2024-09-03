@@ -23,7 +23,6 @@ import (
 	"jlortiz.org/jlort2/modules/commands"
 	"jlortiz.org/jlort2/modules/kek"
 	"jlortiz.org/jlort2/modules/log"
-	"jlortiz.org/jlort2/modules/music"
 	"jlortiz.org/jlort2/modules/quotes"
 	"jlortiz.org/jlort2/modules/reminder"
 	"jlortiz.org/jlort2/modules/zip"
@@ -44,8 +43,6 @@ func initModules(self *discordgo.Session, guildId string) {
 	log.Info("Loaded kek")
 	zip.Init(self)
 	log.Info("Loaded zip")
-	music.Init(self)
-	log.Info("Loaded music")
 	reminder.Init(self)
 	log.Info("Loaded remind")
 	clickart.Init(self)
@@ -66,7 +63,6 @@ func cleanup(self *discordgo.Session) {
 	voiceStatement.Close()
 	clickart.Cleanup(self)
 	reminder.Cleanup(self)
-	music.Cleanup(self)
 	zip.Cleanup(self)
 	kek.Cleanup(self)
 	quotes.Cleanup(self)

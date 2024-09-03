@@ -7,7 +7,6 @@ use (
 	./modules/commands
 	./modules/kek
 	./modules/log
-	./modules/music
 	./modules/quotes
 	./modules/zip
 	./modules/reminder

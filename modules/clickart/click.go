@@ -3,12 +3,14 @@ package clickart
 import (
 	"fmt"
 	"math/rand/v2"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"
-	"jlortiz.org/jlort2/modules/music"
+	"jlortiz.org/jlort2/modules/log"
 )
 
 type activity struct {
@@ -72,15 +74,12 @@ func clickart(ctx *commands.Context) error {
 			return ctx.RespondPrivate("Somehow, you sent an invalid affirmation called " + affirmation)
 		}
 	}
-	err := music.TryConnect(ctx)
+	err := connect(ctx)
 	if err != nil {
-		if _, ok := err.(*time.ParseError); !ok {
+		if _, ok := err.(sendPrivateError); !ok {
 			return err
 		}
-		return nil
-	}
-	if !music.SetClickArt(ctx.GuildID, true) {
-		return ctx.RespondPrivate("Failed to enable ClickArt session; is something playing right now?")
+		return ctx.RespondPrivate(err.Error())
 	}
 
 	ch, err := ctx.Bot.UserChannelCreate(ctx.User.ID)
@@ -131,7 +130,10 @@ func clickoff(ctx *commands.Context) error {
 		total := act.total
 		score := act.score
 		act.Unlock()
-		music.SetClickArt(ctx.GuildID, false)
+		vc := ctx.Bot.VoiceConnections[ctx.GuildID]
+		if vc != nil {
+			go musicStreamer(vc, "modules/clickart/bye.ogg", true)
+		}
 		percent := float32(score) / float32(total)
 		var msg string
 		if total < 3 {
@@ -213,13 +215,34 @@ func Init(self *discordgo.Session) {
 	})
 	commands.PrepareCommand("clickoff", "Stop your clickart session").Guild().Register(clickoff, nil)
 	commands.PrepareCommand("praiseme", "Did you do your task? Get some praise, then!").Register(praiseme, nil)
+
+	fList, err := os.ReadDir("outro")
+	if err != nil {
+		log.Error(err)
+	} else {
+		outroComp := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
+		for _, x := range fList {
+			n := x.Name()
+			if !strings.HasSuffix(n, ".ogg") {
+				continue
+			}
+			n = n[:len(n)-4]
+			outroComp = append(outroComp, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
+		}
+		commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
+			commands.NewCommandOption("name", "Name of outro to play").AsString().Required().Choice(outroComp).Finalize(),
+		})
+	}
 }
 
 func Cleanup(self *discordgo.Session) {
 	activeUsersLock.Lock()
-	for k, v := range activeUsers {
+	for k := range activeUsers {
 		delete(activeUsers, k)
-		music.SetClickArt(v.guildID, false)
+		vc := self.VoiceConnections[k]
+		if vc != nil {
+			vc.Disconnect()
+		}
 	}
 	activeUsersLock.Unlock()
 }
