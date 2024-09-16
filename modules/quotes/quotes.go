@@ -216,7 +216,7 @@ func delquote(ctx *commands.Context) error {
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec("UPDATE quotes SET ind = ind - 1 WHERE gid = ?001 AND ind > ?002 ORDER BY ind ASC;", gid, sel)
+	_, err = tx.Exec("UPDATE quotes SET ind = ind - 1 WHERE gid = ?001 AND ind > ?002;", gid, sel)
 	if err != nil {
 		tx.Rollback()
 		return err
