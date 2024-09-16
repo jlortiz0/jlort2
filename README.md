@@ -18,11 +18,7 @@ This program relies on some files existing before it can run. You must create a 
 
 Additionally, the bot requires a database file to function properly. A creation script for this file can be found in `dbGen/dbGen.go`. If you have existing persistent data for an older version of the bot, the script will migrate it.
 
-The music module has a feature that requires a folder of sounds to surprise unsuspecting people with, called `spook`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k or 128k, and an audio rate of 48k.
-
-The `~!outro` command requires a folder called `outro` containing similarly formatted files.
-
-The bot will attempt to play a sound before leaving a channel. This sound should be in `modules/music/bye.ogg`, and be in the same format as the above.
+The clickart module has a feature that requires a folder of sounds to play as affirmations for successfully performing an action, `modules/clickart/affirmations`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k, and an audio rate of 48k. Another file at `modules/clickart/clicker.ogg` is also required, and should be in the same format.
 
 ## Removed features
 

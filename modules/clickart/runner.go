@@ -2,8 +2,6 @@ package clickart
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
@@ -11,14 +9,13 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"jlortiz.org/jlort2/modules/commands"
 	"jlortiz.org/jlort2/modules/log"
 )
 
 func doClick(self *discordgo.Session, uid string) {
-	activeUsersLock.Lock()
+	activeUsersLock.RLock()
 	usr := activeUsers[uid]
-	activeUsersLock.Unlock()
+	activeUsersLock.RUnlock()
 
 	// usr.training and usr.activity aren't modified after intialization, so they are safe to read without a lock
 	if usr.training {
@@ -28,7 +25,8 @@ func doClick(self *discordgo.Session, uid string) {
 	}
 
 	usr.Lock()
-	usr.praise = make(chan struct{})
+	praise := make(chan struct{})
+	usr.praise = praise
 	usr.Unlock()
 	t := time.NewTimer(usr.activity.expected)
 	defer t.Stop()
@@ -37,12 +35,12 @@ func doClick(self *discordgo.Session, uid string) {
 	select {
 	case <-t.C:
 		elapsed = true
-	case <-usr.praise:
+	case <-praise:
 	}
 	// If we got deleted from the map while waiting, we shouldn't queue ourselves again
-	activeUsersLock.Lock()
+	activeUsersLock.RLock()
 	_, ok := activeUsers[uid]
-	activeUsersLock.Unlock()
+	activeUsersLock.RUnlock()
 	if !ok {
 		return
 	}
@@ -67,40 +65,32 @@ func doClick(self *discordgo.Session, uid string) {
 }
 
 func cancelOnDc(self *discordgo.Session, event *discordgo.VoiceStateUpdate) {
-	if event.UserID == self.State.User.ID && event.ChannelID == "" {
-		uid := event.BeforeUpdate.UserID
-		activeUsersLock.Lock()
-		act, ok := activeUsers[uid]
-		if ok {
-			delete(activeUsers, uid)
-		}
-		activeUsersLock.Unlock()
-		if ok {
-			act.Lock()
-			act.timer.Stop()
-			if act.praise != nil {
-				close(act.praise)
-			}
-			act.Unlock()
-		}
+	if event.BeforeUpdate == nil || event.ChannelID == event.BeforeUpdate.ChannelID {
 		return
 	}
-	vc := self.VoiceConnections[event.GuildID]
-	if vc == nil {
-		return
+	self.RLock()
+	vc := self.VoiceConnections[event.BeforeUpdate.GuildID]
+	self.RUnlock()
+	uid := event.UserID
+	activeUsersLock.Lock()
+	if uid == self.State.User.ID {
+		uid = guildUsersMap[event.BeforeUpdate.GuildID]
 	}
-	vguild, err := self.State.Guild(event.GuildID)
-	if err != nil {
-		return
+	act, ok := activeUsers[uid]
+	if ok {
+		delete(activeUsers, uid)
 	}
-	count := 0
-	for _, v := range vguild.VoiceStates {
-		if v.ChannelID == vc.ChannelID && !v.Deaf && !v.SelfDeaf && v.UserID != self.State.User.ID {
-			count++
+	activeUsersLock.Unlock()
+	if ok {
+		act.Lock()
+		act.timer.Stop()
+		if act.praise != nil {
+			close(act.praise)
 		}
-	}
-	if count == 0 {
-		vc.Disconnect()
+		act.Unlock()
+		if vc != nil {
+			vc.Disconnect()
+		}
 	}
 }
 
@@ -110,7 +100,7 @@ func clickItGood(self *discordgo.Session, gid string, click bool, affirmation st
 		return
 	}
 	if click {
-		musicStreamer(vc, "modules/clickart/clicker.ogg", false)
+		musicStreamer(vc, "modules/clickart/clicker.ogg")
 	}
 	if affirmation != "" {
 		possible := affirmations[affirmation]
@@ -121,11 +111,11 @@ func clickItGood(self *discordgo.Session, gid string, click bool, affirmation st
 			sel := rand.N(possible) + 1
 			loc = "modules/clickart/affirmations/" + affirmation + strconv.Itoa(sel) + ".ogg"
 		}
-		musicStreamer(vc, loc, false)
+		musicStreamer(vc, loc)
 	}
 }
 
-func musicStreamer(vc *discordgo.VoiceConnection, source string, dconend bool) {
+func musicStreamer(vc *discordgo.VoiceConnection, source string) {
 	f, err := os.Open(source)
 	if err != nil {
 		log.Error(err)
@@ -170,62 +160,4 @@ Streamer:
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	if dconend {
-		vc.Disconnect()
-	}
-}
-
-type sendPrivateError string
-
-func (s sendPrivateError) Error() string { return string(s) }
-
-func connect(ctx *commands.Context) error {
-	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
-	if err != nil || authorVoice.ChannelID == "" {
-		return sendPrivateError("You must be in a voice channel to use this command.")
-	}
-	vc, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
-	if ok {
-		if vc.ChannelID != authorVoice.ChannelID {
-			channel, err := ctx.State.Channel(vc.ChannelID)
-			if err != nil {
-				return fmt.Errorf("failed to get channel info: %w", err)
-			}
-			return sendPrivateError("Please move to voice channel " + channel.Name)
-		}
-	} else {
-		_, err = ctx.Bot.ChannelVoiceJoin(ctx.GuildID, authorVoice.ChannelID, false, true)
-		if err != nil {
-			perms, err2 := ctx.State.UserChannelPermissions(ctx.Me.ID, authorVoice.ChannelID)
-			if err2 == nil && perms&discordgo.PermissionVoiceConnect == 0 {
-				return sendPrivateError("I need the Connect permission to use this command.")
-			}
-			return fmt.Errorf("failed to connect to voice: %w", err)
-		}
-	}
-	return nil
-}
-
-func outro(ctx *commands.Context) error {
-	activeUsersLock.Lock()
-	_, ok := activeUsers[ctx.GuildID]
-	activeUsersLock.Unlock()
-	vc := ctx.Bot.VoiceConnections[ctx.GuildID]
-	if vc == nil {
-		return ctx.RespondPrivate("Not connected to voice.")
-	}
-	if ok {
-		return ctx.RespondPrivate("Can't play an outro during a ClickArt session.")
-	}
-	name := ctx.ApplicationCommandData().Options[0].StringValue()
-	pth := "outro" + string(os.PathSeparator) + name + ".ogg"
-	_, err := os.Stat(pth)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ctx.RespondPrivate("That outro does not exist.")
-		}
-		return err
-	}
-	go musicStreamer(vc, pth, true)
-	return ctx.RespondEmpty()
 }

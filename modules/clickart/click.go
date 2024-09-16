@@ -3,14 +3,11 @@ package clickart
 import (
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"jlortiz.org/jlort2/modules/commands"
-	"jlortiz.org/jlort2/modules/log"
 )
 
 type activity struct {
@@ -34,19 +31,36 @@ type activeUser struct {
 }
 
 var activities map[string]*activity = map[string]*activity{
-	"test": {
-		reminder:   "Quickly, send the command!",
-		minBetween: time.Second * 20,
-		maxBetween: time.Second * 40,
-		expected:   time.Second * 10,
+	"saving": {
+		reminder:   "Save!",
+		minBetween: time.Second * 90,
+		maxBetween: time.Minute * 8,
+		expected:   time.Minute / 2,
+	},
+	"barking": {
+		reminder:   "Bark!",
+		minBetween: time.Minute * 2,
+		maxBetween: time.Minute * 10,
+		expected:   time.Minute / 4,
+	},
+	"meowing": {
+		reminder:   "Meow!",
+		minBetween: time.Minute * 2,
+		maxBetween: time.Minute * 10,
+		expected:   time.Minute / 4,
 	},
 }
 var affirmations map[string]int = map[string]int{
-	"unya": 3,
+	"boy":   0,
+	"girl":  0,
+	"puppy": 0,
+	"kitty": 0,
+	"bean":  0,
 }
 
 var activeUsers map[string]*activeUser = make(map[string]*activeUser)
-var activeUsersLock sync.Mutex
+var guildUsersMap map[string]string = make(map[string]string)
+var activeUsersLock sync.RWMutex
 
 func clickart(ctx *commands.Context) error {
 	data := ctx.ApplicationCommandData()
@@ -74,33 +88,41 @@ func clickart(ctx *commands.Context) error {
 			return ctx.RespondPrivate("Somehow, you sent an invalid affirmation called " + affirmation)
 		}
 	}
-	err := connect(ctx)
-	if err != nil {
-		if _, ok := err.(sendPrivateError); !ok {
-			return err
-		}
-		return ctx.RespondPrivate(err.Error())
-	}
 
+	authorVoice, err := ctx.State.VoiceState(ctx.GuildID, ctx.User.ID)
+	if err != nil || authorVoice.ChannelID == "" {
+		return ctx.RespondPrivate("You must be in a voice channel to use this command.")
+	}
+	ctx.Bot.RLock()
+	_, ok := ctx.Bot.VoiceConnections[ctx.GuildID]
+	ctx.Bot.RUnlock()
+	if ok {
+		return ctx.RespondPrivate("There is already a Clickart session active in this server.")
+	}
 	ch, err := ctx.Bot.UserChannelCreate(ctx.User.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create user channel: %w", err)
 	}
-	chID := ch.ID
+	_, err = ctx.Bot.ChannelVoiceJoin(ctx.GuildID, authorVoice.ChannelID, false, true)
+	if err != nil {
+		return fmt.Errorf("failed to connect to voice: %w", err)
+	}
 
 	until := activity.minBetween + time.Duration(rand.Int64N(int64(activity.maxBetween-activity.minBetween)))
 	activeUsersLock.Lock()
-	_, ok := activeUsers[ctx.User.ID]
-	if !ok {
-		activeUsers[ctx.User.ID] = &activeUser{
-			training:    training,
-			activity:    activity,
-			affirmation: affirmation,
-			timer:       time.AfterFunc(until, func() { doClick(ctx.Bot, ctx.User.ID) }),
-			channelID:   chID,
-			guildID:     ctx.GuildID,
-		}
+	old, ok := activeUsers[ctx.User.ID]
+	if ok && old.timer != nil {
+		old.timer.Stop()
 	}
+	activeUsers[ctx.User.ID] = &activeUser{
+		training:    training,
+		activity:    activity,
+		affirmation: affirmation,
+		timer:       time.AfterFunc(until, func() { doClick(ctx.Bot, ctx.User.ID) }),
+		channelID:   ch.ID,
+		guildID:     ctx.GuildID,
+	}
+	guildUsersMap[ctx.GuildID] = ctx.User.ID
 	activeUsersLock.Unlock()
 	if training {
 		if affirmation != "" {
@@ -109,7 +131,7 @@ func clickart(ctx *commands.Context) error {
 		return ctx.RespondPrivate("ClickArt session started. I will DM you reminders to do the activity; when you do it, use /praiseme to get a click.")
 	}
 	if affirmation != "" {
-		ctx.RespondPrivate("ClickArt session started. When you hear the click, do the activity and use /praiseme to receive an affirmation.")
+		return ctx.RespondPrivate("ClickArt session started. When you hear the click, do the activity and use /praiseme to receive an affirmation.")
 	}
 	return ctx.RespondPrivate("ClickArt session started. When you hear the click, do the activity and use /praiseme or you won't get a star.")
 }
@@ -119,6 +141,7 @@ func clickoff(ctx *commands.Context) error {
 	act, ok := activeUsers[ctx.User.ID]
 	if ok {
 		delete(activeUsers, ctx.User.ID)
+		delete(guildUsersMap, act.guildID)
 	}
 	activeUsersLock.Unlock()
 	if ok {
@@ -130,14 +153,16 @@ func clickoff(ctx *commands.Context) error {
 		total := act.total
 		score := act.score
 		act.Unlock()
+		ctx.Bot.RLock()
 		vc := ctx.Bot.VoiceConnections[ctx.GuildID]
+		ctx.Bot.RUnlock()
 		if vc != nil {
-			go musicStreamer(vc, "modules/clickart/bye.ogg", true)
+			vc.Disconnect()
 		}
 		percent := float32(score) / float32(total)
 		var msg string
 		if total < 3 {
-			msg = "This session was too short for a star. Try again next time!"
+			return ctx.RespondPrivate("ClickArt session finished.\nThis session was too short for a star. Try again next time!")
 		} else if percent == 1 {
 			msg = "You got a foil star! Incredible! "
 			if !act.training {
@@ -157,14 +182,15 @@ func clickoff(ctx *commands.Context) error {
 		} else {
 			msg = "You tried... I hope."
 		}
-		return ctx.RespondPrivate(fmt.Sprintf("ClickArt session finished.\nYour score was %d/%d, or %.1f%%.\n%s", score, total, percent, msg))
+		return ctx.RespondPrivate(fmt.Sprintf("ClickArt session finished.\nYour score was %d/%d, or %.0f%%.\n%s", score, total, percent*100, msg))
 	}
 	return ctx.RespondPrivate("You do not have a ClickArt session.")
 }
 
 func praiseme(ctx *commands.Context) error {
-	activeUsersLock.Lock()
+	activeUsersLock.RLock()
 	act, ok := activeUsers[ctx.User.ID]
+	activeUsersLock.RUnlock()
 	var ok2, training bool
 	if ok {
 		act.Lock()
@@ -176,7 +202,6 @@ func praiseme(ctx *commands.Context) error {
 		}
 		act.Unlock()
 	}
-	activeUsersLock.Unlock()
 	if ok && ok2 {
 		if act.training || act.affirmation != "" {
 			go clickItGood(ctx.Bot, ctx.GuildID, act.training, act.affirmation)
@@ -208,37 +233,20 @@ func Init(self *discordgo.Session) {
 	}
 
 	self.AddHandler(cancelOnDc)
-	commands.PrepareCommand("clickart", "temporary description").Guild().Register(clickart, []*discordgo.ApplicationCommandOption{
+	commands.PrepareCommand("clickart", "Get rewarded as a netizen deserves").Guild().Register(clickart, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("activity", "what the hey are you doing?").AsString().Choice(activityChoices).Required().Finalize(),
 		commands.NewCommandOption("training", "if true, click as a reward. if false, click as a prompt.").AsBool().Finalize(),
 		commands.NewCommandOption("affirmation", "audio affirmations to help you get acquianted").AsString().Choice(affirmationChoices).Finalize(),
 	})
 	commands.PrepareCommand("clickoff", "Stop your clickart session").Guild().Register(clickoff, nil)
 	commands.PrepareCommand("praiseme", "Did you do your task? Get some praise, then!").Register(praiseme, nil)
-
-	fList, err := os.ReadDir("outro")
-	if err != nil {
-		log.Error(err)
-	} else {
-		outroComp := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList))
-		for _, x := range fList {
-			n := x.Name()
-			if !strings.HasSuffix(n, ".ogg") {
-				continue
-			}
-			n = n[:len(n)-4]
-			outroComp = append(outroComp, &discordgo.ApplicationCommandOptionChoice{Name: n, Value: n})
-		}
-		commands.PrepareCommand("outro", "Play an outro").Guild().Register(outro, []*discordgo.ApplicationCommandOption{
-			commands.NewCommandOption("name", "Name of outro to play").AsString().Required().Choice(outroComp).Finalize(),
-		})
-	}
 }
 
 func Cleanup(self *discordgo.Session) {
 	activeUsersLock.Lock()
-	for k := range activeUsers {
-		delete(activeUsers, k)
+	for k, v := range guildUsersMap {
+		delete(activeUsers, v)
+		delete(guildUsersMap, k)
 		vc := self.VoiceConnections[k]
 		if vc != nil {
 			vc.Disconnect()
