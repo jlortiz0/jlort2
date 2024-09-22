@@ -35,8 +35,6 @@ import (
 	"jlortiz.org/jlort2/modules/log"
 )
 
-const ENABLE_OLD_CMD_NAG = true
-
 var sc chan os.Signal
 
 func main() {
@@ -45,7 +43,6 @@ func main() {
 	}
 	log.Init()
 	defer log.Cleanup()
-start:
 	strBytes, err := os.ReadFile("key.txt")
 	if err != nil {
 		panic(err)
@@ -89,7 +86,7 @@ start:
 	}
 
 	client.AddHandlerOnce(func(self *discordgo.Session, event *discordgo.Ready) { ready(self, event, guildId, motd) })
-	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages | discordgo.IntentMessageContent
+	client.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentMessageContent
 	client.State.MaxMessageCount = 100
 	client.State.TrackVoice = true
 	err = client.Open()
@@ -99,15 +96,11 @@ start:
 	defer client.Close()
 
 	sc = make(chan os.Signal)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
 	// sc2 := make(chan os.Signal)
 	// signal.Notify(sc2, syscall.SIGUSR1)
 	// go crashMe(sc2)
-	if (<-sc) == syscall.SIGHUP && log.GetLevel() == log.LevelWARN {
-		cleanup(client)
-		client.Close()
-		goto start
-	}
+	<-sc
 	log.Info("Stopping...")
 	if len(guildId) > 0 && guildId[0] != '-' {
 		cleanup(client)
@@ -127,7 +120,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd
 	if err != nil {
 		panic(err)
 	}
-	updatePfp(self)
+	go updatePfp(self)
 	initModules(self, guildId)
 	f, err := os.Open("avatar.png")
 	if err == nil {
@@ -151,9 +144,6 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd
 	self.AddHandler(voiceStateUpdate)
 	self.AddHandler(newGuild)
 	self.AddHandler(oldGuild)
-	if ENABLE_OLD_CMD_NAG {
-		self.AddHandler(cmdMigrationNag)
-	}
 	if motd != "" {
 		motd = strings.Clone(motd)
 		setMotd(self, motd)
@@ -166,26 +156,6 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd
 
 func setMotd(self *discordgo.Session, motd string) {
 	self.UpdateGameStatus(0, motd)
-}
-
-func cmdMigrationNag(self *discordgo.Session, event *discordgo.MessageCreate) {
-	msg := event.Content
-	if event.Author.Bot || len(msg) < 3 {
-		return
-	}
-	ind := strings.IndexByte(msg, ' ')
-	if ind != -1 {
-		msg = msg[:ind]
-	}
-	if len(msg) < 3 || msg[1] != '!' || (msg[0] != '~' && msg[0] != '!') {
-		return
-	}
-	msg = msg[2:]
-	if msg == "help" || commands.GetCommand(msg) != nil {
-		self.ChannelMessageSendReply(event.ChannelID, self.State.Application.Name+" has switched to slash commands", &discordgo.MessageReference{
-			MessageID: event.ID, ChannelID: event.ChannelID, GuildID: event.GuildID,
-		})
-	}
 }
 
 func interactionCreate(self *discordgo.Session, event *discordgo.InteractionCreate) {

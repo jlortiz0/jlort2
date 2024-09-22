@@ -21,8 +21,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
-	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -140,81 +138,6 @@ func ping(ctx *Context) error {
 	return ctx.RespondPrivate(fmt.Sprintf("Latency: %d ms", ctx.Bot.HeartbeatLatency().Milliseconds()))
 }
 
-var updating bool
-
-// ~!gsm <arg1>
-// @Hidden
-// Run a game server. Do ~!gsm help for help.
-// You must be part of a private server to use this command.
-func gsm(ctx *Context) error {
-	if updating {
-		return ctx.RespondPrivate("The servers are currently updating.")
-	}
-	arg := ctx.ApplicationCommandData().Options[0].StringValue()
-	if arg == "update" || arg == "poweroff" {
-		if ctx.State.Application.Owner.ID != ctx.User.ID {
-			return ctx.RespondPrivate("You do not have access to that command, and never will.")
-		}
-	}
-	bashLoc, err := exec.LookPath("bash")
-	if err != nil {
-		// This means bash dissapeared at some point between init and now, which is quite panic-worthy
-		panic(err)
-	}
-	if arg == "update" {
-		updating = true
-		ctx.RespondDelayed(true)
-		cmd := exec.Command(bashLoc, "gsm.sh", arg)
-		cmd.Start()
-		cmd.Wait()
-		os.Chtimes("lastUpdate", time.Now(), time.Now())
-		updating = false
-		return ctx.RespondEdit("Update complete!")
-	}
-	for _, x := range arg {
-		if x < 'A' || x > 'z' || (x > 'Z' && x < 'a') {
-			return ctx.RespondPrivate("Illegal character.")
-		}
-	}
-	var cmd *exec.Cmd
-	if len(ctx.ApplicationCommandData().Options) == 1 {
-		cmd = exec.Command(bashLoc, "gsm.sh", arg)
-	} else {
-		cmd = exec.Command(bashLoc, "gsm.sh", arg, "silent")
-	}
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to run gsm: %w", err)
-	}
-	if len(out) == 0 {
-		log.Warn("Empty output from /gsm " + arg)
-		return ctx.RespondEmpty()
-	}
-	return ctx.Respond(string(out))
-}
-
-func gsmAutocomplete(ctx *Context) []*discordgo.ApplicationCommandOptionChoice {
-	pre := ctx.ApplicationCommandData().Options[0].StringValue()
-	fList, err := os.ReadDir("/home/McServer/")
-	if err != nil {
-		return nil
-	}
-	output := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(fList)+3)
-	for _, x := range fList {
-		if x.IsDir() && strings.HasPrefix(x.Name(), pre) {
-			output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: x.Name(), Value: x.Name()})
-		}
-	}
-	if strings.HasPrefix("stop", pre) {
-		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "stop", Value: "stop"})
-	} else if strings.HasPrefix("ping", pre) {
-		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ping", Value: "ping"})
-	} else if strings.HasPrefix("ip", pre) {
-		output = append(output, &discordgo.ApplicationCommandOptionChoice{Name: "ip", Value: "ip"})
-	}
-	return output
-}
-
 var buildDate string
 var verNum string
 
@@ -293,41 +216,6 @@ func Init(self *discordgo.Session) {
 	PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
 	})
-	if runtime.GOOS != "windows" {
-		st, _ := os.Stat("gsm.sh")
-		if st != nil && st.Mode()&0100 != 0 {
-			PrepareCommand("gsm", "Game Server Manager").Guild().Auto(gsmAutocomplete).Gsm().Register(gsm, []*discordgo.ApplicationCommandOption{
-				NewCommandOption("arg", "Run /gsm help for a list of arguments").AsString().Required().Auto().Finalize(),
-				NewCommandOption("silent", "If true, server startup will not be announced, default false").AsBool().Finalize(),
-			})
-		}
-	}
-	info, err := os.Stat("lastUpdate")
-	if err == nil {
-		since := time.Since(info.ModTime())
-		if since > 12*time.Hour {
-			var cmd *exec.Cmd
-			if runtime.GOOS != "windows" {
-				bashLoc, _ := exec.LookPath("bash")
-				cmd = exec.Command(bashLoc, "gsm.sh", "update")
-			} else {
-				pipLoc, _ := exec.LookPath("pip")
-				cmd = exec.Command(pipLoc, "install", "--user", "-q", "-U", "yt-dlp")
-			}
-			cmd.Start()
-			updating = true
-			go func() {
-				cmd.Wait()
-				os.Chtimes("lastUpdate", time.Now(), time.Now())
-				updating = false
-			}()
-		}
-	} else {
-		f, _ := os.OpenFile("lastUpdate", os.O_WRONLY|os.O_CREATE, 0)
-		if f != nil {
-			f.Close()
-		}
-	}
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.

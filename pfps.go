@@ -30,59 +30,59 @@ import (
 )
 
 func updatePfp(self *discordgo.Session) {
-	f, err := os.Open("pfps" + string(os.PathSeparator) + "defs.dat")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer f.Close()
-	rd := bufio.NewReader(f)
-	stat, err := os.Stat("lastUpdate")
-	if err != nil {
-		return
-	}
-	ts := time.Now()
-	ots := stat.ModTime().In(ts.Location())
-	// fmt.Println(ts, ots)
-	var buf [4]byte
-	var dFlag bool
-	var name string
-	var n int
+	t := time.Tick(6 * time.Hour)
 	for {
-		n, err = rd.Read(buf[:])
-		if n != 4 {
-			break
-		}
-		name, err = rd.ReadString(0)
+		f, err := os.Open("pfps" + string(os.PathSeparator) + "defs.dat")
 		if err != nil {
-			break
-		}
-		name = name[:len(name)-1]
-		startts := time.Date(ts.Year(), time.Month(buf[0]), int(buf[1]), 0, 0, 0, 0, ts.Location())
-		endts := time.Date(ts.Year(), time.Month(buf[2]), int(buf[3]), 0, 0, 0, 0, ts.Location())
-		// fmt.Println(buf, startts.Before(ts), endts.Before(ts), startts.Before(ots), endts.Before(ots))
-		if startts.Before(ts) && !endts.Before(ts) {
-			if dFlag || ots.Before(startts) {
-				avatar, err := os.ReadFile("pfps" + string(os.PathSeparator) + name)
-				if err == nil {
-					_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar))
-					if err != nil {
-						log.Error(fmt.Errorf("could not set avatar: %w", err))
-					} else {
-						log.Warn("Updated profile picture")
-					}
-				} else {
-					log.Error(fmt.Errorf("could not read avatar: %w", err))
-				}
-			}
+			log.Error(err)
 			return
-		} else if !dFlag && startts.Before(ots) && !endts.Before(ots) {
-			dFlag = true
 		}
-	}
-	if err != io.EOF {
-		log.Error(fmt.Errorf("unable to update PFP: %w", err))
-	} else {
-		log.Warn("PFP defs missing default!")
+		defer f.Close()
+		rd := bufio.NewReader(f)
+		ts := time.Now()
+		ots := ts.Add(-6 * time.Hour)
+		// fmt.Println(ts, ots)
+		var buf [4]byte
+		var dFlag bool
+		var name string
+		var n int
+		for {
+			n, err = rd.Read(buf[:])
+			if n != 4 {
+				break
+			}
+			name, err = rd.ReadString(0)
+			if err != nil {
+				break
+			}
+			name = name[:len(name)-1]
+			startts := time.Date(ts.Year(), time.Month(buf[0]), int(buf[1]), 0, 0, 0, 0, ts.Location())
+			endts := time.Date(ts.Year(), time.Month(buf[2]), int(buf[3]), 0, 0, 0, 0, ts.Location())
+			// fmt.Println(buf, startts.Before(ts), endts.Before(ts), startts.Before(ots), endts.Before(ots))
+			if startts.Before(ts) && !endts.Before(ts) {
+				if dFlag || ots.Before(startts) {
+					avatar, err := os.ReadFile("pfps" + string(os.PathSeparator) + name)
+					if err == nil {
+						_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar))
+						if err != nil {
+							log.Error(fmt.Errorf("could not set avatar: %w", err))
+						} else {
+							log.Warn("Updated profile picture")
+						}
+					} else {
+						log.Error(fmt.Errorf("could not read avatar: %w", err))
+					}
+				}
+				return
+			} else if !dFlag && startts.Before(ots) && !endts.Before(ots) {
+				dFlag = true
+			}
+		}
+		if err != io.EOF {
+			log.Error(fmt.Errorf("unable to update PFP: %w", err))
+		} else {
+			log.Warn("PFP defs missing default!")
+		}
+		<-t
 	}
 }
