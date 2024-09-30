@@ -30,6 +30,10 @@ type activeUser struct {
 	training bool
 }
 
+type affirmationEntry struct {
+	common, rare int
+}
+
 var activities map[string]*activity = map[string]*activity{
 	"saving": {
 		reminder:   "Save!",
@@ -49,13 +53,19 @@ var activities map[string]*activity = map[string]*activity{
 		maxBetween: time.Minute * 10,
 		expected:   time.Minute / 4,
 	},
+	// "testing": {
+	// 	reminder:   "Command!",
+	// 	minBetween: time.Second * 20,
+	// 	maxBetween: time.Second * 40,
+	// 	expected:   time.Minute / 4,
+	// },
 }
-var affirmations map[string]int = map[string]int{
-	"boy":   0,
-	"girl":  0,
-	"puppy": 0,
-	"kitty": 0,
-	"bean":  0,
+var affirmations map[string]affirmationEntry = map[string]affirmationEntry{
+	"cynthia_boy":      {11, 2},
+	"cynthia_girl":     {7, 0},
+	"cynthia_puppy":    {7, 5},
+	"cynthia_kitty":    {11, 2},
+	"cynthia_pogchamp": {4, 3},
 }
 
 var activeUsers map[string]*activeUser = make(map[string]*activeUser)

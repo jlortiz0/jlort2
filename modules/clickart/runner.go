@@ -2,10 +2,10 @@ package clickart
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -105,11 +105,10 @@ func clickItGood(self *discordgo.Session, gid string, click bool, affirmation st
 	if affirmation != "" {
 		possible := affirmations[affirmation]
 		var loc string
-		if possible == 1 {
-			loc = "modules/clickart/affirmations/" + affirmation + ".ogg"
+		if possible.rare != 0 && rand.N(64) == 0 {
+			loc = fmt.Sprintf("modules/clickart/affirmations/%s_rare_%d.ogg", affirmation, rand.N(possible.rare)+1)
 		} else {
-			sel := rand.N(possible) + 1
-			loc = "modules/clickart/affirmations/" + affirmation + strconv.Itoa(sel) + ".ogg"
+			loc = fmt.Sprintf("modules/clickart/affirmations/%s_%d.ogg", affirmation, rand.N(possible.common)+1)
 		}
 		musicStreamer(vc, loc)
 	}

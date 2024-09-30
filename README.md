@@ -18,7 +18,7 @@ This program relies on some files existing before it can run. You must create a 
 
 Additionally, the bot requires a database file to function properly. A creation script for this file can be found in `dbGen/dbGen.go`. If you have existing persistent data for an older version of the bot, the script will migrate it.
 
-The clickart module has a feature that requires a folder of sounds to play as affirmations for successfully performing an action, `modules/clickart/affirmations`. The sounds should be in Ogg Opus format with 2 channels, a bitrate of approximately 64k, and an audio rate of 48k. Another file at `modules/clickart/clicker.ogg` is also required, and should be in the same format.
+The clickart module has a feature that requires a folder of sounds to play as affirmations for successfully performing an action, `modules/clickart/affirmations`. The sounds should be in Ogg Opus format with 1 or 2 channels, a bitrate of approximately 64k, and an audio rate of 48k. Another file at `modules/clickart/clicker.ogg` is also required, and should be in the same format.
 
 ## Removed features
 
@@ -35,3 +35,4 @@ These commands existed and were removed before the version I uploaded to GitHub.
 - `~!relics` - A gacha game that was troubled by the fact that there were only 7 things to collect.
 - `~!trade` - A trading system for the above gacha game.
 - `~!duel` - A versus "minigame" based completely on chance. Minigame in quotes because it just flipped a coin to determine who won after 30 seconds.
+- `~!play` - Part of a larger system of music commands, was removed shortly after the relaunch of Rythm due to the age of music bots being long over.
