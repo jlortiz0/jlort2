@@ -57,7 +57,7 @@ func remind(ctx *commands.Context) error {
 		return ctx.RespondPrivate("Reached limit of " + strconv.Itoa(max_reminders_per_user) + " reminders")
 	}
 	now := time.Now()
-	stmtIns.Exec(t, ctx.Interaction.User.ID, now, what)
+	stmtIns.Exec(t.In(time.Local), ctx.Interaction.User.ID, now, what)
 	msg := "I will remind you on " + t.Format(tsFormat) + ". To cancel, do /remindcancel " + strconv.Itoa(count+1)
 	if !hasZone {
 		msg += "\nIf the above time zone is incorrect, use /settz to set it"
@@ -151,9 +151,17 @@ func runner(self *discordgo.Session, stopper <-chan struct{}) {
 		empty := true
 		var uid, what string
 		var created time.Time
+		var tzS string
 		for rows.Next() {
 			empty = false
-			rows.Scan(&uid, &created, &what)
+			tz := time.Local
+			rows.Scan(&uid, &created, &what, &tzS)
+			if tzS != "" {
+				tz, err = time.LoadLocation(tzS)
+				if err != nil {
+					tz = time.Local
+				}
+			}
 			chanId, ok := channelCache[uid]
 			if ok && chanId == "0" {
 				// we previously failed to create this channel, skip this one
@@ -168,7 +176,7 @@ func runner(self *discordgo.Session, stopper <-chan struct{}) {
 				channelCache[uid] = channel.ID
 				chanId = channel.ID
 			}
-			_, err = self.ChannelMessageSend(chanId, "A reminder for you, from "+created.Format(shortTsFormat)+":\n\n"+what)
+			_, err = self.ChannelMessageSend(chanId, "A reminder for you, from "+created.In(tz).Format(shortTsFormat)+":\n\n"+what)
 			if err != nil {
 				log.Error(fmt.Errorf("failed to send message: %w", err))
 				channelCache[uid] = "0"
@@ -183,7 +191,9 @@ func runner(self *discordgo.Session, stopper <-chan struct{}) {
 func Init(self *discordgo.Session) {
 	stmtIns, _ = commands.GetDatabase().Prepare(`INSERT INTO reminders (ts, uid, created, what) VALUES (?001, ?002, ?003, ?004);`)
 	stmtCount, _ = commands.GetDatabase().Prepare(`SELECT COUNT(*) FROM reminders WHERE uid = ?001;`)
-	stmtSel, _ = commands.GetDatabase().Prepare(`SELECT uid, created, what FROM reminders WHERE ts < ?001;`)
+	stmtSel, _ = commands.GetDatabase().Prepare(`SELECT reminders.uid, reminders.created, reminders.what, userTz.tz
+												 FROM reminders LEFT JOIN userTz ON reminders.uid = userTz.uid
+												 WHERE reminders.ts < ?001;`)
 	stmtSelU, _ = commands.GetDatabase().Prepare(`SELECT ts, what FROM reminders WHERE uid = ?001 ORDER BY created ASC;`)
 	stmtClean, _ = commands.GetDatabase().Prepare(`DELETE FROM reminders WHERE ts < ?001;`)
 	stmtGetTz, _ = commands.GetDatabase().Prepare("SELECT tz FROM userTz WHERE uid = ?001;")

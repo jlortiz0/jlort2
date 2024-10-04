@@ -171,7 +171,7 @@ func flip(ctx *Context) error {
 			heads++
 		}
 	}
-	return ctx.Respond(strconv.Itoa(heads) + " heads")
+	return ctx.Respond(fmt.Sprintf("%d/%d coins were heads", heads, count))
 }
 
 // ~!roll [count]
