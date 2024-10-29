@@ -1,6 +1,6 @@
 module jlortiz.org/jlort2/console
 
-go 1.22
+go 1.22.6
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1

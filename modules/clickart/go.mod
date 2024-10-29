@@ -1,6 +1,6 @@
 module jlortiz.org/jlort2/modules/clickart
 
-go 1.22
+go 1.22.6
 
 replace jlortiz.org/jlort2/modules/commands => ../commands
 
