@@ -1,0 +1,52 @@
+CREATE TABLE vachan (
+	gid INTEGER,
+	vid INTEGER,
+	cid INTEGER NOT NULL,
+	PRIMARY KEY (gid, vid)
+);
+
+CREATE TABLE quotes (
+	gid INTEGER,
+	ind INTEGER,
+	quote VARCHAR(512) NOT NULL,
+	PRIMARY KEY(gid, ind)
+);
+
+
+CREATE TABLE kekGuilds (
+	gid INTEGER PRIMARY KEY
+);
+
+CREATE TABLE kekUsers (
+	uid INTEGER PRIMARY KEY,
+	score INTEGER DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE kekMsgs (
+	uid INTEGER REFERENCES kekUsers,
+	mid INTEGER,
+	score INTEGER DEFAULT 0 NOT NULL,
+	PRIMARY KEY (uid, mid) ON CONFLICT REPLACE
+);
+
+CREATE TRIGGER KekNewUser
+	BEFORE INSERT ON kekMsgs
+	FOR EACH ROW BEGIN
+		INSERT OR IGNORE INTO kekUsers (uid) VALUES (new.uid);
+	END;
+
+
+CREATE TABLE reminders (
+	ts TIMESTAMP NOT NULL,
+	uid INTEGER NOT NULL,
+	created TIMESTAMP NOT NULL,
+	what VARCHAR(2000) NOT NULL,
+	PRIMARY KEY (uid, created)
+);
+
+CREATE INDEX remindTs ON reminders (ts);
+
+CREATE TABLE userTz (
+	uid INTEGER PRIMARY KEY,
+	tz VARCHAR(31) NOT NULL
+);
