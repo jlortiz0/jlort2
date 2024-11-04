@@ -88,7 +88,7 @@ func main() {
 	client, err = discordgo.New("Bot " + key)
 	checkFatal(err)
 	client.AddHandlerOnce(ready)
-	intent := discordgo.IntentsGuilds | discordgo.IntentsGuildMembers | discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
+	intent := discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
 	client.Identify.Intents = discordgo.MakeIntent(intent)
 	checkFatal(client.Open())
 	defer client.Close()

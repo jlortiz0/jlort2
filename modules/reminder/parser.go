@@ -8,7 +8,7 @@ import (
 )
 
 var regRel = regexp.MustCompile(`(\d+) ?(m[io]?|[dhwy])[a-z]*`)
-var regAbs = regexp.MustCompile(`^(?:([a-z]{3,}) (\d+)(?:[thndrs]+)?)? ?(?:(\d\d?)(?::(\d\d))?(?: ([ap])m?)?)?$`)
+var regAbs = regexp.MustCompile(`^(?:([a-z]{3,}) (\d+)(?:[thndrs]+)?)? ?(?:(\d\d?)(?::(\d\d))?(?: ?([ap])m?)?)?$`)
 
 func parseTime(s string, zone *time.Location) (t time.Time) {
 	s = strings.ToLower(s)
@@ -82,6 +82,7 @@ func parseTime(s string, zone *time.Location) (t time.Time) {
 		}
 		if len(match2[2]) > 0 {
 			hour, _ = strconv.Atoi(match2[2])
+			minute = 0
 			if match2[4] == "p" {
 				hour += 12
 			}

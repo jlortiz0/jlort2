@@ -202,7 +202,7 @@ func Init(self *discordgo.Session) {
 		commands.NewCommandOption("when", "When to send the reminder, accepts \"1d\", \"5h3m\", \"8pm\", \"25th\", \"March 7th 5:55 AM\"").AsString().Required().Finalize(),
 		commands.NewCommandOption("what", "What to remind you about").AsString().Required().Finalize(),
 	})
-	commands.PrepareCommand("remnindcancel", "Cancel a reminder").Register(remindcancel, []*discordgo.ApplicationCommandOption{
+	commands.PrepareCommand("remindcancel", "Cancel a reminder").Register(remindcancel, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("id", "Index of reminder to cancel").AsInt().SetMinMax(1, max_reminders_per_user).Required().Finalize(),
 	})
 	commands.PrepareCommand("reminders", "See all your reminders").Register(reminders, nil)
