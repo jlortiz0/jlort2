@@ -37,8 +37,8 @@ type affirmationEntry struct {
 var activities map[string]*activity = map[string]*activity{
 	"saving": {
 		reminder:   "Save!",
-		minBetween: time.Second * 90,
-		maxBetween: time.Minute * 8,
+		minBetween: time.Minute * 4,
+		maxBetween: time.Minute * 20,
 		expected:   time.Minute / 2,
 	},
 	"barking": {
@@ -52,6 +52,12 @@ var activities map[string]*activity = map[string]*activity{
 		minBetween: time.Minute * 2,
 		maxBetween: time.Minute * 10,
 		expected:   time.Minute / 4,
+	},
+	"hydrating": {
+		reminder:   "Hydrate!",
+		minBetween: time.Minute * 8,
+		maxBetween: time.Minute * 30,
+		expected:   time.Minute / 2,
 	},
 	// "testing": {
 	// 	reminder:   "Command!",
