@@ -73,14 +73,14 @@ func updatePfp(self *discordgo.Session) {
 						log.Error(fmt.Errorf("could not read avatar: %w", err))
 					}
 				}
-				return
+				break
 			} else if !dFlag && startts.Before(ots) && !endts.Before(ots) {
 				dFlag = true
 			}
 		}
-		if err != io.EOF {
+		if err == io.EOF {
 			log.Error(fmt.Errorf("unable to update PFP: %w", err))
-		} else {
+		} else if err != nil {
 			log.Warn("PFP defs missing default!")
 		}
 		<-t

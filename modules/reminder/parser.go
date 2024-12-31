@@ -127,6 +127,9 @@ func parseTime(s string, zone *time.Location) (t time.Time) {
 	}
 	if hour != -1 {
 		t = time.Date(t.Year(), t.Month(), t.Day(), hour, 0, 0, 0, t.Location())
+		if t.Before(time.Now()) {
+			t = t.AddDate(0, 0, 1)
+		}
 	}
 	return
 }
