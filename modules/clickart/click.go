@@ -86,22 +86,15 @@ func clickart(ctx *commands.Context) error {
 	}
 	var training bool
 	var affirmation string
-	if len(data.Options) > 1 {
-		if data.Options[1].Type == discordgo.ApplicationCommandOptionBoolean {
-			training = data.Options[1].BoolValue()
+	for _, opt := range data.Options[1:] {
+		if opt.Name == "training" {
+			training = opt.BoolValue()
 		} else {
-			affirmation = data.Options[1].StringValue()
+			affirmation = opt.StringValue()
 			_, ok := affirmations[affirmation]
 			if !ok {
 				return ctx.RespondPrivate("Somehow, you sent an invalid affirmation called " + affirmation)
 			}
-		}
-	}
-	if len(data.Options) > 2 {
-		affirmation = data.Options[2].StringValue()
-		_, ok := affirmations[affirmation]
-		if !ok {
-			return ctx.RespondPrivate("Somehow, you sent an invalid affirmation called " + affirmation)
 		}
 	}
 

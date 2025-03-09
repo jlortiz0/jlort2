@@ -340,7 +340,7 @@ func UploadCommands(self *discordgo.Session, appId string, guildId string, testM
 		if testMode {
 			err2 := err.(*discordgo.RESTError)
 			var errBody struct {
-				Errors map[string]interface{}
+				Errors map[string]any
 				Code   int
 			}
 			json.Unmarshal(err2.ResponseBody, &errBody)

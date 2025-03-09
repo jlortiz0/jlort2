@@ -97,9 +97,6 @@ func main() {
 
 	sc = make(chan os.Signal)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
-	// sc2 := make(chan os.Signal)
-	// signal.Notify(sc2, syscall.SIGUSR1)
-	// go crashMe(sc2)
 	<-sc
 	log.Info("Stopping...")
 	if len(guildId) > 0 && guildId[0] != '-' {
@@ -110,8 +107,8 @@ func main() {
 func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd string) {
 	var err error
 	time.Sleep(5 * time.Millisecond)
-	for i := 0; i < len(event.Guilds); i++ {
-		err = self.RequestGuildMembers(event.Guilds[i].ID, "", 250, "", false)
+	for _, x := range event.Guilds {
+		err = self.RequestGuildMembers(x.ID, "", 250, "", false)
 		if err != nil {
 			panic(err)
 		}

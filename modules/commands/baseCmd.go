@@ -166,7 +166,7 @@ func flip(ctx *Context) error {
 		return ctx.Respond("Tails")
 	}
 	heads := 0
-	for i := 0; i < count; i++ {
+	for range count {
 		if rand.Int()&1 == 0 {
 			heads++
 		}
@@ -179,13 +179,20 @@ func flip(ctx *Context) error {
 // If count is provided, rolls multiple.
 func roll(ctx *Context) error {
 	count := 1
-	args := ctx.ApplicationCommandData().Options
-	if len(args) > 0 {
-		count = int(args[0].IntValue())
+	sides := 6
+	for _, opt := range ctx.ApplicationCommandData().Options {
+		if opt.Name == "dice" {
+			count = int(opt.IntValue())
+		} else {
+			sides = int(opt.IntValue())
+		}
 	}
 	total := count
-	for i := 0; i < count; i++ {
-		total += rand.Intn(6)
+	for range count {
+		total += rand.Intn(sides)
+	}
+	if count != 1 || sides != 6 {
+		return ctx.Respond(fmt.Sprintf("Rolled %d using %dd%d", total, count, sides))
 	}
 	return ctx.Respond("Rolled " + strconv.Itoa(total))
 }
@@ -215,6 +222,7 @@ func Init(self *discordgo.Session) {
 	})
 	PrepareCommand("roll", "Roll one or more D6").Register(roll, []*discordgo.ApplicationCommandOption{
 		NewCommandOption("dice", "How many dice to roll").AsInt().SetMinMax(1, 255).Finalize(),
+		NewCommandOption("sides", "How many sides to each die").AsInt().SetMinMax(3, 120).Finalize(),
 	})
 }
 
