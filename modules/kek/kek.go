@@ -280,7 +280,6 @@ func Init(self *discordgo.Session) {
 	queryKekEnabled, err = db.Prepare("SELECT gid FROM kekGuilds WHERE gid=?001;")
 	if err != nil {
 		log.Error(err)
-		return
 	}
 	setKekMsg, err = db.Prepare("INSERT INTO kekMsgs (uid, mid, score) VALUES (?001, ?002, ?003);")
 	if err != nil {
@@ -292,22 +291,41 @@ func Init(self *discordgo.Session) {
 	if err != nil {
 		log.Error(err)
 	}
-	snowflake := uint64(time.Now().AddDate(0, 0, -4).UnixMilli()) - 1420070400000
-	snowflake <<= 22
-	tx, err := db.Begin()
-	if err != nil {
-		log.Error(err)
-		return
+	go cleanKekDB()
+}
+
+func cleanKekDB() {
+	t := time.Tick(time.Hour * 12)
+	for {
+		db := commands.GetDatabase()
+		snowflake := uint64(time.Now().AddDate(0, 0, -4).UnixMilli()) - 1420070400000
+		snowflake <<= 22
+		tx, err := db.Begin()
+		if err != nil {
+			log.Error(err)
+			<-t
+			continue
+		}
+
+		result, err := tx.Exec(`
+		UPDATE kekUsers SET score = score + m.total FROM (
+			SELECT uid, SUM(score) total FROM kekMsgs
+			WHERE mid < ?001
+			GROUP BY uid
+		) m WHERE m.uid = kekUsers.uid;
+		DELETE FROM kekMsgs WHERE mid < ?001;
+		`, snowflake, snowflake)
+		if err != nil {
+			tx.Rollback()
+			log.Error(err)
+		} else if rows, _ := result.RowsAffected(); rows > 0 {
+			tx.Commit()
+			log.Info(fmt.Sprintf("Kek database cleaned, affected %d rows", rows))
+		} else {
+			tx.Rollback()
+		}
+		<-t
 	}
-	tx.Exec(`
-	UPDATE kekUsers SET score = score + m.total FROM (
-		SELECT uid, SUM(score) total FROM kekMsgs
-		WHERE mid < ?001
-		GROUP BY uid
-	) m WHERE m.uid = kekUsers.uid;
-	DELETE FROM kekMsgs WHERE mid < ?001;
-	`, snowflake, snowflake)
-	tx.Commit()
 }
 
 // Cleanup is defined in the command interface to clean up the module when the bot unloads.
