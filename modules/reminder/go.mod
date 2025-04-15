@@ -1,6 +1,7 @@
 module jlortiz.org/jlort2/modules/reminder
 
 go 1.22.6
+toolchain go1.24.1
 
 replace jlortiz.org/jlort2/modules/commands => ../commands
 
@@ -15,6 +16,6 @@ require (
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )
