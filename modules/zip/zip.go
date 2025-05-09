@@ -51,10 +51,12 @@ func chatlog(ctx *commands.Context) error {
 	var err error
 	output := bytes.NewBufferString("Discord Text Archive created on ")
 	output.WriteString(time.Now().Format(tsFormat))
-	output.WriteString(" by ")
-	output.WriteString(ctx.User.GlobalName)
-	if ctx.User.GlobalName == "" {
-		output.WriteString(ctx.User.Username)
+	if ctx.User != nil {
+		output.WriteString(" by ")
+		output.WriteString(ctx.User.GlobalName)
+		if ctx.User.GlobalName == "" {
+			output.WriteString(ctx.User.Username)
+		}
 	}
 	channel, err := ctx.State.Channel(ctx.ChannelID)
 	if err != nil {

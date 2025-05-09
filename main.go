@@ -219,7 +219,7 @@ func handleCommandError(err error, ctx *commands.Context, stack string) {
 	if stack != "" {
 		log.Errors(stack)
 	}
-	if ctx.User.ID == ctx.State.Application.Owner.ID {
+	if ctx.User != nil && ctx.User.ID == ctx.State.Application.Owner.ID {
 		if len(err.Error()) < 1990 {
 			ctx.RespondPrivate(fmt.Sprintf("Error: %s", err.Error()))
 		} else {
