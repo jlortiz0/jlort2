@@ -47,10 +47,7 @@ func kekage(ctx *commands.Context) error {
 	if target.Bot {
 		return ctx.RespondPrivate("Bots can't be kek.")
 	}
-	name := target.GlobalName
-	if target.GlobalName == "" {
-		name = target.Username
-	}
+	name := target.DisplayName()
 	if ctx.GuildID != "" {
 		mem, err := ctx.State.Member(ctx.GuildID, target.ID)
 		if err == nil && mem.Nick != "" {
@@ -267,7 +264,7 @@ func Init(self *discordgo.Session) {
 	})
 	commands.PrepareCommand("kekreport", "Reddit Recap for everyone").Guild().Component(kekReport).Register(kekReport, nil)
 	commands.PrepareCommand("kekenabled", "Enable or disable kek on this server").Guild().Perms(
-		discordgo.PermissionManageServer).Register(kekOn, []*discordgo.ApplicationCommandOption{
+		discordgo.PermissionManageGuild).Register(kekOn, []*discordgo.ApplicationCommandOption{
 		commands.NewCommandOption("enable", "Should kek be enabled on this server?").AsBool().Required().Finalize()})
 	self.AddHandler(onMessageKek)
 	self.AddHandler(onReactionAdd)

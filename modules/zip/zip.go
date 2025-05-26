@@ -53,10 +53,7 @@ func chatlog(ctx *commands.Context) error {
 	output.WriteString(time.Now().Format(tsFormat))
 	if ctx.User != nil {
 		output.WriteString(" by ")
-		output.WriteString(ctx.User.GlobalName)
-		if ctx.User.GlobalName == "" {
-			output.WriteString(ctx.User.Username)
-		}
+		output.WriteString(ctx.User.DisplayName())
 	}
 	channel, err := ctx.State.Channel(ctx.ChannelID)
 	if err != nil {
@@ -114,10 +111,7 @@ func chatlog(ctx *commands.Context) error {
 				continue
 			}
 			if nicks[v.Author.ID] == "" {
-				nicks[v.Author.ID] = v.Author.GlobalName
-				if v.Author.GlobalName == "" {
-					nicks[v.Author.ID] = v.Author.Username
-				}
+				nicks[v.Author.ID] = v.Author.DisplayName()
 				if ctx.GuildID != "" {
 					mem, err := ctx.State.Member(ctx.GuildID, v.Author.ID)
 					if err == nil && mem.Nick != "" {

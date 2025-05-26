@@ -86,10 +86,7 @@ func chatlog(channel *discordgo.Channel, guild *discordgo.Guild, count int) {
 				continue
 			}
 			if nicks[v.Author.ID] == "" {
-				nicks[v.Author.ID] = v.Author.GlobalName
-				if v.Author.GlobalName == "" {
-					nicks[v.Author.ID] = v.Author.Username
-				}
+				nicks[v.Author.ID] = v.Author.DisplayName()
 				if guild != nil {
 					mem, err := client.State.Member(guild.ID, v.Author.ID)
 					if err == nil && mem.Nick != "" {

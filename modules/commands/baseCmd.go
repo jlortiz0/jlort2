@@ -180,12 +180,11 @@ func flip(ctx *Context) error {
 func roll(ctx *Context) error {
 	count := 1
 	sides := 6
-	for _, opt := range ctx.ApplicationCommandData().Options {
-		if opt.Name == "dice" {
-			count = int(opt.IntValue())
-		} else {
-			sides = int(opt.IntValue())
-		}
+	if diceOpt := ctx.ApplicationCommandData().GetOption("dice"); diceOpt != nil {
+		count = int(diceOpt.IntValue())
+	}
+	if sidesOpt := ctx.ApplicationCommandData().GetOption("sides"); sidesOpt != nil {
+		sides = int(sidesOpt.IntValue())
 	}
 	total := count
 	for range count {

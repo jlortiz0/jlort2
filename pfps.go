@@ -63,7 +63,7 @@ func updatePfp(self *discordgo.Session) {
 				if dFlag || ots.Before(startts) {
 					avatar, err := os.ReadFile("pfps" + string(os.PathSeparator) + name)
 					if err == nil {
-						_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar))
+						_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar), "")
 						if err != nil {
 							log.Error(fmt.Errorf("could not set avatar: %w", err))
 						} else {

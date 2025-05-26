@@ -282,8 +282,8 @@ func (c commandStruct) NSFW() commandStruct {
 }
 
 func (c commandStruct) Guild() commandStruct {
-	b := false
-	c.DMPermission = &b
+	b := []discordgo.InteractionContextType{discordgo.InteractionContextGuild}
+	c.Contexts = &b
 	return c
 }
 

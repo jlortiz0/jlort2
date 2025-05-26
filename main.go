@@ -125,7 +125,7 @@ func ready(self *discordgo.Session, event *discordgo.Ready, guildId string, motd
 		avatar := make([]byte, 0x40000)
 		c, err := f.Read(avatar)
 		if err == nil {
-			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]))
+			_, err = self.UserUpdate("", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(avatar[:c]), "")
 			if err != nil {
 				log.Error(fmt.Errorf("could not set avatar: %w", err))
 			} else {
@@ -226,7 +226,7 @@ func handleCommandError(err error, ctx *commands.Context, stack string) {
 			ctx.RespondPrivate("A lengthy error occured.")
 		}
 	} else {
-		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to " + ctx.State.Application.Owner.GlobalName)
+		err2 := ctx.RespondPrivate("Sorry, something went wrong. An error report was sent to " + ctx.State.Application.Owner.DisplayName())
 		if err2 == nil {
 			channel, err2 := ctx.Bot.UserChannelCreate(ctx.State.Application.Owner.ID)
 			if err2 == nil {
