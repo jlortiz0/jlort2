@@ -1,18 +1,16 @@
 module jlortiz.org/jlort2
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.26.0
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/nathan-fiscaletti/consolesize-go v0.0.0-20220204101620-317176b6684d
 )
 
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )
